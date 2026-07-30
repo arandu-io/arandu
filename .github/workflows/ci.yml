@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The skeleton depends on arandu-io/framework, which is private until the
+      # repositories are made public. Checking it out next to this one is what the
+      # replace directive in go.mod points at.
+      - name: check out the framework
+        uses: actions/checkout@v4
+        with:
+          repository: arandu-io/framework
+          path: framework-checkout
+          token: ${{ secrets.FRAMEWORK_TOKEN }}
+
+      - name: place the framework where go.mod expects it
+        run: mv framework-checkout ../framework
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: vet
+        run: go vet ./...
+
+      # These tests need no database: database/sql connects lazily, so the wiring,
+      # the pipeline and every route are exercised without a server.
+      - name: test
+        run: go test -race ./...
+
+      - name: build
+        run: go build -o /tmp/app ./cmd/app

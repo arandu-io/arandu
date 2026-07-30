@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+*.go text diff=golang
+*.templ text
+*.sql text
+go.mod text
+go.sum text
