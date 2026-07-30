@@ -11,21 +11,21 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      # arandu-io/framework is private until the repositories are made public.
+      # GOPRIVATE keeps the module out of the public proxy and checksum database,
+      # and the git rewrite below is what lets the fetch authenticate. Both lines
+      # become unnecessary, and harmless, once the framework is public.
+      GOPRIVATE: github.com/arandu-io
+
     steps:
       - uses: actions/checkout@v4
 
-      # The skeleton depends on arandu-io/framework, which is private until the
-      # repositories are made public. Checking it out next to this one is what the
-      # replace directive in go.mod points at.
-      - name: check out the framework
-        uses: actions/checkout@v4
-        with:
-          repository: arandu-io/framework
-          path: framework-checkout
-          token: ${{ secrets.FRAMEWORK_TOKEN }}
-
-      - name: place the framework where go.mod expects it
-        run: mv framework-checkout ../framework
+      - name: authenticate module fetches
+        run: |
+          git config --global url."https://x-access-token:${FRAMEWORK_TOKEN}@github.com/".insteadOf "https://github.com/"
+        env:
+          FRAMEWORK_TOKEN: ${{ secrets.FRAMEWORK_TOKEN }}
 
       - uses: actions/setup-go@v5
         with:
