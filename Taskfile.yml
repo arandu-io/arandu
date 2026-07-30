@@ -1,0 +1,34 @@
+version: '3'
+
+tasks:
+  up:
+    desc: Start Postgres and Redis
+    cmds: [docker compose up -d]
+
+  down:
+    cmds: [docker compose down]
+
+  serve:
+    desc: Run the application
+    cmds: [go run ./cmd/app serve]
+
+  migrate:
+    desc: Apply the migrations collected from the registered modules
+    cmds: [go run ./cmd/app migrate]
+
+  routes:
+    desc: List the registered routes, by module
+    cmds: [go run ./cmd/app routes]
+
+  build:
+    cmds: [go build -o bin/app ./cmd/app]
+
+  test:
+    cmds: [go test ./...]
+
+  check:
+    desc: What CI runs
+    cmds:
+      - gofmt -l .
+      - go vet ./...
+      - go test -race ./...

@@ -1,0 +1,5 @@
+Modules live here, one directory per feature.
+
+`aru make:module <name>` generates the directory with its entity, policy,
+repository, service, request, routes and tests. See the auth module in
+arandu-io/framework for the canonical shape.

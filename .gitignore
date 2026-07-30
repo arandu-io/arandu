@@ -1,0 +1,14 @@
+.env
+bin/
+tmp/
+*.test
+*.out
+
+# `go build ./cmd/app` from the root drops the binary here.
+/app
+
+# Local module resolution while the framework is not published.
+go.work
+go.work.sum
+
+.DS_Store
