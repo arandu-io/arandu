@@ -34,3 +34,7 @@ aru serve
 Phase 1. The pgx driver is declared here rather than in the framework: this is a
 project, not a library, and the core keeps its two dependencies. See
 `adr/0004` and `adr/0006` in `arandu-io/docs`.
+
+## License
+
+MIT, the same license Laravel uses. See `LICENSE.md`.
