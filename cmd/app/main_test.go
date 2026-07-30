@@ -43,11 +43,56 @@ func testKernel(t *testing.T, env config.Env) *kernel.Kernel {
 	}
 	t.Cleanup(func() { _ = sqldb.Close() })
 
-	k := build(cfg, data.Wrap(sqldb))
+	k, _ := build(cfg, data.Wrap(sqldb))
 	if err := k.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
 	return k
+}
+
+// TestSeedAdminRefusesWithoutCredentials: the command reads them from the
+// environment rather than from flags, because a password passed as an argument
+// lands in the shell history and in the process list.
+func TestSeedAdminRefusesWithoutCredentials(t *testing.T) {
+	t.Setenv("ARANDU_ADMIN_EMAIL", "")
+	t.Setenv("ARANDU_ADMIN_PASSWORD", "")
+
+	err := seedAdmin(context.Background(), nil)
+
+	if err == nil {
+		t.Fatal("seed:admin ran without credentials")
+	}
+	if !strings.Contains(err.Error(), "ARANDU_ADMIN_EMAIL") {
+		t.Errorf("the error must name what is missing, got: %v", err)
+	}
+}
+
+// TestNewUUIDIsWellFormed: the generated tenant id goes into a uuid column, so a
+// malformed value fails at insert time with a message about syntax rather than
+// about what actually went wrong.
+func TestNewUUIDIsWellFormed(t *testing.T) {
+	id, err := newUUID()
+	if err != nil {
+		t.Fatalf("newUUID: %v", err)
+	}
+
+	if len(id) != 36 {
+		t.Fatalf("uuid = %q, want 36 characters", id)
+	}
+	if id[14] != '4' {
+		t.Errorf("uuid %q is not version 4", id)
+	}
+	if v := id[19]; v != '8' && v != '9' && v != 'a' && v != 'b' {
+		t.Errorf("uuid %q has the wrong variant", id)
+	}
+
+	other, err := newUUID()
+	if err != nil {
+		t.Fatalf("newUUID: %v", err)
+	}
+	if id == other {
+		t.Fatal("two generated uuids are identical")
+	}
 }
 
 // TestLoginFormIsServedWithACSRFToken is the phase 1 claim in one request: the
@@ -152,7 +197,7 @@ func TestUnknownCommandIsRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("an unknown command was accepted")
 	}
-	if !strings.Contains(err.Error(), "serve, migrate or routes") {
+	if !strings.Contains(err.Error(), "serve, migrate, routes or seed:admin") {
 		t.Errorf("the error must list the valid commands, got: %v", err)
 	}
 }

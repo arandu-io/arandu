@@ -3,7 +3,7 @@ module github.com/arandu-io/arandu
 go 1.25
 
 require (
-	github.com/arandu-io/framework v0.1.0
+	github.com/arandu-io/framework v0.1.1
 	github.com/jackc/pgx/v5 v5.7.2
 )
 

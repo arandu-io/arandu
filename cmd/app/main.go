@@ -66,7 +66,7 @@ func dispatch(command string) error {
 	sqldb.SetConnMaxLifetime(time.Hour)
 
 	db := data.Wrap(sqldb)
-	k := build(cfg, db)
+	k, authService := build(cfg, db)
 
 	ctx := context.Background()
 
@@ -98,14 +98,17 @@ func dispatch(command string) error {
 		fmt.Print(kernel.FormatRoutes(k.Routes()))
 		return nil
 
+	case "seed:admin":
+		return seedAdmin(ctx, authService)
+
 	default:
-		return fmt.Errorf("unknown command: %s (expected serve, migrate or routes)", command)
+		return fmt.Errorf("unknown command: %s (expected serve, migrate, routes or seed:admin)", command)
 	}
 }
 
 // build wires the application. Everything below is ordinary Go: read it top to
 // bottom and you know the whole application.
-func build(cfg config.Config, db *data.DB) *kernel.Kernel {
+func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
 	csrf := security.NewCSRF(cfg.AppKey, cfg.CSRFTTL)
 
 	// The core ships the in-memory session backend, which is right for one
@@ -114,7 +117,12 @@ func build(cfg config.Config, db *data.DB) *kernel.Kernel {
 
 	limiter := middleware.NewMemoryLimiter()
 
-	return kernel.New(cfg).
+	// The auth service is returned as well as registered: seed:admin needs it,
+	// and reaching into the module to fetch it later would be exactly the kind
+	// of hidden coupling the explicit wiring exists to avoid.
+	authService := auth.NewService(auth.NewUserRepo(db), sessions, csrf)
+
+	k := kernel.New(cfg).
 		// The pipeline order is the order of execution. Recover comes FIRST, or
 		// a panic in any middleware below it escapes without a page.
 		Use(
@@ -128,7 +136,12 @@ func build(cfg config.Config, db *data.DB) *kernel.Kernel {
 			middleware.CSRFProtect(csrf, sessions.IDFromRequest),
 		).
 		Register(
-			auth.New(auth.NewService(auth.NewUserRepo(db), sessions, csrf)),
+			// Single tenant: every login belongs to ARANDU_TENANT_ID, which
+			// seed:admin prints when it generates one. A multi-tenant application
+			// swaps this for a resolver that reads the host name.
+			auth.New(authService, auth.FixedTenant(os.Getenv("ARANDU_TENANT_ID"))),
 			// `aru make:module` adds the next modules here.
 		)
+
+	return k, authService
 }
