@@ -13,11 +13,9 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/arandu-io/framework/config"
@@ -31,13 +29,16 @@ import (
 
 	"github.com/arandu-io/arandu/database/seeders"
 
-	// Drivers register themselves. They live in the project, not in the
-	// framework: that is what keeps the core at two dependencies.
+	adapter "github.com/arandu-io/database"
+
+	// The engines this binary can speak. Each is its own module, so removing an
+	// import removes the driver from the build, from go.sum and from the
+	// vulnerability surface -- which is the whole reason they are separate.
 	//
-	// SQLite is the development default and needs no cgo. Remove the driver you
-	// do not use and the binary stops carrying it.
-	_ "github.com/jackc/pgx/v5/stdlib"
-	_ "modernc.org/sqlite"
+	// SQLite is the development default and needs no cgo. Adding MySQL is
+	// `go get github.com/arandu-io/database/mysql` plus a line here.
+	_ "github.com/arandu-io/database/pgx"
+	_ "github.com/arandu-io/database/sqlite"
 )
 
 // appModule is this project's module path. The error page uses it to tell your
@@ -123,35 +124,13 @@ func dispatch(command string, args []string) error {
 	}
 }
 
-// open connects using whatever DB_CONNECTION says. The DSN and the driver name
-// both come from the configuration, so switching from SQLite to Postgres is a
-// change in .env and nothing else.
+// open connects using whatever DB_CONNECTION says.
+//
+// The pool policy, the SQLite directory and the message for a driver that is
+// configured but not linked all live in the adapter, so every project gets the
+// same ones rather than a slightly different copy.
 func open(cfg config.Config) (*data.DB, func(), error) {
-	// SQLite creates the database file but never the directory above it.
-	if path := cfg.Database.SQLitePath(); path != "" {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return nil, nil, fmt.Errorf("creating the database directory: %w", err)
-		}
-	}
-
-	sqldb, err := sql.Open(cfg.Database.Connection.Driver(), cfg.Database.DSN())
-	if err != nil {
-		return nil, nil, fmt.Errorf("opening %s: %w", cfg.Database.Redacted(), err)
-	}
-
-	if cfg.Database.Connection == data.DialectSQLite {
-		// One writer. SQLite serializes writes anyway, and letting the pool open
-		// more connections only converts the wait into "database is locked".
-		sqldb.SetMaxOpenConns(1)
-	} else {
-		// Bounded pool: the default is unlimited, which turns one traffic spike
-		// into "too many connections" on the database rather than a queue here.
-		sqldb.SetMaxOpenConns(25)
-		sqldb.SetMaxIdleConns(5)
-		sqldb.SetConnMaxLifetime(time.Hour)
-	}
-
-	return data.Wrap(sqldb, cfg.Database.Connection), func() { _ = sqldb.Close() }, nil
+	return adapter.Open(cfg.Database)
 }
 
 // build wires the application. Everything below is ordinary Go: read it top to
