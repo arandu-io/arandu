@@ -152,7 +152,9 @@ func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
 	// of hidden coupling the explicit wiring exists to avoid.
 	authService := auth.NewService(auth.NewUserRepo(db), sessions, csrf)
 
-	k := kernel.New(cfg).
+	k := kernel.New(cfg)
+
+	k.
 		// The pipeline order is the order of execution. Recover comes FIRST, or
 		// a panic in any middleware below it escapes without a page.
 		Use(
@@ -160,7 +162,10 @@ func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
 				Editor:    cfg.Editor,
 				AppModule: appModule,
 			}),
-			middleware.Observe(cfg.IsDev(), cfg.TracingSecret),
+			// k.Recorder() is the buffer behind /_arandu/debug. It is nil
+			// outside development, and passing nil records nothing -- which is
+			// what production does.
+			middleware.Observe(cfg.IsDev(), cfg.TracingSecret, k.Recorder()),
 			middleware.SecurityHeaders(cfg.IsDev()),
 			middleware.RateLimit(limiter, 300, time.Minute, middleware.KeyBySession(sessions.IDFromRequest)),
 			middleware.CSRFProtect(csrf, sessions.IDFromRequest),
