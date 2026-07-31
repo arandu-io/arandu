@@ -14,8 +14,12 @@ jobs:
     env:
       # arandu-io/framework is private until the repositories are made public.
       # GOPRIVATE keeps the module out of the public proxy and checksum database,
-      # and the git rewrite below is what lets the fetch authenticate. Both lines
-      # become unnecessary, and harmless, once the framework is public.
+      # and the git rewrite below authenticates the fetch with the workflow's own
+      # token -- which works because the framework repository allows Actions
+      # access from the organization. No personal token, no stored secret.
+      #
+      # Both lines become unnecessary, and harmless, once the repositories are
+      # public.
       GOPRIVATE: github.com/arandu-io
 
     steps:
@@ -23,9 +27,9 @@ jobs:
 
       - name: authenticate module fetches
         run: |
-          git config --global url."https://x-access-token:${FRAMEWORK_TOKEN}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
         env:
-          FRAMEWORK_TOKEN: ${{ secrets.FRAMEWORK_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-go@v5
         with:
@@ -43,8 +47,8 @@ jobs:
       - name: vet
         run: go vet ./...
 
-      # These tests need no database: database/sql connects lazily, so the wiring,
-      # the pipeline and every route are exercised without a server.
+      # These run against a real database, because SQLite is a file: migrate,
+      # seed, sign in. No service container needed.
       - name: test
         run: go test -race ./...
 
