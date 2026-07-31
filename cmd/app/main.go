@@ -22,6 +22,7 @@ import (
 
 	"github.com/arandu-io/framework/config"
 	"github.com/arandu-io/framework/data"
+	"github.com/arandu-io/framework/events"
 	"github.com/arandu-io/framework/httpx/middleware"
 	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/framework/modules/auth"
@@ -187,6 +188,10 @@ func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
 			// application swaps this for a resolver that reads the host name --
 			// same code path, same queries, one line different.
 			auth.New(authService, auth.FixedTenant(tenantID())),
+			// The outbox table. A module that records domain events stores them
+			// in the same transaction as the write, and this is what brings the
+			// table those rows land in -- see doc 27.
+			events.NewModule(),
 			// `aru make:module` adds the next modules here.
 		)
 

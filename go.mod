@@ -3,7 +3,7 @@ module github.com/arandu-io/arandu
 go 1.25.0
 
 require (
-	github.com/arandu-io/framework v0.2.1
+	github.com/arandu-io/framework v0.3.1
 	github.com/jackc/pgx/v5 v5.10.0
 	modernc.org/sqlite v1.55.0
 )
