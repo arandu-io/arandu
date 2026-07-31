@@ -11,32 +11,8 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    env:
-      # arandu-io/framework is private until the repositories are made public, so
-      # the module cannot be fetched anonymously. GOPRIVATE keeps it out of the
-      # public proxy and checksum database, and the step below authenticates the
-      # fetch with a read-only deploy key scoped to that one repository.
-      #
-      # A deploy key rather than a personal token on purpose: it reads one
-      # repository and nothing else, so a leak costs the least it can. Both this
-      # and GOPRIVATE become unnecessary, and harmless, once the repositories are
-      # public -- and the key can be deleted then.
-      GOPRIVATE: github.com/arandu-io
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: authenticate the private module fetch
-        env:
-          FRAMEWORK_SSH_KEY: ${{ secrets.FRAMEWORK_SSH_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$FRAMEWORK_SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-          # The go command fetches over https; this sends it through ssh, which is
-          # what the deploy key authenticates.
-          git config --global url."git@github.com:".insteadOf "https://github.com/"
 
       - uses: actions/setup-go@v5
         with:
@@ -54,8 +30,8 @@ jobs:
       - name: vet
         run: go vet ./...
 
-      # These run against a real database, because SQLite is a file: migrate,
-      # seed, sign in. No service container needed.
+      # These tests need no database: database/sql connects lazily, so the wiring,
+      # the pipeline and every route are exercised without a server.
       - name: test
         run: go test -race ./...
 
