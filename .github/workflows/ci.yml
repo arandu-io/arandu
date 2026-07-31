@@ -17,6 +17,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          # go.mod carries the minimum version, and setup-go would pin exactly
+          # that -- which means CI runs on a Go with known, already fixed
+          # vulnerabilities. This takes the newest patch of the same line.
+          check-latest: true
 
       - name: gofmt
         run: |
