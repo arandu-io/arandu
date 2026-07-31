@@ -12,3 +12,7 @@ go.work
 go.work.sum
 
 .DS_Store
+# SQLite lives here in development. The file is never committed.
+database/*.sqlite
+database/*.sqlite-shm
+database/*.sqlite-wal

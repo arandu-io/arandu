@@ -7,8 +7,8 @@
 // when you add a module.
 //
 // It also dispatches the subcommands that need the registered modules: serve,
-// migrate and routes. `aru serve` runs this binary with that argument, because
-// only this binary knows which modules exist.
+// migrate, routes and db:seed. `aru serve` runs this binary with that argument,
+// because only this binary knows which modules exist.
 package main
 
 import (
@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/arandu-io/framework/config"
@@ -27,14 +28,39 @@ import (
 	"github.com/arandu-io/framework/observability/errorpage"
 	"github.com/arandu-io/framework/security"
 
-	// The driver registers itself. It lives in the project, not in the
+	"github.com/arandu-io/arandu/database/seeders"
+
+	// Drivers register themselves. They live in the project, not in the
 	// framework: that is what keeps the core at two dependencies.
+	//
+	// SQLite is the development default and needs no cgo. Remove the driver you
+	// do not use and the binary stops carrying it.
 	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "modernc.org/sqlite"
 )
 
 // appModule is this project's module path. The error page uses it to tell your
 // frames from the framework's, and shows yours expanded.
 const appModule = "github.com/arandu-io/arandu"
+
+// defaultTenant is the tenant a single-tenant application runs under.
+//
+// It is a constant rather than an empty string on purpose: security.SystemGrant
+// refuses an empty tenant, because a system grant with no tenant reads across
+// every customer of the system. An application that never thinks about tenancy
+// still writes every row under this value, so growing into multi-tenant later is
+// a change of resolver and not a migration of data.
+//
+// Set ARANDU_TENANT_ID to override it.
+const defaultTenant = "00000000-0000-4000-8000-000000000001"
+
+// tenantID is the tenant this deployment logs into.
+func tenantID() string {
+	if id := os.Getenv("ARANDU_TENANT_ID"); id != "" {
+		return id
+	}
+	return defaultTenant
+}
 
 func main() {
 	command := "serve"
@@ -42,32 +68,24 @@ func main() {
 		command = os.Args[1]
 	}
 
-	if err := dispatch(command); err != nil {
+	if err := dispatch(command, os.Args[2:]); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func dispatch(command string) error {
+func dispatch(command string, args []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
-	sqldb, err := sql.Open("pgx", cfg.DatabaseURL)
+	db, closeDB, err := open(cfg)
 	if err != nil {
-		return fmt.Errorf("opening the database: %w", err)
+		return err
 	}
-	defer func() { _ = sqldb.Close() }()
+	defer closeDB()
 
-	// Bounded pool: the default is unlimited, which turns one traffic spike into
-	// "too many connections" on the database rather than a queue in the app.
-	sqldb.SetMaxOpenConns(25)
-	sqldb.SetMaxIdleConns(5)
-	sqldb.SetConnMaxLifetime(time.Hour)
-
-	db := data.Wrap(sqldb)
 	k, authService := build(cfg, db)
-
 	ctx := context.Background()
 
 	switch command {
@@ -78,18 +96,16 @@ func dispatch(command string) error {
 		return k.Run(ctx)
 
 	case "migrate":
-		applied, err := data.Migrate(ctx, db, k.Migrations())
-		if err != nil {
-			return err
-		}
-		if len(applied) == 0 {
-			fmt.Println("no pending migrations")
-			return nil
-		}
-		for _, id := range applied {
-			fmt.Println("applied", id)
-		}
-		return nil
+		return migrate(ctx, db, k.Migrations())
+
+	case "migrate:rollback":
+		return rollback(ctx, db, k.Migrations())
+
+	case "migrate:status":
+		return migrateStatus(ctx, db, k.Migrations())
+
+	case "migrate:fresh":
+		return fresh(ctx, db, k.Migrations())
 
 	case "routes":
 		if err := k.Boot(ctx); err != nil {
@@ -98,12 +114,43 @@ func dispatch(command string) error {
 		fmt.Print(kernel.FormatRoutes(k.Routes()))
 		return nil
 
-	case "seed:admin":
-		return seedAdmin(ctx, authService)
+	case "db:seed":
+		return seeders.Run(ctx, seeders.Deps{Auth: authService, Tenant: tenantID()}, args)
 
 	default:
-		return fmt.Errorf("unknown command: %s (expected serve, migrate, routes or seed:admin)", command)
+		return fmt.Errorf("unknown command: %s (expected serve, migrate, migrate:rollback, migrate:status, migrate:fresh, routes or db:seed)", command)
 	}
+}
+
+// open connects using whatever DB_CONNECTION says. The DSN and the driver name
+// both come from the configuration, so switching from SQLite to Postgres is a
+// change in .env and nothing else.
+func open(cfg config.Config) (*data.DB, func(), error) {
+	// SQLite creates the database file but never the directory above it.
+	if path := cfg.Database.SQLitePath(); path != "" {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return nil, nil, fmt.Errorf("creating the database directory: %w", err)
+		}
+	}
+
+	sqldb, err := sql.Open(cfg.Database.Connection.Driver(), cfg.Database.DSN())
+	if err != nil {
+		return nil, nil, fmt.Errorf("opening %s: %w", cfg.Database.Redacted(), err)
+	}
+
+	if cfg.Database.Connection == data.DialectSQLite {
+		// One writer. SQLite serializes writes anyway, and letting the pool open
+		// more connections only converts the wait into "database is locked".
+		sqldb.SetMaxOpenConns(1)
+	} else {
+		// Bounded pool: the default is unlimited, which turns one traffic spike
+		// into "too many connections" on the database rather than a queue here.
+		sqldb.SetMaxOpenConns(25)
+		sqldb.SetMaxIdleConns(5)
+		sqldb.SetConnMaxLifetime(time.Hour)
+	}
+
+	return data.Wrap(sqldb, cfg.Database.Connection), func() { _ = sqldb.Close() }, nil
 }
 
 // build wires the application. Everything below is ordinary Go: read it top to
@@ -117,7 +164,7 @@ func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
 
 	limiter := middleware.NewMemoryLimiter()
 
-	// The auth service is returned as well as registered: seed:admin needs it,
+	// The auth service is returned as well as registered: the seeders need it,
 	// and reaching into the module to fetch it later would be exactly the kind
 	// of hidden coupling the explicit wiring exists to avoid.
 	authService := auth.NewService(auth.NewUserRepo(db), sessions, csrf)
@@ -136,10 +183,10 @@ func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
 			middleware.CSRFProtect(csrf, sessions.IDFromRequest),
 		).
 		Register(
-			// Single tenant: every login belongs to ARANDU_TENANT_ID, which
-			// seed:admin prints when it generates one. A multi-tenant application
-			// swaps this for a resolver that reads the host name.
-			auth.New(authService, auth.FixedTenant(os.Getenv("ARANDU_TENANT_ID"))),
+			// Single tenant: every login belongs to one constant. A multi-tenant
+			// application swaps this for a resolver that reads the host name --
+			// same code path, same queries, one line different.
+			auth.New(authService, auth.FixedTenant(tenantID())),
 			// `aru make:module` adds the next modules here.
 		)
 
