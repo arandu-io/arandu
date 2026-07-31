@@ -45,6 +45,16 @@ jobs:
       - name: build
         run: go build -o /tmp/app ./cmd/app
 
+      # The architecture rules, checked. Without this step "the architecture is
+      # mandatory" holds only where the type system reaches -- it cannot see a
+      # policy nobody opened, a handler at the database, or a tenant from a
+      # header. --strict makes warnings fail too, which is the right setting for
+      # the skeleton: it ships as an example.
+      - name: doctor
+        run: |
+          go install github.com/arandu-io/aru@latest
+          aru doctor --strict
+
       # Required by doc 24: a known vulnerability blocks the merge rather than
       # showing up in a report nobody reads.
       - name: govulncheck
