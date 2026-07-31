@@ -37,3 +37,10 @@ jobs:
 
       - name: build
         run: go build -o /tmp/app ./cmd/app
+
+      # Required by doc 24: a known vulnerability blocks the merge rather than
+      # showing up in a report nobody reads.
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
