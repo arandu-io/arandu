@@ -161,6 +161,11 @@ func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
 			middleware.Recover(cfg.IsDev(), errorpage.Options{
 				Editor:    cfg.Editor,
 				AppModule: appModule,
+				// What the registered modules know about the state of the
+				// system right now -- the outbox falling behind, and whatever
+				// the next module reports. It shows up next to the failure
+				// somebody is already looking at.
+				Diagnose: k.Diagnose,
 			}),
 			// k.Recorder() is the buffer behind /_arandu/debug. It is nil
 			// outside development, and passing nil records nothing -- which is
