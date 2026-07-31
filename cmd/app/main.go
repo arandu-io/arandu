@@ -160,7 +160,10 @@ func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
 	csrf := security.NewCSRF(cfg.AppKey, cfg.CSRFTTL)
 
 	// The core ships the in-memory session backend, which is right for one
-	// instance. Behind more than one pod, swap it for the redis adapter.
+	// instance and wrong for two: behind a load balancer, half the requests land
+	// on the replica that never saw the login. Behind more than one pod, swap
+	// this for kv.NewSessionBackend(client) -- github.com/arandu-io/kv, same
+	// interface, one line. The same applies to the limiter below.
 	sessions := security.NewSessionStore(cfg.AppKey, cfg.SessionTTL, !cfg.IsDev(), security.NewMemoryBackend())
 
 	limiter := middleware.NewMemoryLimiter()
