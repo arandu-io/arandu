@@ -12,24 +12,31 @@ jobs:
   check:
     runs-on: ubuntu-latest
     env:
-      # arandu-io/framework is private until the repositories are made public.
-      # GOPRIVATE keeps the module out of the public proxy and checksum database,
-      # and the git rewrite below authenticates the fetch with the workflow's own
-      # token -- which works because the framework repository allows Actions
-      # access from the organization. No personal token, no stored secret.
+      # arandu-io/framework is private until the repositories are made public, so
+      # the module cannot be fetched anonymously. GOPRIVATE keeps it out of the
+      # public proxy and checksum database, and the step below authenticates the
+      # fetch with a read-only deploy key scoped to that one repository.
       #
-      # Both lines become unnecessary, and harmless, once the repositories are
-      # public.
+      # A deploy key rather than a personal token on purpose: it reads one
+      # repository and nothing else, so a leak costs the least it can. Both this
+      # and GOPRIVATE become unnecessary, and harmless, once the repositories are
+      # public -- and the key can be deleted then.
       GOPRIVATE: github.com/arandu-io
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: authenticate module fetches
-        run: |
-          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - name: authenticate the private module fetch
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FRAMEWORK_SSH_KEY: ${{ secrets.FRAMEWORK_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$FRAMEWORK_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          # The go command fetches over https; this sends it through ssh, which is
+          # what the deploy key authenticates.
+          git config --global url."git@github.com:".insteadOf "https://github.com/"
 
       - uses: actions/setup-go@v5
         with:
