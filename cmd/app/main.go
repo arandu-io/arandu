@@ -147,6 +147,16 @@ func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
 
 	limiter := middleware.NewMemoryLimiter()
 
+	// A module that calls another service takes this client, not one of its own:
+	//
+	//	billing.New(svc, observability.Client(10*time.Second))
+	//
+	// Going through it is what puts the call on the request timeline and on the
+	// console. A handler that builds its own http.Client is a handler whose
+	// 800ms wait shows up as "other", and the timeout is not optional --
+	// http.Client has none by default, and a call with no deadline is how one
+	// slow dependency turns into every request of the process hanging.
+
 	// The auth service is returned as well as registered: the seeders need it,
 	// and reaching into the module to fetch it later would be exactly the kind
 	// of hidden coupling the explicit wiring exists to avoid.
