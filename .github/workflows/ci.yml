@@ -55,6 +55,20 @@ jobs:
           go install github.com/arandu-io/aru@latest
           aru doctor --strict
 
+      # The image, for real. Doc 17 promises one artifact that every platform
+      # consumes, and a Dockerfile that stopped building is found on the day
+      # somebody deploys -- which is the worst day to find it.
+      - name: the image builds and the binary starts
+        run: |
+          docker build -t arandu-ci --build-arg VERSION=ci .
+          docker run --rm \
+            -e APP_ENV=dev \
+            -e APP_KEY=0123456789abcdef0123456789abcdef \
+            -e DB_CONNECTION=sqlite \
+            -e DB_DATABASE=/tmp/ci.sqlite \
+            -e ARANDU_TENANT_ID=11111111-1111-4111-8111-111111111111 \
+            arandu-ci migrate
+
       # Required by doc 24: a known vulnerability blocks the merge rather than
       # showing up in a report nobody reads.
       - name: govulncheck

@@ -25,11 +25,13 @@ import (
 	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/framework/modules/auth"
 	"github.com/arandu-io/framework/observability/errorpage"
+	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/framework/security"
 
 	"github.com/arandu-io/arandu/database/seeders"
 
 	adapter "github.com/arandu-io/database"
+	"github.com/arandu-io/queue"
 
 	// The engines this binary can speak. Each is its own module, so removing an
 	// import removes the driver from the build, from go.sum and from the
@@ -87,7 +89,9 @@ func dispatch(command string, args []string) error {
 	}
 	defer closeDB()
 
-	k, authService := build(cfg, db)
+	app := build(cfg, db)
+	k, authService := app.kernel, app.auth
+	sched, queueStore := app.scheduler, app.queue
 	ctx := context.Background()
 
 	switch command {
@@ -119,8 +123,25 @@ func dispatch(command string, args []string) error {
 	case "db:seed":
 		return seeders.Run(ctx, seeders.Deps{Auth: authService, Tenant: tenantID()}, args)
 
+	case "schedule:list":
+		if err := k.Boot(ctx); err != nil {
+			return err
+		}
+		defer func() { _ = k.Shutdown() }()
+		return scheduleList(sched)
+
+	case "schedule:run":
+		if err := k.Boot(ctx); err != nil {
+			return err
+		}
+		defer func() { _ = k.Shutdown() }()
+		return scheduleRun(ctx, sched, args)
+
+	case "work":
+		return work(ctx, k, queueStore, args)
+
 	default:
-		return fmt.Errorf("unknown command: %s (expected serve, migrate, migrate:rollback, migrate:status, migrate:fresh, routes or db:seed)", command)
+		return fmt.Errorf("unknown command: %s (expected serve, migrate, migrate:rollback, migrate:status, migrate:fresh, routes, db:seed, schedule:list, schedule:run or work)", command)
 	}
 }
 
@@ -135,7 +156,16 @@ func open(cfg config.Config) (*data.DB, func(), error) {
 
 // build wires the application. Everything below is ordinary Go: read it top to
 // bottom and you know the whole application.
-func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
+// app is everything the wiring produced. A struct rather than four return
+// values, because the fifth one is always the one that breaks every call site.
+type app struct {
+	kernel    *kernel.Kernel
+	auth      *auth.Service
+	scheduler *scheduler.Module
+	queue     *queue.Store
+}
+
+func build(cfg config.Config, db *data.DB) app {
 	csrf := security.NewCSRF(cfg.AppKey, cfg.CSRFTTL)
 
 	// The core ships the in-memory session backend, which is right for one
@@ -146,6 +176,12 @@ func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
 	sessions := security.NewSessionStore(cfg.AppKey, cfg.SessionTTL, !cfg.IsDev(), security.NewMemoryBackend())
 
 	limiter := middleware.NewMemoryLimiter()
+
+	// The queue over the application's own database, which is what makes a job
+	// commitable by the same transaction as the row it is about. For volume
+	// beyond a table, github.com/arandu-io/queue/kv is the same contract over
+	// RESP -- same Worker, same handlers, one line here.
+	queueStore := queue.New(db)
 
 	// A module that calls another service takes this client, not one of its own:
 	//
@@ -194,8 +230,25 @@ func build(cfg config.Config, db *data.DB) (*kernel.Kernel, *auth.Service) {
 			// in the same transaction as the write, and this is what brings the
 			// table those rows land in -- see doc 27.
 			events.NewModule(),
+			// The jobs table. Work that happens after the response, drained by
+			// `aru work` -- the same image with another argument, which is what
+			// keeps the deploy at one artifact.
+			queue.NewModule(queueStore),
 			// `aru make:module` adds the next modules here.
 		)
 
-	return k, authService
+	// The scheduler goes last, because it collects the tasks the modules above
+	// declared. A module never starts its own goroutine; it declares work, and
+	// this is what runs it.
+	//
+	// Locker is nil here: one replica. Behind more than one, pass
+	// kv.NewLocker(client) or every replica runs every task.
+	//
+	// Tenants is nil too: a PerTenant task needs to know which tenants exist,
+	// and only the application knows where that list lives. Wire it and the
+	// scheduler expands the task to each of them, with its own Grant.
+	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{})
+	k.Register(sched)
+
+	return app{kernel: k, auth: authService, scheduler: sched, queue: queueStore}
 }

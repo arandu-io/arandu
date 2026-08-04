@@ -1,0 +1,12 @@
+# What the image does not need. Keeping the context small is most of the build
+# time, and secrets out of it is most of the point.
+.git
+.github
+bin
+storage
+*.sqlite
+*.sqlite-*
+.env
+.env.*
+!.env.example
+CHECKLIST.md

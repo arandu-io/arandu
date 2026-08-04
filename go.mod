@@ -6,10 +6,11 @@ require (
 	github.com/arandu-io/database v0.1.0
 	github.com/arandu-io/database/pgx v0.1.0
 	github.com/arandu-io/database/sqlite v0.1.0
-	github.com/arandu-io/framework v0.6.1
+	github.com/arandu-io/framework v0.8.0
 )
 
 require (
+	github.com/arandu-io/queue v0.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

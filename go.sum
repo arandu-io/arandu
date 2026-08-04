@@ -16,6 +16,10 @@ github.com/arandu-io/framework v0.6.0 h1:cGxj4p8IyfTH0kJLEi+ExbgCDaHLE/duVOB/klB
 github.com/arandu-io/framework v0.6.0/go.mod h1:mI+BwgaqxZh3j6GtnV2VdhUDa8UYgPm8rOcYS82/wyk=
 github.com/arandu-io/framework v0.6.1 h1:647jrpQmTx5W7AaArl25FwHS9gUO8xGOX1vySjjUKy4=
 github.com/arandu-io/framework v0.6.1/go.mod h1:mI+BwgaqxZh3j6GtnV2VdhUDa8UYgPm8rOcYS82/wyk=
+github.com/arandu-io/framework v0.8.0 h1:eVWW/DrzUpuqBP4DdfWaNI3n3jTZnvpnHz30g8Mo+w4=
+github.com/arandu-io/framework v0.8.0/go.mod h1:mI+BwgaqxZh3j6GtnV2VdhUDa8UYgPm8rOcYS82/wyk=
+github.com/arandu-io/queue v0.1.0 h1:WbrioBCOYgE4zxo7t2ZoJgffQZTiNEx85suRQ9OAbRc=
+github.com/arandu-io/queue v0.1.0/go.mod h1:d6e3QRYHw1Q21SEahszmQEZNCW8DlxB0+7RtgepNwAc=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

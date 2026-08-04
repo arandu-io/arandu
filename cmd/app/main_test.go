@@ -51,7 +51,7 @@ func testKernel(t *testing.T, env config.Env) *kernel.Kernel {
 	}
 	t.Cleanup(func() { _ = sqldb.Close() })
 
-	k, _ := build(cfg, data.Wrap(sqldb, cfg.Database.Connection))
+	k := build(cfg, data.Wrap(sqldb, cfg.Database.Connection)).kernel
 	if err := k.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
