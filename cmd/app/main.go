@@ -247,7 +247,10 @@ func build(cfg config.Config, db *data.DB) app {
 	// Tenants is nil too: a PerTenant task needs to know which tenants exist,
 	// and only the application knows where that list lives. Wire it and the
 	// scheduler expands the task to each of them, with its own Grant.
-	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{})
+	// Recorder for the same reason as the worker: a scheduled task is
+	// investigated on the same page as a request, and costs nothing when
+	// nothing is recording.
+	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{Recorder: k.Recorder()})
 	k.Register(sched)
 
 	return app{kernel: k, auth: authService, scheduler: sched, queue: queueStore}

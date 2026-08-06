@@ -110,6 +110,11 @@ func work(ctx context.Context, k *kernel.Kernel, store jobs.Queue, args []string
 	w := jobs.NewWorker(store, jobs.WorkerOptions{
 		Queue:       *queue,
 		Concurrency: *workers,
+		// A finished job lands on /_arandu/debug with its queries and its
+		// timeline, exactly like a request -- and only when something is
+		// recording. In production without a tracing secret this is nil, so the
+		// worker builds no Collector at all.
+		Recorder: k.Recorder(),
 	})
 	registerHandlers(w)
 
