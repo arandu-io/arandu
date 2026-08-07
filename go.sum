@@ -4,8 +4,8 @@ github.com/arandu-io/database/pgx v0.1.0 h1:gEQwVSnN/X+T+rdRkhb/6yxd6jd5Jf4rXM4l
 github.com/arandu-io/database/pgx v0.1.0/go.mod h1:TQkcXVZ5UH8hMq/XLSnzBtf5zc+vF8LAsHCvAaU+GsE=
 github.com/arandu-io/database/sqlite v0.1.0 h1:BrFB5QpBHe9pCyZl2rAXux8UePTImJgd3YY/edkxEBo=
 github.com/arandu-io/database/sqlite v0.1.0/go.mod h1:5g/T6m0v2Lztu4CUeNrXyuLrpUOH4Oj5Zgz92tQC/3Y=
-github.com/arandu-io/framework v0.11.1 h1:HJ/1vP5y/WkzlLENNpmE/xXd+RHw5WcUZm3Y1O9rUYU=
-github.com/arandu-io/framework v0.11.1/go.mod h1:mI+BwgaqxZh3j6GtnV2VdhUDa8UYgPm8rOcYS82/wyk=
+github.com/arandu-io/framework v0.11.2 h1:LVcoRJGhmZEIGOKxAQt8Ie7/WDw1LOa7GnFOv4XB0Sk=
+github.com/arandu-io/framework v0.11.2/go.mod h1:mI+BwgaqxZh3j6GtnV2VdhUDa8UYgPm8rOcYS82/wyk=
 github.com/arandu-io/queue v0.2.0 h1:6QJImUH1GzHVX+9HuOC2eW/Q8hn9Baki/aTmY4g9/3Y=
 github.com/arandu-io/queue v0.2.0/go.mod h1:F/P0VTW02Orhd5k+KsLrtVOS7Km9Palapd3CZm/Zcz4=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
