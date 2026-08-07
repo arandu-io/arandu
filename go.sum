@@ -8,6 +8,8 @@ github.com/arandu-io/framework v0.11.3 h1:a+XwMfphFeYZTRxvAfuqPtb4ga8dG5vgwmqwDb
 github.com/arandu-io/framework v0.11.3/go.mod h1:mI+BwgaqxZh3j6GtnV2VdhUDa8UYgPm8rOcYS82/wyk=
 github.com/arandu-io/framework v0.12.0 h1:9mXnwZ70XhyKqxWAWZ0SHqgCskFTTm2bYcKjYA6hFY0=
 github.com/arandu-io/framework v0.12.0/go.mod h1:c0r4p08puM7BwQ4NJg4M/Yjf5ECeYeheis0F+j6a7X8=
+github.com/arandu-io/framework v0.13.0 h1:ZB72DBndzM88phlDCrAk4WTXt+LnfBBSzWFgAT4OMyU=
+github.com/arandu-io/framework v0.13.0/go.mod h1:c0r4p08puM7BwQ4NJg4M/Yjf5ECeYeheis0F+j6a7X8=
 github.com/arandu-io/queue v0.2.0 h1:6QJImUH1GzHVX+9HuOC2eW/Q8hn9Baki/aTmY4g9/3Y=
 github.com/arandu-io/queue v0.2.0/go.mod h1:F/P0VTW02Orhd5k+KsLrtVOS7Km9Palapd3CZm/Zcz4=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
