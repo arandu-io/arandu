@@ -9,9 +9,16 @@
  * @source tells it where the class names are -- the .kyse.go sources, because
  * that is what a person edits, and the generated .go next to them, because that
  * is what ships.
+ *
+ * source(none) turns off automatic detection so that list is the whole list.
+ * Without it Tailwind also walks the project and reaches assets/app.css, which
+ * is this file's own compiled output: it reads the class names back out of it
+ * and feeds them in again. The build stops being a function of the sources --
+ * `aru view:build` twice in a row wrote two different stylesheets, and a class
+ * removed from the last view that used it stayed in the output one more build.
  */
 
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 
 @source "../views/**/*.kyse.go";
 @source "../views/**/*.go";
