@@ -20,10 +20,17 @@ before their first patch.
 ## Before you open a pull request
 
 ```
-gofmt -l .        # no output
+gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
 go vet ./...
 go test -race ./...
 ```
+
+The first line prints nothing when the tree is formatted. The filter is not
+optional and it is what CI runs: `gofmt -l .` skips nothing, and two things here
+are not valid Go on purpose -- the doctor fixtures under `testdata/`, one of
+which does not parse because that is the test, and the `*.kyse.go` sources,
+which the compiler excludes through their build tag. `gofmt` is the only tool in
+the chain that ignores build tags.
 
 CI runs exactly this, plus a check that no new dependency entered the core: the
 framework depends on the standard library and `golang.org/x/crypto`, and nothing
