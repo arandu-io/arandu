@@ -3,8 +3,12 @@
 // It is the equivalent of Laravel's bootstrap/app.php: the single place where
 // everything is wired. Notice that the wiring is explicit and visible -- no
 // dependency appears by magic. If you want to know where the user repository
-// comes from, it is written here, and `aru make:module` regenerates this file
-// when you add a module.
+// comes from, it is written here.
+//
+// `aru make:module` does NOT edit this file. It writes the code and prints the
+// three lines to paste, because a generator that edited it behind your back
+// would be a generator whose output nobody can account for -- and this file
+// saying what the application is, exactly, is the point of ADR 0001.
 //
 // Everything below is ordinary Go: read it top to bottom and you know the whole
 // application.
