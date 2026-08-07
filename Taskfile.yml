@@ -10,25 +10,32 @@ tasks:
 
   serve:
     desc: Run the application
-    cmds: [go run ./cmd/app serve]
+    cmds: [go run . serve]
 
   migrate:
     desc: Apply the migrations collected from the registered modules
-    cmds: [go run ./cmd/app migrate]
+    cmds: [go run . migrate]
 
   routes:
     desc: List the registered routes, by module
-    cmds: [go run ./cmd/app routes]
+    cmds: [go run . routes]
 
   build:
-    cmds: [go build -o bin/app ./cmd/app]
+    cmds: [go build -o bin/app .]
 
   test:
     cmds: [go test ./...]
 
+  views:
+    desc: Compile the kyse views and the stylesheet
+    cmds: [aru view:build]
+
   check:
     desc: What CI runs
     cmds:
-      - gofmt -l .
+      # gofmt is the only Go tool that ignores build constraints, so it has to
+      # be told to skip the .kyse.go sources -- they are markup, not Go, and the
+      # compiler already excludes them by the `kyse` build tag.
+      - gofmt -l $(find . -name '*.go' -not -name '*.kyse.go')
       - go vet ./...
       - go test -race ./...

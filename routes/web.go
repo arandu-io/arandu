@@ -35,7 +35,12 @@ type Deps struct {
 // Resource registers only the actions the controller implements, so a route that
 // exists is a route that answers.
 func Web(r *httpx.Router, d Deps) {
-	r.Action("GET", "/", d.Home.Index).Name("home")
+	// "/{$}" and not "/". This is the one place Go's router does not behave the
+	// way Laravel's does: a pattern ending in a slash matches every path below
+	// it, so "GET /" would answer for /anything -- including the 404s, and
+	// including /_arandu/debug when the console is not mounted. The {$} anchors
+	// the match to the end of the path, which is what Route::get('/') means.
+	r.Action("GET", "/{$}", d.Home.Index).Name("home")
 
 	// arandu:begin custom
 	// The routes of this application go here. `aru make:module` appends to this

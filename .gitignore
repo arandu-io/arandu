@@ -4,8 +4,12 @@ tmp/
 *.test
 *.out
 
-# `go build ./cmd/app` from the root drops the binary here.
-/app
+# `go build .` from the root drops the binary here, named after the module.
+#
+# It is NOT "/app". That rule was here while the entry point was ./cmd/app, and
+# it silently excluded the whole app/ directory the day the tree became
+# Laravel's -- every controller, model and policy, untracked and invisible.
+/arandu
 
 # Local module resolution while the framework is not published.
 go.work

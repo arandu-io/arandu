@@ -29,7 +29,7 @@ ARG COMMIT=unknown
 RUN CGO_ENABLED=0 go build \
       -trimpath \
       -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" \
-      -o /app ./cmd/app
+      -o /app .
 
 # Distroless: no shell, no package manager, nothing to exploit that is not the
 # application. `docker exec` into it does not work, and that is the trade -- what

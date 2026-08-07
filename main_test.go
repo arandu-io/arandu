@@ -13,11 +13,14 @@ import (
 
 	"github.com/arandu-io/framework/config"
 	"github.com/arandu-io/framework/data"
+	"github.com/arandu-io/framework/httpx"
 	"github.com/arandu-io/framework/httpx/middleware"
 	"github.com/arandu-io/framework/kernel"
 
+	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
+	"github.com/arandu-io/arandu/routes"
 )
 
 // These tests need no database. database/sql connects lazily, so the wiring, the
@@ -59,6 +62,72 @@ func testKernel(t *testing.T, env config.Env) *kernel.Kernel {
 		t.Fatalf("Boot: %v", err)
 	}
 	return k
+}
+
+// TestTheLandingPageRenders walks the whole view path in one request: the route
+// from routes/web.go, the controller from app/Http/Controllers, the typed data,
+// the kyse page and the layout it extends.
+//
+// It fails if the generated views were not committed, which is the mistake a
+// skeleton invites: everything compiles, and every page answers with "no view
+// named home".
+func TestTheLandingPageRenders(t *testing.T) {
+	k := testKernel(t, config.EnvDev)
+
+	rec := httptest.NewRecorder()
+	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200. Body:\n%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	// The layout ran: a page that rendered its sections without the layout would
+	// answer 200 with a fragment and no <html>.
+	if !strings.Contains(body, "<!doctype html>") {
+		t.Error("the layout did not render around the page")
+	}
+	if !strings.Contains(body, "Hello world") {
+		t.Error("the data the controller passed did not reach the page")
+	}
+	// The stylesheet and the scripts are embedded and content-addressed. A page
+	// that asks for them by a plain name gets a 404 and no styling.
+	if !strings.Contains(body, "/_arandu/assets/") {
+		t.Error("the page does not reference the embedded assets")
+	}
+}
+
+// TestTheRootRouteDoesNotSwallowEveryPath is the one place Go's router does not
+// behave like Laravel's: "GET /" matches every path below it, so the landing
+// page would answer for unknown URLs -- with 200, hiding the 404 and shadowing
+// any route that is not mounted in this environment.
+func TestTheRootRouteDoesNotSwallowEveryPath(t *testing.T) {
+	k := testKernel(t, config.EnvDev)
+
+	rec := httptest.NewRecorder()
+	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/there-is-no-such-page", nil))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("an unknown path answered %d, want 404: the root route is registered as \"/\" instead of \"/{$}\"", rec.Code)
+	}
+}
+
+// TestTheHomeRouteIsAddressableByName: a link built from the route table
+// survives the path changing, and a hardcoded "/" does not.
+//
+// It also pins the anchored pattern to a readable URL. "/{$}" is what Go's
+// router needs and not what a href should contain, and a table that returned it
+// verbatim would put a literal {$} in every link to the landing page.
+func TestTheHomeRouteIsAddressableByName(t *testing.T) {
+	r := httpx.NewRouter()
+	routes.Web(r, routes.Deps{Home: controllers.NewHomeController("test")})
+
+	got, err := r.Table().URL("home")
+	if err != nil {
+		t.Fatalf("URL(\"home\"): %v", err)
+	}
+	if got != "/" {
+		t.Errorf("URL(\"home\") = %q, want \"/\"", got)
+	}
 }
 
 // TestLoginFormIsServedWithACSRFToken is the phase 1 claim in one request: the
