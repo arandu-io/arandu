@@ -131,7 +131,7 @@ func TestTheRootRouteDoesNotSwallowEveryPath(t *testing.T) {
 // verbatim would put a literal {$} in every link to the landing page.
 func TestTheHomeRouteIsAddressableByName(t *testing.T) {
 	r := httpx.NewRouter()
-	routes.Web(r, routes.Deps{Home: controllers.NewHomeController("test")})
+	routes.Web(r, routes.Deps{Home: controllers.NewHomeController("test", nil, nil)})
 
 	got, err := r.Table().URL("home")
 	if err != nil {

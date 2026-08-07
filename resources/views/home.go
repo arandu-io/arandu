@@ -15,9 +15,13 @@ import (
 //
 // A struct, never a map. That is what turns a typo in a field name into a
 // compile error instead of a blank space on a page that answered 200.
+//
+// The embedded Page is the state the layout draws -- the title, the brand, the
+// token and the navigation. This struct declares only what this page shows, and
+// satisfies the layout's contract by embedding.
 type HomeData struct {
-	// Title is the browser tab and the heading.
-	Title string
+	Page
+
 	// Name is who the page greets.
 	Name string
 	// Features is what the landing page lists.
@@ -30,8 +34,8 @@ type Feature struct {
 	Body  string
 }
 
-// PageTitle satisfies the layout's contract.
-func (d HomeData) PageTitle() string { return d.Title }
+// Compile-time proof that this page fits the layout it extends.
+var _ Layout = HomeData{}
 
 func init() { view.Register("home", renderHome) }
 
@@ -43,28 +47,6 @@ func renderHome(w io.Writer, data any) error {
 	}
 	_ = d
 	sections := map[string]func(io.Writer) error{
-		"header": func(w io.Writer) error {
-			var err error
-			if err == nil {
-				_, err = io.WriteString(w, "\t<span class=\"text-sm font-semibold tracking-tight\">")
-			}
-			if err == nil {
-				_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.Title)))
-			}
-			if err == nil {
-				_, err = io.WriteString(w, "</span>\n")
-			}
-			if err == nil {
-				_, err = io.WriteString(w, "\t<nav class=\"text-sm text-slate-500 dark:text-slate-400\">\n")
-			}
-			if err == nil {
-				_, err = io.WriteString(w, "\t\t<a class=\"hover:text-slate-900 dark:hover:text-slate-100\" href=\"/auth/login\">Sign in</a>\n")
-			}
-			if err == nil {
-				_, err = io.WriteString(w, "\t</nav>\n")
-			}
-			return err
-		},
 		"content": func(w io.Writer) error {
 			var err error
 			if err == nil {
@@ -128,13 +110,6 @@ func renderHome(w io.Writer, data any) error {
 				if err == nil {
 					_, err = io.WriteString(w, "\t\t</ul>\n")
 				}
-			}
-			return err
-		},
-		"footer": func(w io.Writer) error {
-			var err error
-			if err == nil {
-				_, err = io.WriteString(w, "\t<p>Built with Arandu.</p>\n")
 			}
 			return err
 		},

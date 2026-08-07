@@ -7,9 +7,13 @@ package views
 //
 // A struct, never a map. That is what turns a typo in a field name into a
 // compile error instead of a blank space on a page that answered 200.
+//
+// The embedded Page is the state the layout draws -- the title, the brand, the
+// token and the navigation. This struct declares only what this page shows, and
+// satisfies the layout's contract by embedding.
 type HomeData struct {
-	// Title is the browser tab and the heading.
-	Title string
+	Page
+
 	// Name is who the page greets.
 	Name string
 	// Features is what the landing page lists.
@@ -22,18 +26,11 @@ type Feature struct {
 	Body  string
 }
 
-// PageTitle satisfies the layout's contract.
-func (d HomeData) PageTitle() string { return d.Title }
+// Compile-time proof that this page fits the layout it extends.
+var _ Layout = HomeData{}
 @endgo
 
 @extends('layouts.app')
-
-@section('header')
-	<span class="text-sm font-semibold tracking-tight">{{ .Title }}</span>
-	<nav class="text-sm text-slate-500 dark:text-slate-400">
-		<a class="hover:text-slate-900 dark:hover:text-slate-100" href="/auth/login">Sign in</a>
-	</nav>
-@endsection
 
 @section('content')
 	<h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -53,8 +50,4 @@ func (d HomeData) PageTitle() string { return d.Title }
 			@endforeach
 		</ul>
 	@endif
-@endsection
-
-@section('footer')
-	<p>Built with Arandu.</p>
 @endsection

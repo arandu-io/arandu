@@ -13,12 +13,35 @@ import (
 
 // Layout is what every page hands the application layout.
 //
-// An interface rather than a struct, so each page keeps its own typed data and
-// still fits the frame: one struct per page, one layout, no map anywhere (RULE
-// 9). A page that forgets PageTitle does not compile.
+// An interface rather than a struct, and that is the whole design: a page keeps
+// its own typed data -- one struct per page, so a typo in a field name is a
+// compile error -- and still fits the frame, because it embeds Page and Page
+// implements this. Pages carrying different data therefore share one layout,
+// which is what RULE 9 asks for: one layout, not one per shape of data.
+//
+// It asks for what it draws and nothing else. It asks for exactly what the
+// layout `aru make:auth` publishes draws, too: that command replaces this file
+// and leaves every page alone, so the two have to want the same things.
 type Layout interface {
 	// PageTitle is what the browser tab shows.
 	PageTitle() string
+	// BrandName is the application name in the navigation bar.
+	BrandName() string
+	// CSRFToken is the token every write of this session carries.
+	CSRFToken() string
+	// SignedIn decides which half of the navigation bar is drawn.
+	SignedIn() bool
+	// SignedInName is who that half greets.
+	SignedInName() string
+	// HomeLink is where the brand points.
+	HomeLink() string
+	// LoginLink is the sign-in screen.
+	LoginLink() string
+	// LogoutLink is what the sign-out form posts to.
+	LogoutLink() string
+	// RegisterLink is the sign-up screen, or empty when registration is not
+	// open -- and the link is not drawn then.
+	RegisterLink() string
 }
 
 func init() { view.RegisterLayout("layouts.app", renderLayoutsApp) }
@@ -98,7 +121,19 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 		_, err = io.WriteString(w, "</head>\n")
 	}
 	if err == nil {
-		_, err = io.WriteString(w, "<body class=\"h-full bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100\">\n")
+		_, err = io.WriteString(w, "<!-- hx-headers is load-bearing: without it every hx-post fails the CSRF check,\n")
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "     and the failure reads like a broken session rather than a missing attribute. -->\n")
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "<body hx-headers='{\"X-CSRF-Token\": \"")
+	}
+	if err == nil {
+		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.CSRFToken())))
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "\"}' class=\"h-full bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100\">\n")
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "\t<div class=\"mx-auto flex min-h-full w-full max-w-3xl flex-col px-6\">\n")
@@ -107,7 +142,76 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 		_, err = io.WriteString(w, "\t\t<header class=\"flex items-center justify-between border-b border-slate-200 py-6 dark:border-slate-800\">\n")
 	}
 	if err == nil {
-		err = view.Yield(w, sections, "header")
+		_, err = io.WriteString(w, "\t\t\t<a class=\"text-sm font-semibold tracking-tight hover:text-slate-600 dark:hover:text-slate-300\" href=\"")
+	}
+	if err == nil {
+		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.HomeLink())))
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "\">")
+	}
+	if err == nil {
+		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.BrandName())))
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "</a>\n")
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "\t\t\t<nav class=\"flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400\">\n")
+	}
+	if !d.SignedIn() {
+		if err == nil {
+			_, err = io.WriteString(w, "\t\t\t\t\t<a class=\"hover:text-slate-900 dark:hover:text-slate-100\" href=\"")
+		}
+		if err == nil {
+			_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.LoginLink())))
+		}
+		if err == nil {
+			_, err = io.WriteString(w, "\">Sign in</a>\n")
+		}
+		if d.RegisterLink() != "" {
+			if err == nil {
+				_, err = io.WriteString(w, "\t\t\t\t\t\t<a class=\"hover:text-slate-900 dark:hover:text-slate-100\" href=\"")
+			}
+			if err == nil {
+				_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.RegisterLink())))
+			}
+			if err == nil {
+				_, err = io.WriteString(w, "\">Register</a>\n")
+			}
+		}
+	}
+	if d.SignedIn() {
+		if err == nil {
+			_, err = io.WriteString(w, "\t\t\t\t\t<span>")
+		}
+		if err == nil {
+			_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.SignedInName())))
+		}
+		if err == nil {
+			_, err = io.WriteString(w, "</span>\n")
+		}
+		if err == nil {
+			_, err = io.WriteString(w, "\t\t\t\t\t<form method=\"post\" action=\"")
+		}
+		if err == nil {
+			_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.LogoutLink())))
+		}
+		if err == nil {
+			_, err = io.WriteString(w, "\">\n")
+		}
+		if err == nil {
+			err = view.CSRF(w, data)
+		}
+		if err == nil {
+			_, err = io.WriteString(w, "\t\t\t\t\t\t<button class=\"hover:text-slate-900 dark:hover:text-slate-100\" type=\"submit\">Sign out</button>\n")
+		}
+		if err == nil {
+			_, err = io.WriteString(w, "\t\t\t\t\t</form>\n")
+		}
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "\t\t\t</nav>\n")
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "\t\t</header>\n")
@@ -122,10 +226,22 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 		_, err = io.WriteString(w, "\t\t</main>\n")
 	}
 	if err == nil {
+		_, err = io.WriteString(w, "\t\t<!-- One @yield, and it is 'content'. A section only one layout yields is a\n")
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "\t\t     section that disappears without a word when the layout is replaced --\n")
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "\t\t     and `aru make:auth` replaces this file with one that yields exactly\n")
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "\t\t     this and nothing else. -->\n")
+	}
+	if err == nil {
 		_, err = io.WriteString(w, "\t\t<footer class=\"border-t border-slate-200 py-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400\">\n")
 	}
 	if err == nil {
-		err = view.Yield(w, sections, "footer")
+		_, err = io.WriteString(w, "\t\t\t<p>Built with Arandu.</p>\n")
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "\t\t</footer>\n")

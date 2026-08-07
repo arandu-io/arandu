@@ -104,7 +104,7 @@ func Build(cfg appconfig.Config, db *data.DB) App {
 	// The controllers, built here and handed to the routes. A controller that
 	// constructed its own collaborators would be a controller no test can pin.
 	deps := routes.Deps{
-		Home: controllers.NewHomeController(cfg.App.Name),
+		Home: controllers.NewHomeController(cfg.App.Name, sessions, csrf),
 	}
 
 	k := kernel.New(fw)

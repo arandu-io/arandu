@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"github.com/arandu-io/framework/httpx"
+	"github.com/arandu-io/framework/security"
 
 	"github.com/arandu-io/arandu/resources/views"
 )
@@ -17,12 +18,20 @@ type HomeController struct {
 	// it arrives through the constructor rather than through a global read: a
 	// controller that reads the environment is a controller no test can pin.
 	appName string
+
+	// sessions and csrf are what the chrome is drawn from: who is signed in, and
+	// the token every write of this session carries. They arrive through the
+	// constructor for the same reason appName does, and they are the same two
+	// every controller `aru make:module` writes takes -- a screen is allowed to
+	// know about a token and a cookie.
+	sessions *security.SessionStore
+	csrf     *security.CSRF
 }
 
 // NewHomeController returns the controller. `bootstrap` builds it and hands it
 // to the routes.
-func NewHomeController(appName string) *HomeController {
-	return &HomeController{appName: appName}
+func NewHomeController(appName string, sessions *security.SessionStore, csrf *security.CSRF) *HomeController {
+	return &HomeController{appName: appName, sessions: sessions, csrf: csrf}
 }
 
 // Compile-time proof that this controller answers GET / the way Resource and the
@@ -34,10 +43,43 @@ var _ httpx.Indexer = (*HomeController)(nil)
 // The data is views.HomeData, the struct the view itself declares. Hand it
 // anything else and the build fails, naming both sides -- which is the whole
 // reason the view is compiled instead of interpreted.
+//
+// views.Page is the state the layout draws, embedded rather than repeated. The
+// navigation draws a link only for what answers: the skeleton registers the
+// framework's sign-in route and nothing else, so registration stays off until
+// there is a handler behind it -- a link to a route nobody registered is a 404
+// the layout put there.
 func (c *HomeController) Index(ctx *httpx.Context) error {
+	// Who is signed in, from the session cookie and never from the request. An
+	// error here is the anonymous case -- no cookie, a forged one, or a session
+	// that expired -- and the guest half of the navigation is what gets drawn.
+	subject, err := c.sessions.Load(ctx.Ctx(), ctx.Request)
+	signedIn := err == nil
+
+	// The token reaches the markup twice: the hidden field of the sign-out form
+	// and the hx-headers attribute on <body>. A page rendered without one answers
+	// 200 and then refuses the next write with 419, which reads like a broken
+	// session rather than a missing field.
+	token, err := c.csrf.Issue(c.sessions.IDFromRequest(ctx.Request))
+	if err != nil {
+		return err
+	}
+
 	return ctx.View("home", views.HomeData{
-		Title: c.appName,
-		Name:  "world",
+		Page: views.Page{
+			Title:         c.appName,
+			AppName:       c.appName,
+			Token:         token,
+			Authenticated: signedIn,
+			// The identifier, because that is what a session carries. Show a
+			// display name here once you have a screen that loads the user
+			// through its policy.
+			UserName:  subject.ID,
+			HomeURL:   "/",
+			LoginURL:  "/auth/login",
+			LogoutURL: "/auth/logout",
+		},
+		Name: "world",
 		Features: []views.Feature{
 			{
 				Title: "Authorization the compiler enforces",
