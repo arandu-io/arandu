@@ -6,8 +6,9 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/arandu-io/framework/config"
 	"github.com/arandu-io/framework/data"
+
+	appconfig "github.com/arandu-io/arandu/config"
 )
 
 // The migration commands mirror Laravel's, because the steps of a deploy should
@@ -77,13 +78,9 @@ func migrateStatus(ctx context.Context, db *data.DB, migrations []data.Migration
 // confirmation prompt in production; a framework whose thesis is that the
 // compiler enforces the rules should not rely on someone reading a prompt at
 // 3am, so this one simply does not run there.
-func fresh(ctx context.Context, db *data.DB, migrations []data.Migration) error {
-	cfg, err := config.Load()
-	if err != nil {
-		return err
-	}
-	if !cfg.IsDev() {
-		return fmt.Errorf("migrate:fresh drops every table and only runs with APP_ENV=dev (this is %s)", cfg.Env)
+func fresh(ctx context.Context, cfg appconfig.Config, db *data.DB, migrations []data.Migration) error {
+	if !cfg.App.IsDev() {
+		return fmt.Errorf("migrate:fresh drops every table and only runs with APP_ENV=dev (this is %s)", cfg.App.Env)
 	}
 
 	for {

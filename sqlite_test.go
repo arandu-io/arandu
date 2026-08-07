@@ -9,9 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arandu-io/framework/config"
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/security"
+
+	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
 )
 
 // The tests below run the real thing against a real database, because SQLite is
@@ -69,7 +71,7 @@ func TestLoginOnSQLite(t *testing.T) {
 	}
 
 	cfg, db, _ := openForTest(t)
-	k := build(cfg, db).kernel
+	k := bootstrap.Build(cfg, db).Kernel
 	if err := k.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
@@ -189,10 +191,10 @@ func csrfToken(t *testing.T, html string) string {
 
 // openForTest builds the same configuration and handle the commands use, so the
 // test exercises the real wiring rather than a parallel one.
-func openForTest(t *testing.T) (config.Config, *data.DB, func()) {
+func openForTest(t *testing.T) (appconfig.Config, *data.DB, func()) {
 	t.Helper()
 
-	cfg, err := config.Load()
+	cfg, err := appconfig.Load()
 	if err != nil {
 		t.Fatalf("config: %v", err)
 	}

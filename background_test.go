@@ -13,6 +13,8 @@ import (
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/queue"
+
+	"github.com/arandu-io/arandu/bootstrap"
 )
 
 // The shape doc 16 describes, end to end and against a real database: the
@@ -141,23 +143,23 @@ func TestTheSchedulerIsWiredIntoTheApplication(t *testing.T) {
 	}
 
 	cfg, db, _ := openForTest(t)
-	app := build(cfg, db)
+	app := bootstrap.Build(cfg, db)
 
-	if app.scheduler == nil {
+	if app.Scheduler == nil {
 		t.Fatal("the scheduler module was not registered")
 	}
-	if app.queue == nil {
+	if app.Queue == nil {
 		t.Fatal("the queue store was not wired")
 	}
 
-	if err := app.kernel.Boot(context.Background()); err != nil {
+	if err := app.Kernel.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
-	t.Cleanup(func() { _ = app.kernel.Shutdown() })
+	t.Cleanup(func() { _ = app.Kernel.Shutdown() })
 
 	// The jobs table is part of the schema the application migrates, or
 	// `aru work` fails on a table that does not exist.
-	if _, err := app.queue.Pending(context.Background(), ""); err != nil {
+	if _, err := app.Queue.Pending(context.Background(), ""); err != nil {
 		t.Fatalf("the jobs table is missing from the migrations: %v", err)
 	}
 }

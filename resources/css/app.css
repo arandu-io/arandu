@@ -1,0 +1,38 @@
+/* The stylesheet of this application: Tailwind v4, and nothing else.
+ *
+ * `aru view:build` compiles it with the standalone tailwindcss binary -- a
+ * single executable the CLI downloads and pins in arandu.toml. There is no
+ * package.json, no node_modules and no bundler, and there never will be: having
+ * a build step is allowed, being Node is not (RULE 13).
+ *
+ * Tailwind v4 needs no config file. The import below brings the engine, and
+ * @source tells it where the class names are -- the .kyse.go sources, because
+ * that is what a person edits, and the generated .go next to them, because that
+ * is what ships.
+ */
+
+@import "tailwindcss";
+
+@source "../views/**/*.kyse.go";
+@source "../views/**/*.go";
+
+/* Design tokens. Everything below is a Tailwind utility away from any template,
+ * so a page never carries a hex value inline. */
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+/* The two rules the framework's own pages assume. Keep them: the error page and
+ * the sign-in screen render before any application stylesheet is involved. */
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  html {
+    font-family: var(--font-sans);
+  }
+}

@@ -1,0 +1,10 @@
+# public/ barely exists in an Arandu project.
+#
+# Every asset is embedded in the binary and served by the framework from
+# /_arandu/assets/<hash>/, so there is no document root, no public/build and no
+# storage:link. What lands here is the handful of files a crawler or a browser
+# asks for by a fixed path.
+
+User-agent: *
+Disallow: /_arandu/
+Allow: /

@@ -10,6 +10,8 @@ import (
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/observability"
 	"github.com/arandu-io/framework/security"
+
+	"github.com/arandu-io/arandu/bootstrap"
 )
 
 // The console, through the real pipeline. Everything below goes through
@@ -25,7 +27,7 @@ func bootedApp(t *testing.T) (http.Handler, *data.DB) {
 		t.Fatalf("migrate: %v", err)
 	}
 	cfg, db, _ := openForTest(t)
-	k := build(cfg, db).kernel
+	k := bootstrap.Build(cfg, db).Kernel
 	if err := k.Boot(context.Background()); err != nil {
 		t.Fatalf("boot: %v", err)
 	}

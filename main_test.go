@@ -15,6 +15,9 @@ import (
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/httpx/middleware"
 	"github.com/arandu-io/framework/kernel"
+
+	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
 )
 
 // These tests need no database. database/sql connects lazily, so the wiring, the
@@ -51,7 +54,7 @@ func testKernel(t *testing.T, env config.Env) *kernel.Kernel {
 	}
 	t.Cleanup(func() { _ = sqldb.Close() })
 
-	k := build(cfg, data.Wrap(sqldb, cfg.Database.Connection)).kernel
+	k := bootstrap.Build(appconfig.From(cfg), data.Wrap(sqldb, cfg.Database.Connection)).Kernel
 	if err := k.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}

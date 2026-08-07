@@ -16,7 +16,7 @@ import (
 
 func dockerfile(t *testing.T) string {
 	t.Helper()
-	body, err := os.ReadFile("../../Dockerfile")
+	body, err := os.ReadFile("Dockerfile")
 	if err != nil {
 		t.Fatalf("the skeleton has no Dockerfile, and doc 17 says it does: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestTheImageDoesNotMigrateAtBoot(t *testing.T) {
 // TestTheBuildContextExcludesSecrets: .env in an image is a credential shipped
 // to a registry, and registries are copied around.
 func TestTheBuildContextExcludesSecrets(t *testing.T) {
-	body, err := os.ReadFile("../../.dockerignore")
+	body, err := os.ReadFile(".dockerignore")
 	if err != nil {
 		t.Fatalf("there is no .dockerignore: %v", err)
 	}

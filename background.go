@@ -120,7 +120,7 @@ func work(ctx context.Context, k *kernel.Kernel, store jobs.Queue, args []string
 
 	if len(w.Names()) == 0 {
 		return fmt.Errorf("no job handlers are registered.\n" +
-			"Register them in registerHandlers, in cmd/app/background.go")
+			"Register them in registerHandlers, in background.go")
 	}
 
 	// The worker owns the signal, because it is the process. Draining what is
@@ -134,8 +134,9 @@ func work(ctx context.Context, k *kernel.Kernel, store jobs.Queue, args []string
 
 // registerHandlers is where a module's job handlers are wired.
 //
-// Explicit, like the module registration in build(): read it top to bottom and
-// you know every kind of work this application does in the background.
+// Explicit, like the module registration in bootstrap.Build: read it top to
+// bottom and you know every kind of work this application does in the
+// background.
 func registerHandlers(w *jobs.Worker) {
 	// arandu:begin custom
 	// w.HandleFunc("invoice.send", invoiceModule.SendInvoice)
