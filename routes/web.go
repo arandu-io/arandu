@@ -10,6 +10,7 @@ import (
 	"github.com/arandu-io/framework/httpx"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
+	"github.com/arandu-io/arandu/public"
 )
 
 // Deps carries the controllers the routes dispatch to.
@@ -41,6 +42,12 @@ func Web(r *httpx.Router, d Deps) {
 	// including /_arandu/debug when the console is not mounted. The {$} anchors
 	// the match to the end of the path, which is what Route::get('/') means.
 	r.Action("GET", "/{$}", d.Home.Index).Name("home")
+
+	// The fixed names the outside world asks for: /favicon.ico, which the layout
+	// links, and /robots.txt, which a crawler fetches without being told to.
+	// They are embedded in the binary and there is no document root -- see the
+	// public package. Without this line the icon in the tab is a 404.
+	public.Routes(r)
 
 	// arandu:begin custom
 	// The routes of this application go here. `aru make:module` appends to this

@@ -26,15 +26,15 @@ jobs:
           go-version: stable
 
       - name: gofmt
-        # `gofmt -l .` nao pula nada, e duas coisas neste repositorio nao sao
-        # Go valido de proposito:
+        # `gofmt -l .` skips nothing, and two things in this repository are not
+        # valid Go on purpose:
         #
-        #   testdata/    fixtures que o doctor tem que recusar, incluindo um
-        #                arquivo que nao parseia — e o teste
-        #   *.kyse.go    template do kyse; o compilador o exclui pela tag de
-        #                build, mas o gofmt ignora build tag
+        #   testdata/    fixtures the doctor has to reject, including a file
+        #                that does not parse -- that one is the test
+        #   *.kyse.go    kyse templates; the compiler excludes them through the
+        #                build tag, but gofmt ignores build tags
         #
-        # `go build`, `go vet` e `go test` pulam os dois sozinhos.
+        # `go build`, `go vet` and `go test` skip both on their own.
         run: |
           unformatted=$(find . -name '*.go' -not -path '*/testdata/*' \
                           -not -name '*.kyse.go' -exec gofmt -l {} +)
@@ -57,13 +57,26 @@ jobs:
 
       # The architecture rules, checked. Without this step "the architecture is
       # mandatory" holds only where the type system reaches -- it cannot see a
-      # policy nobody opened, a handler at the database, or a tenant from a
-      # header. --strict makes warnings fail too, which is the right setting for
-      # the skeleton: it ships as an example.
+      # handler at the database, a tenant read from a header, or a Grant that
+      # arrives and is never checked. Those are errors, and an error fails the
+      # build.
+      #
+      # Not --strict, and that is deliberate. `aru new` copies this workflow into
+      # every project it creates, so this file is the CI of somebody who has
+      # written no code yet. `aru make:module` writes a policy that denies every
+      # action -- on purpose, that is the thesis -- and `policy-never-opened`
+      # then fires on the file the generator itself just wrote. Under --strict
+      # the first push of a brand new project is red for something the developer
+      # did not do, and a check that is red on day zero is a check people learn
+      # to ignore.
+      #
+      # Nothing was loosened: the policy still starts denying, the warning is
+      # still printed with the file and the line, and opening it is still the
+      # next thing to do. What changed is that a to-do is reported as a to-do.
       - name: doctor
         run: |
           go install github.com/arandu-io/aru@latest
-          aru doctor --strict
+          aru doctor
 
       # The image, for real. Doc 17 promises one artifact that every platform
       # consumes, and a Dockerfile that stopped building is found on the day

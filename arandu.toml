@@ -1,14 +1,18 @@
-# The build tools this project uses, pinned.
+# The build tools this project downloads, pinned.
 #
 # Pinned rather than tracked: a build that silently picks up a new major of
 # Tailwind is a build that breaks on someone else's machine and not on yours.
-# `aru view:build` downloads these on first use and caches them in ~/.arandu/bin,
-# the same way Go handles its own toolchain.
+# `aru view:build` fetches what is listed here on first use and caches it in
+# ~/.arandu/bin, the same way Go handles its own toolchain.
 #
-# Neither is Node. templ is a Go binary; tailwindcss is the standalone CLI that
-# Tailwind publishes for projects that do not want a package manager. There is no
-# package.json here and there never will be -- see doc 14 and RULE 13.
+# There is one entry and it is not Node. tailwindcss is the standalone CLI that
+# Tailwind publishes for projects that do not want a package manager. There is
+# no package.json here and there never will be -- see doc 14 and RULE 13.
+#
+# The view compiler is deliberately absent. kyse is not a binary this file
+# pins: it is part of `aru` itself, and it moves in lockstep with the generator
+# that writes the views, which is what keeps the two from drifting (ADR 0020).
+# Nothing to download, nothing to verify, nothing to cache.
 
 [tools]
-templ = "v0.3.1020"
 tailwindcss = "v4.3.3"
