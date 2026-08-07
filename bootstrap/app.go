@@ -32,6 +32,11 @@ import (
 	// Importing the views is what registers them: every generated view calls
 	// view.Register from init(), the same shape a database/sql driver has. Drop
 	// this import and ctx.View("home") answers "no view named home".
+	// The compiled stylesheet, embedded. Without this import the browser gets
+	// the framework's default and every class written in a view of this project
+	// is silently absent from the page.
+	_ "github.com/arandu-io/arandu/assets"
+
 	_ "github.com/arandu-io/arandu/resources/views"
 )
 

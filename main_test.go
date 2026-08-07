@@ -86,8 +86,20 @@ func TestTheLandingPageRenders(t *testing.T) {
 	if !strings.Contains(body, "<!doctype html>") {
 		t.Error("the layout did not render around the page")
 	}
-	if !strings.Contains(body, "Hello world") {
-		t.Error("the data the controller passed did not reach the page")
+	// The application name, and not a literal from the page.
+	//
+	// This used to assert "Hello world", a phrase of the skeleton's own landing
+	// page -- and `aru make:auth` replaces that page, along with the layout and
+	// the controller, exactly as `php artisan ui bootstrap --auth` does. The
+	// test then failed in every project that ran the command, on its first push,
+	// for something the person did not break.
+	//
+	// The app name survives the swap because both controllers pass it, and it
+	// still proves what this test is for: a value the controller was given
+	// reached the rendered page. A weaker assertion -- that the body is not
+	// empty -- would pass with the error page.
+	if !strings.Contains(body, "test") {
+		t.Error("the application name the controller was given did not reach the page")
 	}
 	// The stylesheet and the scripts are embedded and content-addressed. A page
 	// that asks for them by a plain name gets a 404 and no styling.
