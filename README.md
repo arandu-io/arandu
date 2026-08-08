@@ -9,29 +9,30 @@
 <a href="LICENSE.md"><img src="https://img.shields.io/github/license/arandu-io/arandu" alt="License"></a>
 </p>
 
-## About Arandu
 
-> **Note:** this is the skeleton a new project starts from. The framework it
-> runs on is [arandu-io/framework](https://github.com/arandu-io/framework).
+## About the skeleton
 
-You do not clone this by hand:
+> **Note:** this is what a new project starts from. The framework it runs on is
+> [arandu-io/framework](https://github.com/arandu-io/framework).
 
-```
+You do not clone it by hand:
+
+```sh
 aru new my-app
+cd my-app && aru dev
 ```
 
-It is Laravel's tree, with Go underneath — `app/Http/Controllers`, `app/Models`,
+The tree is the conventional one — `app/Http/Controllers`, `app/Models`,
 `app/Policies`, `bootstrap/`, `config/`, `database/`, `resources/views`,
-`routes/`, `storage/`, `public/`, in the same places with the same names. A
-Laravel developer opens it and recognises everything.
+`routes/`, `storage/`, `public/` — so nothing about where a file lives has to be
+learned.
 
-Three directories Laravel does not ship, and they are the difference:
-`app/Services/`, `app/Repositories/` and a mandatory `app/Policies/`. In Laravel
-those are a convention an organised team follows; here they are skeleton, and
-`aru doctor` asks for them.
+Three directories carry the difference: `app/Services/`, `app/Repositories/` and
+a mandatory `app/Policies/`. Elsewhere those are a habit an organised team keeps;
+here they are skeleton, and `aru doctor` asks for them.
 
 It runs with `git clone && aru dev`. No `node_modules`, no `package.json`, no JS
-lockfile, and no Node installed.
+lockfile, and no Node installed — assets are embedded in the binary.
 
 ## Learning Arandu
 
@@ -40,7 +41,7 @@ The API reference is generated from the doc comments and lives on
 symbol carries one, and that is deliberate: it is the documentation that cannot
 drift from the code, because it sits in the same file.
 
-The CLI documents itself — `aru help` lists every command, and each one explains
+The CLI documents itself. `aru help` lists every command, and each one explains
 what it writes and what to do with it. `aru doctor` explains what it found and
 what breaks, not which rule was violated.
 
