@@ -2,12 +2,12 @@
 //
 // A provider here is a kernel.Module: it has a name, it registers routes, and it
 // may declare migrations, scheduled tasks and a boot step. What it is not is a
-// Laravel service provider -- there is no container to bind into and no deferred
-// resolution, because every dependency is constructed in bootstrap/app.go and
-// passed in by hand.
+// service provider in the container sense -- there is nothing to bind into and
+// no deferred resolution, because every dependency is constructed in
+// bootstrap/app.go and passed in by hand.
 //
-// The name survives anyway, and on purpose: this is the file a Laravel developer
-// opens looking for "where the application registers itself" (RULE 10).
+// The name survives anyway, and on purpose: this is the file somebody opens
+// looking for "where the application registers itself" (RULE 10).
 package providers
 
 import (

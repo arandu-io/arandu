@@ -8,9 +8,9 @@ import (
 
 // Logging is what config/logging.php holds.
 //
-// There is one channel and it is stdout. Laravel needs a stack of channels
-// because a PHP process cannot be relied on to have a collector in front of it;
-// a container always does, and a log file inside a container is a log nobody
+// There is one channel and it is stdout. A stack of channels exists where a
+// process cannot be relied on to have a collector in front of it; a container
+// always does, and a log file inside a container is a log nobody
 // reads and a disk that fills up. storage/logs does not exist here.
 type Logging struct {
 	// Level is the lowest severity written. Debug is refused in production by

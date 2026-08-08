@@ -20,7 +20,7 @@ import (
 // It is an alias of the auth module's type, not a copy. Two structs describing
 // one table is two ways to describe one thing (RULE 9), and the copy is the one
 // that drifts: the module owns the columns, the migration and the hashing, and
-// this name is here so app/Models/User.go is where a Laravel developer finds it.
+// this name is here so app/Models/User.go is where the user model is found.
 //
 // The password hash never leaves the type: User implements MarshalJSON and
 // LogValue so a dump, a log line or a JSON response cannot carry it.

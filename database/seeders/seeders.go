@@ -1,6 +1,6 @@
 // Package seeders holds the database seeders of this project.
 //
-// The shape mirrors Laravel: DatabaseSeeder is the entry point, it calls the
+// The shape is the conventional one: DatabaseSeeder is the entry point, it calls the
 // other seeders in order, and `aru db:seed --class=<name>` runs a single one.
 // The difference is that a seeder here is a type satisfying an interface rather
 // than a class discovered by reflection -- so a seeder that does not compile is

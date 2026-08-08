@@ -1,10 +1,10 @@
 // Package factories builds domain objects with sensible values.
 //
-// The role is Laravel's: a seeder or a test says what it cares about and the
-// factory fills the rest. What is different is that nothing here touches the
-// database. A factory returns a value; storing it is a repository call, and a
-// repository call needs a Grant -- so a factory cannot become a back door around
-// the policy that guards the table.
+// A seeder or a test says what it cares about and the factory fills the rest.
+// What is different is that nothing here touches the database. A factory
+// returns a value; storing it is a repository call, and a repository call
+// needs a Grant -- so a factory cannot become a back door around the policy
+// that guards the table.
 package factories
 
 import (

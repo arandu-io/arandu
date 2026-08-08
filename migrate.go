@@ -11,13 +11,13 @@ import (
 	appconfig "github.com/arandu-io/arandu/config"
 )
 
-// The migration commands mirror Laravel's, because the steps of a deploy should
-// be the ones a developer already knows: migrate, migrate:rollback,
-// migrate:status, migrate:fresh.
+// The migration commands are the conventional ones, because the steps of a
+// deploy should be the ones a developer already knows: migrate,
+// migrate:rollback, migrate:status, migrate:fresh.
 //
 // What is deliberately different: there is no schema builder. A migration is
-// SQL, written once in the portable subset every supported database shares, and
-// what you read is what runs. Laravel needs a Blueprint because Eloquent hides
+// SQL, written once in the portable subset every supported database shares,
+// and what you read is what runs. A schema builder exists where an ORM hides
 // the database; here the point is that nothing hides it.
 
 func migrate(ctx context.Context, db *data.DB, migrations []data.Migration) error {
@@ -74,7 +74,7 @@ func migrateStatus(ctx context.Context, db *data.DB, migrations []data.Migration
 
 // fresh rolls everything back and applies it again.
 //
-// It refuses to run outside development. Laravel guards migrate:fresh with a
+// It refuses to run outside development. The usual guard for a command like this is a
 // confirmation prompt in production; a framework whose thesis is that the
 // compiler enforces the rules should not rely on someone reading a prompt at
 // 3am, so this one simply does not run there.

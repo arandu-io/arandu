@@ -9,9 +9,10 @@ import (
 
 // Command is one console command this application adds.
 //
-// Laravel's routes/console.php registers closures against Artisan. This is the
-// same idea with the reflection removed: a command is a value with a name, a
-// sentence of help and a function, and the compiler checks the function.
+// A console routes file usually registers closures against a runtime
+// dispatcher. This is the same idea with the reflection removed: a command is
+// a value with a name, a sentence of help and a function, and the compiler
+// checks the function.
 type Command struct {
 	// Name is what the command is called on the command line. Lowercase, with a
 	// colon for the group: "invoice:close".

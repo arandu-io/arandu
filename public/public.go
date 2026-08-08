@@ -12,7 +12,7 @@
 // second asset pipeline (RULE 9): one path for anything a page references, this
 // one for the short list of names the outside world already knows.
 //
-// There is no document root here either. Laravel's public/ is what the web
+// There is no document root here either. A public/ directory is what a web
 // server points at; ours is compiled into the binary like everything else, so
 // the deploy stays one artifact and `git clone && aru dev` answers these URLs
 // with nothing mounted and nothing published.

@@ -1,11 +1,11 @@
 // Package migrations holds this application's own schema changes.
 //
-// The shape mirrors Laravel's database/migrations: one file per change, applied
+// The shape is the conventional one: one file per change, applied
 // in order, recorded in a table. Two things are deliberately different.
 //
 // There is no schema builder. A migration is SQL, written once in the portable
 // subset every supported database shares, and what you read is what runs.
-// Laravel needs a Blueprint because Eloquent hides the database; here the point
+// A schema builder exists where an ORM hides the database; here the point
 // is that nothing hides it.
 //
 // And a migration never runs at boot. `aru migrate` is a pipeline step: with N

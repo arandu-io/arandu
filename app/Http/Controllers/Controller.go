@@ -1,7 +1,7 @@
 // Package controllers holds this application's controllers.
 //
-// The directory is app/Http/Controllers, in CamelCase, exactly where a Laravel
-// developer looks for it. The package name follows Go and stays lowercase.
+// The directory is app/Http/Controllers, in CamelCase, which is where people
+// look for it. The package name follows Go and stays lowercase.
 //
 // A controller reads the request, calls a service and renders. It never reaches
 // the database: a controller holding a repository is a controller that skipped
@@ -17,11 +17,11 @@ import (
 
 // Controller is the type every controller in this directory embeds.
 //
-// It carries no dependencies, and that is deliberate: Laravel's base controller
-// grew authorize(), validate() and dispatch() because there was nowhere else to
-// put them, and each one hid a collaborator. Here it holds only what is about
-// answering a request, and a controller's collaborators are fields it declares
-// and the constructor sets.
+// It carries no dependencies, and that is deliberate. A base controller that
+// grows authorize(), validate() and dispatch() grows them because there is
+// nowhere else to put them, and each one hides a collaborator. Here it holds
+// only what is about answering a request, and a controller's collaborators are
+// fields it declares and the constructor sets.
 type Controller struct{}
 
 // Invalid answers a failed validation with the fragment HTMX swaps back in.

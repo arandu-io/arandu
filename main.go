@@ -1,6 +1,7 @@
 // Command arandu is the entry point of this application.
 //
-// It is what Laravel splits between public/index.php and artisan: the binary is
+// It is both halves of what is usually two artifacts, a front controller and a
+// console script: the binary is
 // the server, and the same binary is the command line. There is no front
 // controller and no document root, because in Go the process listens itself.
 //

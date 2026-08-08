@@ -42,7 +42,7 @@ type Page struct {
 	LoginURL  string
 	LogoutURL string
 	// RegisterURL is empty when registration is not open, and the layout draws
-	// no link then. It is Laravel's Route::has check, moved to the data: an
+	// no link then. It moves the "is this route registered" question to the data: an
 	// application that never registered the route hides the link rather than
 	// linking to a 404.
 	RegisterURL string

@@ -1,5 +1,5 @@
-// Package config is this application's configuration, one file per domain --
-// the same ten files Laravel puts in config/, with the same names.
+// Package config is this application's configuration, one file per domain: ten
+// files, named after what they configure.
 //
 // The difference is the one that matters: there is no config("app.name") lookup.
 // Every setting is a field of a typed struct, so a wrong key is a compile error
@@ -39,7 +39,7 @@ type Config struct {
 	Session     Session
 }
 
-// App is what config/app.php holds in Laravel: the identity of the application.
+// App is the identity of the application.
 type App struct {
 	// Name appears in the page title, in the log and in outgoing mail.
 	Name string

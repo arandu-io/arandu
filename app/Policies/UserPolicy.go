@@ -1,6 +1,6 @@
 // Package policies holds this application's authorization decisions.
 //
-// In Laravel a policy is a convention of an organized team. Here it is skeleton,
+// A policy is usually a convention an organized team keeps. Here it is skeleton,
 // and the compiler and `aru doctor` both enforce it: a repository whose entity
 // has no policy fails the check, because an entity that is reachable and that
 // nobody decided who may reach is the failure this framework exists to prevent.
@@ -20,8 +20,8 @@ import (
 // It is an alias of the auth module's policy, not a second one. The module owns
 // the table, the actions and the tenant check, and a copy here would be the one
 // that drifts -- two policies for one entity is two answers to one question
-// (RULE 9). The name is here so app/Policies/UserPolicy.go is where a Laravel
-// developer finds it.
+// (RULE 9). The name is here so app/Policies/UserPolicy.go is where the user's
+// policy is found.
 //
 // Replace the alias with a struct of your own the day this application needs a
 // rule the module does not have. The contract is security.Policy[models.User],
