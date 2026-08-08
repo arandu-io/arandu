@@ -1,0 +1,12 @@
+/* Native Select */
+@layer components {
+  .field > select,
+  select.select {
+    @apply min-w-0 appearance-none outline-none select-none disabled:cursor-not-allowed disabled:opacity-50;
+
+    option,
+    optgroup {
+      @apply bg-[Canvas] text-[CanvasText];
+    }
+  }
+}

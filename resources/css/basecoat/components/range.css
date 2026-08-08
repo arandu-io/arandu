@@ -1,0 +1,50 @@
+/* Range */
+@layer components {
+  .field > input[type='range'],
+  .input[type='range'] {
+    @apply flex appearance-none items-center p-0 outline-none disabled:pointer-events-none disabled:opacity-50;
+    --slider-value: 20%;
+
+    &::-webkit-slider-thumb {
+      @apply block shrink-0 appearance-none;
+    }
+
+    &::-webkit-slider-runnable-track {
+      @apply w-full appearance-none;
+      background: linear-gradient(to right, var(--primary) var(--slider-value), var(--muted) var(--slider-value));
+    }
+
+    &:dir(rtl)::-webkit-slider-runnable-track {
+      background: linear-gradient(to left, var(--primary) var(--slider-value), var(--muted) var(--slider-value));
+    }
+
+    &::-moz-range-thumb {
+      @apply block shrink-0 appearance-none;
+    }
+
+    &::-moz-range-track {
+      @apply w-full appearance-none;
+      background: linear-gradient(to right, var(--primary) var(--slider-value), var(--muted) var(--slider-value));
+    }
+
+    &:dir(rtl)::-moz-range-track {
+      background: linear-gradient(to left, var(--primary) var(--slider-value), var(--muted) var(--slider-value));
+    }
+
+    &::-ms-thumb {
+      @apply block shrink-0 appearance-none;
+    }
+
+    &::-ms-track {
+      @apply w-full appearance-none;
+    }
+
+    &::-ms-fill-lower {
+      @apply bg-primary;
+    }
+
+    &::-ms-fill-upper {
+      @apply bg-muted;
+    }
+  }
+}

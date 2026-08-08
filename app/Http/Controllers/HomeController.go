@@ -3,6 +3,7 @@ package controllers
 import (
 	"github.com/arandu-io/framework/httpx"
 	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/framework/view"
 
 	"github.com/arandu-io/arandu/resources/views"
 )
@@ -44,7 +45,7 @@ var _ httpx.Indexer = (*HomeController)(nil)
 // anything else and the build fails, naming both sides -- which is the whole
 // reason the view is compiled instead of interpreted.
 //
-// views.Page is the state the layout draws, embedded rather than repeated. The
+// view.Page is the chrome the layout draws, embedded rather than repeated. The
 // navigation draws a link only for what answers: the skeleton registers the
 // framework's sign-in route and nothing else, so registration stays off until
 // there is a handler behind it -- a link to a route nobody registered is a 404
@@ -66,7 +67,7 @@ func (c *HomeController) Index(ctx *httpx.Context) error {
 	}
 
 	return ctx.View("home", views.HomeData{
-		Page: views.Page{
+		Page: view.Page{
 			Title:         c.appName,
 			AppName:       c.appName,
 			Token:         token,

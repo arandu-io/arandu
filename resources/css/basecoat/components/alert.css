@@ -1,0 +1,38 @@
+/* Alert */
+@layer components {
+  .alert {
+    @apply relative w-full;
+  }
+
+  .alert:has(> footer) {
+    @apply pe-[4.5rem];
+  }
+
+  .alert > :is(h2, h3, h4, h5, h6, strong, [data-title]) {
+    @apply min-h-4;
+  }
+
+  .alert > section {
+    @apply grid justify-items-start gap-1;
+
+    :where(p, ul, ol) {
+      @apply m-0;
+    }
+
+    :where(p, ul, ol):not(:last-child) {
+      @apply mb-4;
+    }
+
+    ul {
+      @apply list-inside list-disc;
+    }
+
+    ol {
+      @apply list-inside list-decimal;
+    }
+  }
+
+  .alert > footer {
+    @apply absolute;
+  }
+}

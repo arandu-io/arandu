@@ -1,0 +1,54 @@
+/* Button Group */
+@layer components {
+  .button-group {
+    @apply isolate inline-flex w-fit items-stretch;
+
+    &:has(> :is(.dropdown-menu, .popover, .select) > [data-popover][aria-hidden='false']) {
+      @apply relative z-50;
+    }
+    
+    > .input {
+      @apply flex-1;
+    }
+
+    > *:focus-visible,
+    > :is(.dropdown-menu, .popover, .select) > button:focus-visible {
+      @apply relative z-10;
+    }
+
+    > hr[role='separator'] {
+      @apply relative w-px h-auto self-stretch shrink-0 border-0 my-px mx-0;
+    }
+
+    &:not([data-orientation='vertical']) {
+      > *:not(:first-child),
+      > :is(.dropdown-menu, .popover, .select):not(:first-child) > button {
+        @apply rounded-s-none border-s-0;
+      }
+      > *:not(:last-child),
+      > :is(.dropdown-menu, .popover, .select):not(:last-child) > button {
+        @apply rounded-e-none;
+      }
+    }  
+    &[data-orientation='vertical'] {
+      @apply flex-col;
+
+      > hr[role='separator'] {
+        @apply w-auto h-px mx-px my-0;
+      }
+      
+      > *:not(:first-child),
+      > :is(.dropdown-menu, .popover, .select):not(:first-child) > button {
+        @apply rounded-t-none border-t-0;
+      }
+      > *:not(:last-child),
+      > :is(.dropdown-menu, .popover, .select):not(:last-child) > button {
+        @apply rounded-b-none;
+      }
+    }
+  }
+
+  .button-group > :is(span, label, output) {
+    @apply flex items-center [&_svg]:pointer-events-none;
+  }
+}

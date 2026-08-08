@@ -106,11 +106,25 @@ func TestLoginOnSQLite(t *testing.T) {
 
 	t.Run("correct password signs in", func(t *testing.T) {
 		rec := post(handler, token, "ADMIN@example.test", "a-long-enough-password")
-		if rec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200 (the email is matched case-insensitively)", rec.Code)
+
+		// What matters is that the person is signed in and told where to go,
+		// and this asserts that rather than one shape of it.
+		//
+		// The shape depends on the client: an HTMX request gets 204 with
+		// HX-Redirect, a plain form post gets 303 with Location. It also
+		// depends on WHICH sign-in module is wired -- the framework ships a
+		// minimal one and the starter kit replaces it, at the same path. This
+		// test used to demand 200 and HX-Redirect, so following the kit's own
+		// wiring instruction turned the skeleton's suite red.
+		if rec.Code != http.StatusOK && rec.Code != http.StatusNoContent && rec.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 2xx or 303 (the email is matched case-insensitively)", rec.Code)
 		}
-		if got := rec.Header().Get("HX-Redirect"); got != "/" {
-			t.Errorf("HX-Redirect = %q, want /", got)
+		to := rec.Header().Get("HX-Redirect")
+		if to == "" {
+			to = rec.Header().Get("Location")
+		}
+		if to != "/" {
+			t.Errorf("the client was sent to %q, want /", to)
 		}
 
 		cookies := rec.Result().Cookies()

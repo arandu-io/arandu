@@ -1,0 +1,13 @@
+/* Label */
+@layer components {
+  .field > label,
+  .field > section > label,
+  .label {
+    @apply flex items-center select-none peer-disabled:pointer-events-none;
+
+    &:has(>*:disabled),
+    &:has(+*:disabled) {
+      @apply pointer-events-none;
+    }
+  }
+}

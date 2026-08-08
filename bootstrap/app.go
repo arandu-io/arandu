@@ -32,15 +32,23 @@ import (
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/routes"
 
-	// Importing the views is what registers them: every generated view calls
-	// view.Register from init(), the same shape a database/sql driver has. Drop
-	// this import and ctx.View("home") answers "no view named home".
 	// The compiled stylesheet, embedded. Without this import the browser gets
 	// the framework's default and every class written in a view of this project
 	// is silently absent from the page.
 	_ "github.com/arandu-io/arandu/assets"
 
+	// Importing the views is what registers them: every generated view calls
+	// view.Register from init(), the same shape a database/sql driver has. Drop
+	// one and ctx.View("home") answers "no view named home" -- and drop the
+	// layouts one and every page fails instead, because a page renders its
+	// layout.
+	//
+	// One line per directory of views, because the generated file sits beside
+	// its source and each directory is its own package. Adding a directory means
+	// adding a line here, and a view nobody can reach says so at the first
+	// request rather than never.
 	_ "github.com/arandu-io/arandu/resources/views"
+	_ "github.com/arandu-io/arandu/resources/views/layouts"
 )
 
 // AppModule is this project's module path. The error page uses it to tell your

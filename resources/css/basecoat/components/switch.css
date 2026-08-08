@@ -1,0 +1,8 @@
+/* Switch */
+@layer components {
+  .field > input[type='checkbox'][role='switch'],
+  .input[type='checkbox'][role='switch'] {
+    @apply inline-flex shrink-0 appearance-none items-center transition-all outline-none disabled:cursor-not-allowed disabled:opacity-50;
+    @apply before:pointer-events-none before:block before:content-[''] before:ring-0 before:transition-transform;
+  }
+}

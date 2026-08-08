@@ -1,0 +1,107 @@
+/* Popover */
+@layer components {
+  [data-popover] {
+    @apply absolute z-50 min-w-full w-max overflow-x-hidden overflow-y-auto visible opacity-100 scale-100 transition-all outline-hidden;
+
+    &[aria-hidden='true'] {
+      @apply invisible opacity-0 scale-95;
+
+      &:not([data-side]),
+      &[data-side='bottom'] {
+        @apply -translate-y-2;
+      }
+
+      &[data-side='top'] {
+        @apply translate-y-2;
+      }
+
+      &[data-side='left'] {
+        @apply translate-x-2;
+      }
+
+      &[data-side='right'] {
+        @apply -translate-x-2;
+      }
+
+      &[data-side='inline-start'] {
+        @apply translate-x-2;
+      }
+
+      &[data-side='inline-start']:dir(rtl) {
+        @apply -translate-x-2;
+      }
+
+      &[data-side='inline-end'] {
+        @apply -translate-x-2;
+      }
+
+      &[data-side='inline-end']:dir(rtl) {
+        @apply translate-x-2;
+      }
+    }
+
+    &:not([data-side]),
+    &[data-side='bottom'] {
+      @apply mt-1 top-full;
+    }
+
+    &[data-side='top'] {
+      @apply mb-1 bottom-full;
+    }
+
+    &[data-side='left'] {
+      @apply me-1 end-full;
+    }
+
+    &[data-side='right'] {
+      @apply ms-1 start-full;
+    }
+
+    &[data-side='inline-start'] {
+      @apply me-1 end-full;
+    }
+
+    &[data-side='inline-end'] {
+      @apply ms-1 start-full;
+    }
+
+    &:not([data-side]),
+    &[data-side='bottom'],
+    &[data-side='top'] {
+      &:not([data-align]),
+      &[data-align='start'] {
+        @apply start-0;
+      }
+
+      &[data-align='end'] {
+        @apply end-0;
+      }
+
+      &[data-align='center'] {
+        @apply start-1/2 -translate-x-1/2;
+      }
+    }
+
+    &[data-side='left'],
+    &[data-side='right'],
+    &[data-side='inline-start'],
+    &[data-side='inline-end'] {
+      &:not([data-align]),
+      &[data-align='start'] {
+        @apply top-0;
+      }
+
+      &[data-align='end'] {
+        @apply bottom-0;
+      }
+
+      &[data-align='center'] {
+        @apply top-1/2 -translate-y-1/2;
+      }
+    }
+  }
+
+  .popover {
+    @apply relative inline-flex;
+  }
+}

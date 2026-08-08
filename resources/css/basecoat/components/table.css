@@ -1,0 +1,34 @@
+/* Tables */
+@layer components {
+  .table-container {
+    @apply relative w-full overflow-x-auto;
+  }
+
+  .table {
+    @apply w-full caption-bottom;
+
+    thead {
+      @apply [&_tr]:border-b;
+    }
+
+    tbody {
+      @apply [&_tr:last-child]:border-0;
+    }
+
+    tfoot {
+      @apply border-t font-medium [&>tr]:last:border-b-0;
+    }
+
+    tr {
+      @apply border-b transition-colors data-[state=selected]:bg-muted;
+    }
+
+    th {
+      @apply align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pe-0 [&>[role=checkbox]]:translate-y-[2px];
+    }
+
+    td {
+      @apply align-middle whitespace-nowrap [&:has([role=checkbox])]:pe-0 [&>[role=checkbox]]:translate-y-[2px];
+    }
+  }
+}

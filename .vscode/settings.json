@@ -1,0 +1,32 @@
+{
+  // The generated views are hidden, not deleted.
+  //
+  // `aru view:build` writes `button.go` beside `button.kyse.go`, and only the
+  // second one is ever edited -- the first opens with DO NOT EDIT and is
+  // overwritten on the next build. Showing both doubles every listing under
+  // resources/views/ with files nobody opens on purpose.
+  //
+  // They stay on disk and in git, which is what keeps `go build` working in a
+  // fresh clone, `go install` working for anybody who wants the binary, and the
+  // doc comments reaching pkg.go.dev. Hiding them is an editor preference;
+  // ignoring them would be a change to what the module is.
+  //
+  // The `when` clause hides `x.go` only where `x.kyse.go` sits beside it, so a
+  // hand-written Go file in the same directory stays visible.
+  "files.exclude": {
+    "**/*.go": { "when": "$(basename).kyse.go" }
+  },
+
+  // Search skips them too, so grepping for a class name lands on the view that
+  // declares it rather than on the copy inside a generated string literal.
+  "search.exclude": {
+    "**/*.go": { "when": "$(basename).kyse.go" }
+  },
+
+  // A .kyse.go is Go with markup in it, and the Go extension would report the
+  // markup as syntax errors on every keystroke. The build tag already excludes
+  // it from the compiler; this excludes it from the language server.
+  "gopls": {
+    "build.buildFlags": []
+  }
+}

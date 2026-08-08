@@ -1,0 +1,50 @@
+/* The components this project uses.
+ *
+ * A component layer is author CSS, not a utility: Tailwind emits every rule
+ * here whether a view uses it or not, because there is no class name to scan
+ * for. So the list is the bill. Importing all thirty-eight upstream ships costs
+ * 222 kB minified for a project that draws eight of them.
+ *
+ * Adding a component is adding a line, in the same way that adding a directory
+ * of views is adding a blank import in bootstrap. Both are the same trade: the
+ * cost is visible and it is one line, rather than invisible and paid on every
+ * page load.
+ *
+ * The files are all still on disk under components/ -- uncomment what you need.
+ */
+
+/* The frame */
+@import "./components/card.css";
+@import "./components/table.css";
+@import "./components/empty.css";
+@import "./components/sidebar.css";
+
+/* Forms */
+@import "./components/button.css";
+@import "./components/field.css";
+@import "./components/label.css";
+@import "./components/input.css";
+@import "./components/textarea.css";
+@import "./components/checkbox.css";
+@import "./components/native-select.css";
+
+/* Telling somebody something */
+@import "./components/alert.css";
+@import "./components/badge.css";
+@import "./components/toast.css";
+@import "./components/skeleton.css";
+
+/* Things that open */
+@import "./components/dropdown-menu.css";
+@import "./components/popover.css";
+@import "./components/dialog.css";
+
+/* Navigation */
+@import "./components/breadcrumb.css";
+@import "./components/tabs.css";
+@import "./components/avatar.css";
+@import "./components/scrollbar.css";
+
+/* Not imported, and on disk if you want them: accordion, button-group, chart,
+ * collapsible, combobox, command, drawer, input-group, item, kbd, progress,
+ * radio, range, select, switch, tooltip. */

@@ -1,9 +1,13 @@
-/* The stylesheet of this application: Tailwind v4, and nothing else.
+/* The stylesheet of this application: Tailwind v4, Basecoat, and nothing else.
  *
  * `aru view:build` compiles it with the standalone tailwindcss binary -- a
  * single executable the CLI downloads and pins in arandu.toml. There is no
  * package.json, no node_modules and no bundler, and there never will be: having
  * a build step is allowed, being Node is not (RULE 13).
+ *
+ * Basecoat is vendored under basecoat/, with its MIT licence, and it is yours:
+ * it is a directory of this project rather than a dependency, so changing how a
+ * button looks is editing a file you can see.
  *
  * Tailwind v4 needs no config file. The import below brings the engine, and
  * @source tells it where the class names are -- the .kyse.go sources, because
@@ -23,6 +27,16 @@
 @source "../views/**/*.kyse.go";
 @source "../views/**/*.go";
 
+/* The design system: the tokens, the component layer, and one style pack.
+ *
+ * Upstream ships eight packs and this project uses one. Eight would be eight
+ * ways to style a button, which docs/09-uma-forma-so.md refuses -- and the
+ * choice a person actually wants is the colour, which is the block below and
+ * costs six lines rather than a second stylesheet. */
+@import "./basecoat/base/base.css";
+@import "./basecoat/components.css";
+@import "./basecoat/styles/vega.css";
+
 /* Design tokens. Everything below is a Tailwind utility away from any template,
  * so a page never carries a hex value inline. */
 @theme {
@@ -30,6 +44,55 @@
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+/* The accent, chosen on the device and written to data-theme by theme.js.
+ *
+ * Each block overrides the two tokens that carry the accent and nothing else:
+ * the rest of the palette -- background, foreground, border, muted -- is the
+ * same in every one of them, which is what keeps six choices from being six
+ * themes to maintain. --accent-swatch-* is what the picker draws its dots with.
+ *
+ * They are :root rules rather than a Tailwind variant because they have to win
+ * over base.css, which sets the same custom properties on :root. */
+:root {
+  --accent-swatch-slate: oklch(0.55 0.02 260);
+  --accent-swatch-blue: oklch(0.55 0.2 260);
+  --accent-swatch-green: oklch(0.6 0.15 155);
+  --accent-swatch-amber: oklch(0.72 0.16 75);
+  --accent-swatch-rose: oklch(0.62 0.2 15);
+  --accent-swatch-violet: oklch(0.55 0.22 295);
+}
+
+:root[data-theme="blue"] {
+  --primary: var(--accent-swatch-blue);
+  --ring: var(--accent-swatch-blue);
+}
+:root[data-theme="green"] {
+  --primary: var(--accent-swatch-green);
+  --ring: var(--accent-swatch-green);
+}
+:root[data-theme="amber"] {
+  --primary: var(--accent-swatch-amber);
+  --ring: var(--accent-swatch-amber);
+}
+:root[data-theme="rose"] {
+  --primary: var(--accent-swatch-rose);
+  --ring: var(--accent-swatch-rose);
+}
+:root[data-theme="violet"] {
+  --primary: var(--accent-swatch-violet);
+  --ring: var(--accent-swatch-violet);
+}
+
+/* A coloured accent is dark, so the text on it is the light foreground. The
+ * default pack is greyscale and inverts by itself; these do not. */
+:root[data-theme="blue"],
+:root[data-theme="green"],
+:root[data-theme="amber"],
+:root[data-theme="rose"],
+:root[data-theme="violet"] {
+  --primary-foreground: oklch(0.99 0 0);
 }
 
 /* The two rules the framework's own pages assume. Keep them: the error page and
@@ -41,5 +104,9 @@
 
   html {
     font-family: var(--font-sans);
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 }

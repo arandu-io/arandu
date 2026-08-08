@@ -1,0 +1,6 @@
+/* Kbd */
+@layer components {
+  .kbd {
+    @apply pointer-events-none inline-flex items-center justify-center select-none;
+  }
+}

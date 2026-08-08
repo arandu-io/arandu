@@ -1,0 +1,26 @@
+/* Card */
+@layer components {
+  .card {
+    @apply flex flex-col;
+
+    > header {
+      @apply @container/card-header grid auto-rows-min items-start has-[>[data-slot=card-action],>.card-action]:grid-cols-[1fr_auto] has-[>p]:grid-rows-[auto_auto];
+    }
+
+    > header > :is(h2, h3, [data-title], .card-title) {
+      @apply leading-none;
+    }
+
+    > header > :is([data-slot='card-action'], .card-action) {
+      @apply col-start-2 row-span-2 row-start-1 self-start justify-self-end;
+    }
+
+    > header > menu.card-action {
+      @apply m-0 list-none p-0;
+    }
+
+    > footer {
+      @apply flex items-center;
+    }
+  }
+}

@@ -1,0 +1,32 @@
+/* Input */
+@layer components {
+  .field > input[type='text']:not(:is(.command > header input, .dialog > * > header input)),
+  .field > input[type='email'],
+  .field > input[type='password'],
+  .field > input[type='number'],
+  .field > input[type='file'],
+  .field > input[type='tel'],
+  .field > input[type='url'],
+  .field > input[type='search']:not(:is(.command > header input, .dialog > * > header input)),
+  .field > input[type='date'],
+  .field > input[type='datetime-local'],
+  .field > input[type='month'],
+  .field > input[type='week'],
+  .field > input[type='time'],
+  .input[type='text'],
+  .input[type='email'],
+  .input[type='password'],
+  .input[type='number'],
+  .input[type='file'],
+  .input[type='tel'],
+  .input[type='url'],
+  .input[type='search'],
+  .input[type='date'],
+  .input[type='datetime-local'],
+  .input[type='month'],
+  .input[type='week'],
+  .input[type='time'],
+  .input:not([type]) {
+    @apply w-full min-w-0 outline-none file:inline-flex file:border-0 file:bg-transparent file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50;
+  }
+}

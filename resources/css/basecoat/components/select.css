@@ -1,0 +1,64 @@
+/* Select */
+@layer components {
+  .select:not(select) {
+    @apply relative inline-flex;
+  }
+
+  .select:not(select) > button {
+    @apply flex w-fit items-center justify-between whitespace-nowrap font-normal outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0;
+  }
+
+  .select:not(select) > button > span {
+    @apply flex flex-1 truncate text-start;
+  }
+
+  .select:not(select) > button > svg {
+    @apply shrink-0;
+  }
+
+  .select:not(select) [data-popover] {
+    @apply isolate overflow-x-hidden;
+    min-width: max(100%, 9rem);
+  }
+
+  .select:not(select) [role='listbox'] {
+    @apply outline-hidden;
+  }
+
+  .select:not(select) [role='listbox'] [role='group']:not(:has([role='option']:not([aria-hidden='true']))) {
+    @apply hidden;
+  }
+
+  .select:not(select) [role='listbox']:not(:has([data-value]:not([aria-hidden='true'])))::before {
+    @apply flex items-center justify-center truncate;
+  }
+
+  .select:not(select) [role='listbox'][data-empty]:not(:has([data-value]:not([aria-hidden='true'])))::before {
+    @apply content-[attr(data-empty)];
+  }
+
+  .select:not(select) [role='listbox']:not([data-empty]):not(:has([data-value]:not([aria-hidden='true'])))::before {
+    @apply content-['No_results_found'];
+  }
+
+  .select:not(select) [role='option'] {
+    @apply aria-hidden:hidden relative flex w-full cursor-default items-center truncate outline-hidden select-none aria-disabled:pointer-events-none aria-disabled:opacity-50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0;
+  }
+
+  .select:not(select) [role='option'][aria-selected='true'] {
+    @apply bg-[image:var(--check-icon)] bg-no-repeat bg-position-[center_right_0.5rem] bg-size-[0.875rem];
+  }
+
+  .select:not(select) [role='option'][aria-selected='true']:dir(rtl) {
+    @apply bg-position-[center_left_0.5rem];
+  }
+
+  .select:not(select) [role='separator'] {
+    @apply border-0;
+  }
+
+  .select:not(select):not([data-select-initialized]) [role='option']:not([aria-disabled='true']):not(:disabled):hover,
+  .select:not(select) [role='option'].active {
+    @apply bg-accent text-accent-foreground;
+  }
+}

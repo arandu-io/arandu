@@ -52,12 +52,15 @@ var (
 func tenantID() string { return appconfig.Tenant() }
 
 func main() {
-	command := "serve"
+	// The arguments are read together, because reading them apart is how `go run
+	// .` -- no command, no arguments, the first thing anybody types after a
+	// clone -- panicked on os.Args[2:] before it printed a line.
+	command, args := "serve", []string{}
 	if len(os.Args) > 1 {
-		command = os.Args[1]
+		command, args = os.Args[1], os.Args[2:]
 	}
 
-	if err := dispatch(command, os.Args[2:]); err != nil {
+	if err := dispatch(command, args); err != nil {
 		log.Fatal(err)
 	}
 }

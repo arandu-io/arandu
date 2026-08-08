@@ -8,11 +8,11 @@ package views
 // A struct, never a map. That is what turns a typo in a field name into a
 // compile error instead of a blank space on a page that answered 200.
 //
-// The embedded Page is the state the layout draws -- the title, the brand, the
-// token and the navigation. This struct declares only what this page shows, and
-// satisfies the layout's contract by embedding.
+// The embedded view.Page is the chrome the layout draws -- the title, the
+// description, the token and the navigation -- and embedding it is all this
+// page has to do to fit the frame.
 type HomeData struct {
-	Page
+	view.Page
 
 	// Name is who the page greets.
 	Name string
@@ -25,9 +25,6 @@ type Feature struct {
 	Title string
 	Body  string
 }
-
-// Compile-time proof that this page fits the layout it extends.
-var _ Layout = HomeData{}
 @endgo
 
 @extends('layouts.app')
@@ -36,18 +33,19 @@ var _ Layout = HomeData{}
 	<h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
 		Hello {{ .Name }}
 	</h1>
-	<p class="mt-4 text-base text-slate-600 dark:text-slate-300">
+	<p class="text-muted-foreground mt-4 text-base">
 		It is not the developer who guarantees the architecture. It is the compiler.
 	</p>
 
-	@if(len(d.Features) > 0)
+	@if(len(.Features) > 0)
 		<ul class="mt-10 grid gap-4 sm:grid-cols-2">
 			@foreach(.Features as feature)
-				<li class="rounded-lg border border-slate-200 p-5 dark:border-slate-800">
+				<li class="card p-5">
 					<h2 class="text-sm font-semibold">{{ feature.Title }}</h2>
-					<p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ feature.Body }}</p>
+					<p class="text-muted-foreground mt-1 text-sm">{{ feature.Body }}</p>
 				</li>
 			@endforeach
 		</ul>
 	@endif
+
 @endsection

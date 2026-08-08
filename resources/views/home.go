@@ -11,16 +11,18 @@ import (
 	"github.com/arandu-io/framework/view"
 )
 
+//line resources/views/home.kyse.go:5
+
 // HomeData is what HomeController.Index hands this page.
 //
 // A struct, never a map. That is what turns a typo in a field name into a
 // compile error instead of a blank space on a page that answered 200.
 //
-// The embedded Page is the state the layout draws -- the title, the brand, the
-// token and the navigation. This struct declares only what this page shows, and
-// satisfies the layout's contract by embedding.
+// The embedded view.Page is the chrome the layout draws -- the title, the
+// description, the token and the navigation -- and embedding it is all this
+// page has to do to fit the frame.
 type HomeData struct {
-	Page
+	view.Page
 
 	// Name is who the page greets.
 	Name string
@@ -34,8 +36,7 @@ type Feature struct {
 	Body  string
 }
 
-// Compile-time proof that this page fits the layout it extends.
-var _ Layout = HomeData{}
+//line resources/views/home.go:40
 
 func init() { view.Register("home", renderHome) }
 
@@ -56,7 +57,9 @@ func renderHome(w io.Writer, data any) error {
 				_, err = io.WriteString(w, "\t\tHello ")
 			}
 			if err == nil {
+//line resources/views/home.kyse.go:34
 				_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.Name)))
+//line resources/views/home.go:63
 			}
 			if err == nil {
 				_, err = io.WriteString(w, "\n")
@@ -65,7 +68,7 @@ func renderHome(w io.Writer, data any) error {
 				_, err = io.WriteString(w, "\t</h1>\n")
 			}
 			if err == nil {
-				_, err = io.WriteString(w, "\t<p class=\"mt-4 text-base text-slate-600 dark:text-slate-300\">\n")
+				_, err = io.WriteString(w, "\t<p class=\"text-muted-foreground mt-4 text-base\">\n")
 			}
 			if err == nil {
 				_, err = io.WriteString(w, "\t\tIt is not the developer who guarantees the architecture. It is the compiler.\n")
@@ -76,29 +79,37 @@ func renderHome(w io.Writer, data any) error {
 			if err == nil {
 				_, err = io.WriteString(w, "\n")
 			}
+//line resources/views/home.kyse.go:40
 			if len(d.Features) > 0 {
+//line resources/views/home.go:85
 				if err == nil {
 					_, err = io.WriteString(w, "\t\t<ul class=\"mt-10 grid gap-4 sm:grid-cols-2\">\n")
 				}
+//line resources/views/home.kyse.go:42
 				for _, feature := range d.Features {
 					_ = feature
+//line resources/views/home.go:92
 					if err == nil {
-						_, err = io.WriteString(w, "\t\t\t\t<li class=\"rounded-lg border border-slate-200 p-5 dark:border-slate-800\">\n")
+						_, err = io.WriteString(w, "\t\t\t\t<li class=\"card p-5\">\n")
 					}
 					if err == nil {
 						_, err = io.WriteString(w, "\t\t\t\t\t<h2 class=\"text-sm font-semibold\">")
 					}
 					if err == nil {
+//line resources/views/home.kyse.go:44
 						_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(feature.Title)))
+//line resources/views/home.go:102
 					}
 					if err == nil {
 						_, err = io.WriteString(w, "</h2>\n")
 					}
 					if err == nil {
-						_, err = io.WriteString(w, "\t\t\t\t\t<p class=\"mt-1 text-sm text-slate-600 dark:text-slate-300\">")
+						_, err = io.WriteString(w, "\t\t\t\t\t<p class=\"text-muted-foreground mt-1 text-sm\">")
 					}
 					if err == nil {
+//line resources/views/home.kyse.go:45
 						_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(feature.Body)))
+//line resources/views/home.go:113
 					}
 					if err == nil {
 						_, err = io.WriteString(w, "</p>\n")
@@ -111,6 +122,9 @@ func renderHome(w io.Writer, data any) error {
 					_, err = io.WriteString(w, "\t\t</ul>\n")
 				}
 			}
+			if err == nil {
+				_, err = io.WriteString(w, "\n")
+			}
 			return err
 		},
 	}
@@ -120,4 +134,5 @@ func renderHome(w io.Writer, data any) error {
 var (
 	_ = template.HTMLEscapeString
 	_ = io.WriteString
+	_ = view.Text
 )
