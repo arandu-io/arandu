@@ -5,7 +5,15 @@
 **Do not open a public issue.** Use one of:
 
 - [GitHub Security Advisory](https://github.com/arandu-io/arandu/security/advisories/new)
-- email to `security@arandu.dev`
+
+That is the only channel, and it is deliberate. An `security@` address was
+published here before the domain had a mail exchanger, so a report sent to it
+reached nobody while the sender believed it had arrived — and the embargo clock
+started running on its own. A channel that swallows the message is worse than no
+channel at all.
+
+The advisory form is private, it notifies the maintainers, and it is where the
+fix and the disclosure happen.
 
 A public issue about a vulnerability will be closed and moved to a private
 advisory — with thanks, not with a scolding.
