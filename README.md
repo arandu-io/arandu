@@ -1,82 +1,64 @@
-# arandu
+<h1 align="center">arandu-io/arandu</h1>
 
-The Arandu project skeleton. This is what `aru new` clones — the equivalent of
-`laravel/laravel`, not of `laravel/framework`.
+<p align="center">The Arandu application skeleton.</p>
 
-Nobody imports this repository. You clone it once and it is yours from then on,
-which is what lets the framework evolve without fighting the directory layout of
-older projects.
+<p align="center">
+<a href="https://github.com/arandu-io/arandu/actions/workflows/ci.yml"><img src="https://github.com/arandu-io/arandu/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
+<a href="https://pkg.go.dev/github.com/arandu-io/arandu"><img src="https://pkg.go.dev/badge/github.com/arandu-io/arandu.svg" alt="Go Reference"></a>
+<a href="https://github.com/arandu-io/arandu/tags"><img src="https://img.shields.io/github/v/tag/arandu-io/arandu?label=version" alt="Latest Version"></a>
+<a href="LICENSE.md"><img src="https://img.shields.io/github/license/arandu-io/arandu" alt="License"></a>
+</p>
 
-## Layout
+## About Arandu
 
-The eight directories of Laravel, in the same places and with the same names.
+> **Note:** this is the skeleton a new project starts from. The framework it
+> runs on is [arandu-io/framework](https://github.com/arandu-io/framework).
 
-```
-main.go                the entry point — public/index.php and artisan, merged
-bootstrap/app.go       the whole composition of the application, explicit
-config/                ten files, one per domain, each a typed struct
-routes/web.go          the routes; routes/console.go the commands
-app/Http/Controllers/  controllers, CamelCase files as in PSR-4
-app/Models/            structs, no Active Record
-app/Services/          business rules — does not exist in Laravel
-app/Repositories/      data access, every method takes a Grant
-app/Policies/          authorization — required, not recommended
-database/              migrations, seeders, factories
-resources/views/       kyse sources (.kyse.go) and the Go they compile to
-resources/css/app.css  the Tailwind entry; resources/js/app.js is hand-written
-public/                barely exists: assets are embedded in the binary
-storage/               app/ and framework/ — there is no storage/logs
-compose.yml            Postgres and Redis, for when you outgrow SQLite
-.env.example           copy to .env
-```
-
-What is missing on purpose: `vendor/`, `bootstrap/cache/`, `storage/logs/`,
-`package.json` and `node_modules/`.
-
-`main.go` dispatches the commands that need the registered modules: `serve`,
-`migrate`, `migrate:rollback`, `migrate:status`, `migrate:fresh`, `routes`,
-`db:seed`, `schedule:list`, `schedule:run` and `work`. `aru` delegates to this
-binary, because this binary is the one that knows which modules exist.
-
-## Getting started
-
-Nothing to install: the default connection is SQLite, a file under `database/`.
+You do not clone this by hand:
 
 ```
-cp .env.example .env
-aru key:generate          # paste the line into .env
-aru view:build            # compiles resources/views and the stylesheet
-aru migrate
-aru db:seed               # creates the first administrator
-aru serve
+aru new my-app
 ```
 
-No Node anywhere: `aru view:build` runs the kyse compiler, which is part of the
-CLI, and the standalone Tailwind binary, which the CLI downloads and pins in
-`arandu.toml`.
+It is Laravel's tree, with Go underneath — `app/Http/Controllers`, `app/Models`,
+`app/Policies`, `bootstrap/`, `config/`, `database/`, `resources/views`,
+`routes/`, `storage/`, `public/`, in the same places with the same names. A
+Laravel developer opens it and recognises everything.
 
-Moving to Postgres is `.env` and nothing else:
+Three directories Laravel does not ship, and they are the difference:
+`app/Services/`, `app/Repositories/` and a mandatory `app/Policies/`. In Laravel
+those are a convention an organised team follows; here they are skeleton, and
+`aru doctor` asks for them.
 
-```
-DB_CONNECTION=pgsql
-DB_DATABASE=arandu
-DB_HOST=127.0.0.1
-DB_USERNAME=arandu
-DB_PASSWORD=arandu
-```
+It runs with `git clone && aru dev`. No `node_modules`, no `package.json`, no JS
+lockfile, and no Node installed.
 
-`docker compose up -d` starts Postgres and Redis when you want them locally.
+## Learning Arandu
 
-## Two things that are not like Laravel
+The API reference is generated from the doc comments and lives on
+[pkg.go.dev](https://pkg.go.dev/github.com/arandu-io/framework). Every exported
+symbol carries one, and that is deliberate: it is the documentation that cannot
+drift from the code, because it sits in the same file.
 
-**No schema builder.** A migration is SQL, written in the subset every supported
-database shares. Laravel needs a Blueprint because Eloquent hides the database;
-here the point is that nothing hides it.
+The CLI documents itself — `aru help` lists every command, and each one explains
+what it writes and what to do with it. `aru doctor` explains what it found and
+what breaks, not which rule was violated.
 
-**A seeder is a type, not a class found by reflection.** A seeder that drifts
-from the interface fails the build, rather than failing the first time someone
-runs it against production.
+A guide and a website do not exist yet, and that is a decision rather than a
+gap: a guide written against an API that still moves is work done twice, and the
+second time is worse — there is wrong documentation published. The site is the
+next phase, and it will be an Arandu application.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Before opening a pull request, the three
+commands at the top of that file have to pass, and CI runs exactly them.
+
+## Security Vulnerabilities
+
+Please review [our security policy](SECURITY.md) on how to report a
+vulnerability. Never open a public issue for one.
 
 ## License
 
-MIT, the same license Laravel uses. See `LICENSE.md`.
+Open-sourced software licensed under the [MIT license](LICENSE.md).
