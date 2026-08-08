@@ -1,4 +1,4 @@
-package views
+package views_test
 
 import (
 	"bytes"
@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/arandu-io/framework/view"
+
+	"github.com/arandu-io/arandu/resources/views"
 )
 
 // TestTheLayoutRendersAnyPageThatFitsIt is the guard on the property the whole
@@ -22,13 +24,13 @@ import (
 // is exactly the point.
 func TestTheLayoutRendersAnyPageThatFitsIt(t *testing.T) {
 	type reportData struct {
-		Page
+		views.Page
 		Rows []string
 	}
 
 	var buf bytes.Buffer
 	data := reportData{
-		Page: Page{
+		Page: views.Page{
 			Title:    "Quarterly report",
 			AppName:  "Arandu",
 			HomeURL:  "/",
@@ -56,7 +58,7 @@ func TestTheLayoutRendersAnyPageThatFitsIt(t *testing.T) {
 // no test would reach through the landing page alone.
 func TestTheLayoutDrawsTheSignedInHalf(t *testing.T) {
 	var buf bytes.Buffer
-	data := Page{
+	data := views.Page{
 		Title:         "Dashboard",
 		AppName:       "Arandu",
 		Token:         "a-token",

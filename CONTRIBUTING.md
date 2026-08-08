@@ -37,6 +37,28 @@ framework depends on the standard library and `golang.org/x/crypto`, and nothing
 else. A pull request that adds a dependency there needs to argue for it first,
 in an issue.
 
+## Where a test goes
+
+Beside the code it tests, named `*_test.go`, in the same directory. There is no
+`tests/` directory, and that is not style: `go test` attributes coverage per
+directory, so a test filed elsewhere leaves the package under test reporting
+0% -- and it can only reach what the package exports.
+
+Which package the test declares is a real choice, and it answers one question:
+
+| declare | when |
+|---|---|
+| `package X_test` | this is the **contract**. The test sees what a caller sees, which is the point |
+| `package X` | this is the **implementation**, and the test genuinely needs something the package does not export |
+
+Prefer the first. Take the second only when you use it -- `plans/testpackages.go`
+in the arandu-io working tree checks exactly that, by intersecting the
+identifiers a test names with what its package declares unexported, and the
+checklist runs it across every repository.
+
+A `package main` has no external form: it cannot be imported, so its tests are
+internal and that is the end of it.
+
 ## What the commit message says
 
 What changed and why. The why is the part that is not in the diff, and it is the
