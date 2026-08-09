@@ -8,6 +8,12 @@ FROM golang:1.25-alpine AS build
 
 # git for the version stamp, and nothing else. There is no node, no python and
 # no build toolchain here, which is the whole point of RULE 13.
+#
+# No gcompat either, and that is worth a line: the standalone tailwindcss is
+# published in a glibc build and a musl one, and `aru view:build` downloads the
+# one this system can load. Alpine's glibc shim was the other answer, and it
+# would have been a package in every project's Dockerfile instead of a decision
+# in one place.
 RUN apk add --no-cache git ca-certificates
 
 WORKDIR /src
