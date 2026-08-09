@@ -39,7 +39,18 @@ ARG COMMIT=unknown
 # binary would not link without this. Installing the CLI here costs a layer and
 # buys the property that the image is built from sources only -- nothing in it
 # came from somebody's laptop.
-RUN go install github.com/arandu-io/aru@latest && \
+# Pinned, not @latest.
+#
+# An image built from @latest depends on when it was built, which is the one
+# property an image is supposed to not have: two builds of the same commit
+# produce different binaries and nobody can say which is deployed.
+#
+# It is also what @latest costs in practice -- the module proxy caches that
+# endpoint separately from the version list, so a fresh release is in the list
+# and not yet the answer to @latest, and a build picks up the version before the
+# fix for an hour.
+ARG ARU_VERSION=v0.22.0
+RUN go install github.com/arandu-io/aru@${ARU_VERSION} && \
     "$(go env GOPATH)/bin/aru" view:build
 
 RUN CGO_ENABLED=0 go build \
