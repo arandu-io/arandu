@@ -24,8 +24,7 @@ func sqliteEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("APP_ENV", "dev")
 	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
-	t.Setenv("DB_CONNECTION", "sqlite")
-	t.Setenv("DB_DATABASE", filepath.Join(t.TempDir(), "test.sqlite"))
+	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
 	t.Setenv("ARANDU_TENANT_ID", "11111111-1111-4111-8111-111111111111")
 }
 

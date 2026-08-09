@@ -185,8 +185,7 @@ func TestRoutesAreListedByModule(t *testing.T) {
 
 func TestUnknownCommandIsRejected(t *testing.T) {
 	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
-	t.Setenv("DB_CONNECTION", "sqlite")
-	t.Setenv("DB_DATABASE", filepath.Join(t.TempDir(), "test.sqlite"))
+	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
 
 	err := bootstrap.Dispatch("migrat", nil)
 

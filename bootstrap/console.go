@@ -131,7 +131,7 @@ func unknownCommand(command string) error {
 	return err
 }
 
-// open connects using whatever DB_CONNECTION says.
+// open connects using whatever the scheme of DATABASE_URL says.
 //
 // The pool policy, the SQLite directory and the message for a driver that is
 // configured but not linked all live in the adapter, so every project gets the
