@@ -24,6 +24,13 @@ type Deps struct {
 	// never from the seeder: a seeder that picks its own tenant seeds data nobody
 	// can reach (RULE 14).
 	Tenant string
+
+	// Args is what came after the seeder's name on the command line.
+	//
+	// It is here rather than on the Seeder interface because most seeders take
+	// nothing, and widening Run would put an ignored parameter on every one of
+	// them forever. A seeder that reads flags says so by reading this field.
+	Args []string
 }
 
 // Seeder is one unit of seeding.
@@ -39,19 +46,36 @@ type Seeder interface {
 // decides which ones run by default, and in which order.
 var registry = []Seeder{
 	DatabaseSeeder{},
+	UserSeeder{},
 	AdminSeeder{},
 }
 
-// Run executes DatabaseSeeder, or the one named by --class.
+// Run executes DatabaseSeeder, or the one named first on the command line.
+//
+//	aru db:seed                                    every seeder, in order
+//	aru db:seed PostSeeder                         one of them
+//	aru db:seed UserSeeder -e a@b.com -p secret    one of them, with arguments
+//
+// The name is positional. Laravel spells it `--class=`, and this used to as
+// well; a name that is sometimes a flag and sometimes a word is two spellings of
+// one thing (RULE 9), so the flag form is refused with the word to use instead
+// rather than accepted quietly.
+//
+// Everything after the name reaches the seeder as Deps.Args, unparsed. What a
+// flag means is the seeder's business: this function does not know that
+// UserSeeder has a -p, and adding a seeder does not edit this file.
 func Run(ctx context.Context, deps Deps, args []string) error {
 	name := "DatabaseSeeder"
-	for _, arg := range args {
-		if value, ok := strings.CutPrefix(arg, "--class="); ok {
-			name = value
-			continue
+
+	if len(args) > 0 {
+		if value, ok := strings.CutPrefix(args[0], "--class="); ok {
+			return fmt.Errorf("--class= is not how a seeder is named any more.\n\n    aru db:seed %s", value)
 		}
-		return fmt.Errorf("unknown argument %q (expected --class=<name>)", arg)
+		if !strings.HasPrefix(args[0], "-") {
+			name, args = args[0], args[1:]
+		}
 	}
+	deps.Args = args
 
 	seeder, err := lookup(name)
 	if err != nil {
@@ -62,6 +86,44 @@ func Run(ctx context.Context, deps Deps, args []string) error {
 	}
 	fmt.Printf("seeded %s\n", seeder.Name())
 	return nil
+}
+
+// Flag reads `-name value` out of the arguments.
+//
+// A hand-written reader rather than the flag package, because the flag package
+// wants to own os.Args, prints its own usage to stderr and calls os.Exit on a
+// mistake -- in the middle of a command that has already opened a database.
+//
+// It accepts `-name value` and `-name=value`. A long form (`--name`) is the same
+// flag: nobody should have to remember how many dashes a seeder wanted.
+func Flag(args []string, name string) (string, bool) {
+	short, long := "-"+name, "--"+name
+	for i, a := range args {
+		if a == short || a == long {
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				return args[i+1], true
+			}
+			// Present with nothing after it. Reporting it as absent would turn a
+			// typed-but-empty password into the demo fallback.
+			return "", true
+		}
+		for _, prefix := range []string{short + "=", long + "="} {
+			if value, ok := strings.CutPrefix(a, prefix); ok {
+				return value, true
+			}
+		}
+	}
+	return "", false
+}
+
+// Switch reports whether a valueless flag is present.
+func Switch(args []string, name string) bool {
+	for _, a := range args {
+		if a == "-"+name || a == "--"+name {
+			return true
+		}
+	}
+	return false
 }
 
 func lookup(name string) (Seeder, error) {

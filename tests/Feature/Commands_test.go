@@ -139,21 +139,44 @@ func TestLoginOnSQLite(t *testing.T) {
 	})
 }
 
-// TestSeedRefusesAnUnknownClass covers the typo in --class, which is the only way
-// to get this command wrong.
-func TestSeedRefusesAnUnknownClass(t *testing.T) {
+// TestSeedRefusesAnUnknownName covers the typo in the seeder name, which is the
+// main way to get this command wrong.
+func TestSeedRefusesAnUnknownName(t *testing.T) {
 	sqliteEnv(t)
 	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	err := bootstrap.Dispatch("db:seed", []string{"--class=UserSeeder"})
+	err := bootstrap.Dispatch("db:seed", []string{"NoSuchSeeder"})
 
 	if err == nil {
 		t.Fatal("an unknown seeder was accepted")
 	}
 	if !strings.Contains(err.Error(), "available") {
 		t.Errorf("the error must list the seeders that exist, got: %v", err)
+	}
+}
+
+// TestTheOldClassFlagSaysWhatToTypeInstead.
+//
+// The name used to be `--class=X`, which is Laravel's spelling. It is positional
+// now, and a name that is sometimes a flag and sometimes a word is two spellings
+// of one thing (RULE 9). What matters is that the refusal contains the command
+// to run -- an error that only says "unknown argument" sends somebody to the
+// source of a CLI to find out what changed.
+func TestTheOldClassFlagSaysWhatToTypeInstead(t *testing.T) {
+	sqliteEnv(t)
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	err := bootstrap.Dispatch("db:seed", []string{"--class=PostSeeder"})
+
+	if err == nil {
+		t.Fatal("--class= was accepted")
+	}
+	if !strings.Contains(err.Error(), "db:seed PostSeeder") {
+		t.Errorf("the error does not say what to type instead: %v", err)
 	}
 }
 
