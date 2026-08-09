@@ -6,15 +6,23 @@
 
 FROM golang:1.25-alpine AS build
 
-# git for the version stamp, and nothing else. There is no node, no python and
-# no build toolchain here, which is the whole point of RULE 13.
+# git for the version stamp, and libstdc++ for the Tailwind binary. There is no
+# node, no python and no build toolchain here, which is the point of RULE 13.
 #
-# No gcompat either, and that is worth a line: the standalone tailwindcss is
-# published in a glibc build and a musl one, and `aru view:build` downloads the
-# one this system can load. Alpine's glibc shim was the other answer, and it
-# would have been a package in every project's Dockerfile instead of a decision
-# in one place.
-RUN apk add --no-cache git ca-certificates
+# libstdc++ is not a toolchain: it is the C++ runtime the standalone tailwindcss
+# is linked against, and Alpine ships neither it nor libgcc by default. Two
+# errors in a row named this, and the second one is the readable half:
+#
+#   fork/exec …/tailwindcss-v4.3.3: no such file or directory
+#   Error loading shared library libstdc++.so.6: No such file or directory
+#
+# The first was the glibc build on a musl system -- the loader missing, reported
+# as the file missing. `aru` downloads the musl build now, and with the right
+# loader the binary can finally say what it actually wants.
+#
+# No gcompat: that is Alpine's glibc shim, and it would be papering over the
+# first error rather than fixing it.
+RUN apk add --no-cache git ca-certificates libstdc++
 
 WORKDIR /src
 
