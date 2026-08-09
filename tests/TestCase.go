@@ -1,0 +1,102 @@
+// Package tests is the base every test in this project builds on.
+//
+// It is tests/TestCase.php, in the shape Go allows: a package the suites import
+// rather than a class they extend. What belongs here is what more than one suite
+// needs -- booting the application, opening a database, reading a file from the
+// project root -- and nothing else. A helper used by one test belongs beside it.
+//
+// The two suites are the Laravel ones and they mean the same thing:
+//
+//	tests/Feature/  boots the application and makes a request
+//	tests/Unit/     checks one thing without booting anything
+package tests
+
+import (
+	"context"
+	"database/sql"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/arandu-io/framework/config"
+	"github.com/arandu-io/framework/data"
+	"github.com/arandu-io/framework/kernel"
+
+	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
+)
+
+// Kernel needs no database. database/sql connects lazily, so the wiring, the
+// pipeline and every route can be exercised without a server running -- which is
+// what makes this a useful smoke test to keep in a project skeleton.
+// Kernel boots the application for a test.
+//
+// Exported because both suites use it, which is the whole reason this package
+// exists.
+func Kernel(t *testing.T, env config.Env) *kernel.Kernel {
+	t.Helper()
+
+	cfg := config.Config{
+		AppName:  "test",
+		Env:      env,
+		HTTPAddr: ":0",
+		AppKey:   []byte("0123456789abcdef0123456789abcdef"),
+		Database: config.DatabaseConfig{
+			Connection: data.DialectPostgres,
+			Host:       "127.0.0.1",
+			Port:       "1",
+			Database:   "does-not-exist",
+			Username:   "user",
+			Password:   "pass",
+		},
+		SessionTTL: time.Hour,
+		CSRFTTL:    time.Hour,
+		LogLevel:   slog.LevelError,
+		Editor:     "vscode",
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("the test configuration is not valid: %v", err)
+	}
+
+	sqldb, err := sql.Open(cfg.Database.Connection.Driver(), cfg.Database.DSN())
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = sqldb.Close() })
+
+	k := bootstrap.Build(appconfig.From(cfg), data.Wrap(sqldb, cfg.Database.Connection)).Kernel
+	if err := k.Boot(context.Background()); err != nil {
+		t.Fatalf("Boot: %v", err)
+	}
+	return k
+}
+
+// Root is the project root, from inside a suite directory.
+//
+// The tests that read a file -- the Dockerfile, the workflow, arandu.toml -- run
+// two directories down from it now, and a relative path written from the old
+// location silently reads nothing: os.ReadFile returns an error the test
+// reports as "the file does not say X", which is true and misleading.
+func Root(t *testing.T) string {
+	t.Helper()
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+		t.Fatalf("tests.Root is not the project root: %v", err)
+	}
+	return root
+}
+
+// File reads one file from the project root.
+func File(t *testing.T, name string) string {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(Root(t), name))
+	if err != nil {
+		t.Fatalf("reading %s: %v", name, err)
+	}
+	return string(body)
+}

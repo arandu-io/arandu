@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"github.com/arandu-io/framework/view"
+	"github.com/arandu-io/kyse/components"
 )
 
 func init() { view.RegisterLayout("layouts.app", renderLayoutsApp) }
@@ -40,9 +41,9 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 		_, err = io.WriteString(w, "\t<title>")
 	}
 	if err == nil {
-//line resources/views/layouts/app.kyse.go:16
+//line resources/views/layouts/app.kyse.go:18
 		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.PageTitle())))
-//line resources/views/layouts/app.go:46
+//line resources/views/layouts/app.go:47
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "</title>\n")
@@ -59,16 +60,16 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 	if err == nil {
 		_, err = io.WriteString(w, "\t     engine that finds one stops looking for a better sentence in the body. -->\n")
 	}
-//line resources/views/layouts/app.kyse.go:22
+//line resources/views/layouts/app.kyse.go:24
 	if d.PageDescription() != "" {
-//line resources/views/layouts/app.go:65
+//line resources/views/layouts/app.go:66
 		if err == nil {
 			_, err = io.WriteString(w, "\t\t<meta name=\"description\" content=\"")
 		}
 		if err == nil {
-//line resources/views/layouts/app.kyse.go:23
+//line resources/views/layouts/app.kyse.go:25
 			_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.PageDescription())))
-//line resources/views/layouts/app.go:72
+//line resources/views/layouts/app.go:73
 		}
 		if err == nil {
 			_, err = io.WriteString(w, "\">\n")
@@ -77,24 +78,24 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 			_, err = io.WriteString(w, "\t\t<meta property=\"og:description\" content=\"")
 		}
 		if err == nil {
-//line resources/views/layouts/app.kyse.go:24
+//line resources/views/layouts/app.kyse.go:26
 			_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.PageDescription())))
-//line resources/views/layouts/app.go:83
+//line resources/views/layouts/app.go:84
 		}
 		if err == nil {
 			_, err = io.WriteString(w, "\">\n")
 		}
 	}
-//line resources/views/layouts/app.kyse.go:26
+//line resources/views/layouts/app.kyse.go:28
 	if d.CanonicalURL() != "" {
-//line resources/views/layouts/app.go:91
+//line resources/views/layouts/app.go:92
 		if err == nil {
 			_, err = io.WriteString(w, "\t\t<link rel=\"canonical\" href=\"")
 		}
 		if err == nil {
-//line resources/views/layouts/app.kyse.go:27
+//line resources/views/layouts/app.kyse.go:29
 			_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.CanonicalURL())))
-//line resources/views/layouts/app.go:98
+//line resources/views/layouts/app.go:99
 		}
 		if err == nil {
 			_, err = io.WriteString(w, "\">\n")
@@ -103,9 +104,9 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 			_, err = io.WriteString(w, "\t\t<meta property=\"og:url\" content=\"")
 		}
 		if err == nil {
-//line resources/views/layouts/app.kyse.go:28
+//line resources/views/layouts/app.kyse.go:30
 			_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.CanonicalURL())))
-//line resources/views/layouts/app.go:109
+//line resources/views/layouts/app.go:110
 		}
 		if err == nil {
 			_, err = io.WriteString(w, "\">\n")
@@ -115,9 +116,9 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 		_, err = io.WriteString(w, "\t<meta property=\"og:title\" content=\"")
 	}
 	if err == nil {
-//line resources/views/layouts/app.kyse.go:30
+//line resources/views/layouts/app.kyse.go:32
 		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.PageTitle())))
-//line resources/views/layouts/app.go:121
+//line resources/views/layouts/app.go:122
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "\">\n")
@@ -126,9 +127,9 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 		_, err = io.WriteString(w, "\t<meta property=\"og:site_name\" content=\"")
 	}
 	if err == nil {
-//line resources/views/layouts/app.kyse.go:31
+//line resources/views/layouts/app.kyse.go:33
 		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.BrandName())))
-//line resources/views/layouts/app.go:132
+//line resources/views/layouts/app.go:133
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "\">\n")
@@ -152,9 +153,9 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 		_, err = io.WriteString(w, "\t<link rel=\"stylesheet\" href=\"")
 	}
 	if err == nil {
-//line resources/views/layouts/app.kyse.go:38
+//line resources/views/layouts/app.kyse.go:40
 		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(view.URL("app.css"))))
-//line resources/views/layouts/app.go:158
+//line resources/views/layouts/app.go:159
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "\">\n")
@@ -163,31 +164,31 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 		_, err = io.WriteString(w, "\t<script src=\"")
 	}
 	if err == nil {
-//line resources/views/layouts/app.kyse.go:39
-		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(view.URL("htmx.min.js"))))
-//line resources/views/layouts/app.go:169
-	}
-	if err == nil {
-		_, err = io.WriteString(w, "\" defer></script>\n")
-	}
-	if err == nil {
-		_, err = io.WriteString(w, "\t<script src=\"")
-	}
-	if err == nil {
-//line resources/views/layouts/app.kyse.go:40
-		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(view.URL("alpine.min.js"))))
-//line resources/views/layouts/app.go:180
-	}
-	if err == nil {
-		_, err = io.WriteString(w, "\" defer></script>\n")
-	}
-	if err == nil {
-		_, err = io.WriteString(w, "\t<script src=\"")
-	}
-	if err == nil {
 //line resources/views/layouts/app.kyse.go:41
+		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(view.URL("htmx.min.js"))))
+//line resources/views/layouts/app.go:170
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "\" defer></script>\n")
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "\t<script src=\"")
+	}
+	if err == nil {
+//line resources/views/layouts/app.kyse.go:42
+		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(view.URL("alpine.min.js"))))
+//line resources/views/layouts/app.go:181
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "\" defer></script>\n")
+	}
+	if err == nil {
+		_, err = io.WriteString(w, "\t<script src=\"")
+	}
+	if err == nil {
+//line resources/views/layouts/app.kyse.go:43
 		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(view.URL("basecoat.bundle.js"))))
-//line resources/views/layouts/app.go:191
+//line resources/views/layouts/app.go:192
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "\" defer></script>\n")
@@ -205,9 +206,9 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 		_, err = io.WriteString(w, "\t<script src=\"")
 	}
 	if err == nil {
-//line resources/views/layouts/app.kyse.go:46
+//line resources/views/layouts/app.kyse.go:48
 		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(view.URL("theme.js"))))
-//line resources/views/layouts/app.go:211
+//line resources/views/layouts/app.go:212
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "\"></script>\n")
@@ -225,9 +226,9 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 		_, err = io.WriteString(w, "<body hx-boost=\"true\" hx-headers='{\"X-CSRF-Token\": \"")
 	}
 	if err == nil {
-//line resources/views/layouts/app.kyse.go:50
+//line resources/views/layouts/app.kyse.go:52
 		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.CSRFToken())))
-//line resources/views/layouts/app.go:231
+//line resources/views/layouts/app.go:232
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "\"}' class=\"bg-background text-foreground min-h-full antialiased\">\n")
@@ -242,17 +243,17 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 		_, err = io.WriteString(w, "\t\t\t<a class=\"text-sm font-semibold tracking-tight\" href=\"")
 	}
 	if err == nil {
-//line resources/views/layouts/app.kyse.go:53
+//line resources/views/layouts/app.kyse.go:55
 		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.HomeLink())))
-//line resources/views/layouts/app.go:248
+//line resources/views/layouts/app.go:249
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "\">")
 	}
 	if err == nil {
-//line resources/views/layouts/app.kyse.go:53
+//line resources/views/layouts/app.kyse.go:55
 		_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.BrandName())))
-//line resources/views/layouts/app.go:256
+//line resources/views/layouts/app.go:257
 	}
 	if err == nil {
 		_, err = io.WriteString(w, "</a>\n")
@@ -260,46 +261,51 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 	if err == nil {
 		_, err = io.WriteString(w, "\t\t\t<nav class=\"flex items-center gap-3 text-sm\">\n")
 	}
-//line resources/views/layouts/app.kyse.go:55
+	if err == nil {
+//line resources/views/layouts/app.kyse.go:57
+		_, err = io.WriteString(w, view.Text(components.ThemeToggle()))
+//line resources/views/layouts/app.go:268
+	}
+//line resources/views/layouts/app.kyse.go:58
 	if !d.SignedIn() {
-//line resources/views/layouts/app.go:266
+//line resources/views/layouts/app.go:272
 		if err == nil {
 			_, err = io.WriteString(w, "\t\t\t\t\t<a class=\"btn\" data-variant=\"ghost\" data-size=\"sm\" href=\"")
 		}
 		if err == nil {
-//line resources/views/layouts/app.kyse.go:56
+//line resources/views/layouts/app.kyse.go:59
 			_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.LoginLink())))
-//line resources/views/layouts/app.go:273
+//line resources/views/layouts/app.go:279
 		}
 		if err == nil {
 			_, err = io.WriteString(w, "\">Sign in</a>\n")
 		}
-//line resources/views/layouts/app.kyse.go:57
+//line resources/views/layouts/app.kyse.go:60
 		if d.RegisterLink() != "" {
-//line resources/views/layouts/app.go:280
+//line resources/views/layouts/app.go:286
 			if err == nil {
 				_, err = io.WriteString(w, "\t\t\t\t\t\t<a class=\"btn\" data-size=\"sm\" href=\"")
 			}
 			if err == nil {
-//line resources/views/layouts/app.kyse.go:58
+//line resources/views/layouts/app.kyse.go:61
 				_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.RegisterLink())))
-//line resources/views/layouts/app.go:287
+//line resources/views/layouts/app.go:293
 			}
 			if err == nil {
 				_, err = io.WriteString(w, "\">Register</a>\n")
 			}
 		}
 	}
-//line resources/views/layouts/app.kyse.go:61
+//line resources/views/layouts/app.kyse.go:64
 	if d.SignedIn() {
-//line resources/views/layouts/app.go:296
+//line resources/views/layouts/app.go:302
 		if err == nil {
 			_, err = io.WriteString(w, "\t\t\t\t\t<span class=\"text-muted-foreground\">")
 		}
 		if err == nil {
-//line resources/views/layouts/app.kyse.go:62
+//line resources/views/layouts/app.kyse.go:65
 			_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.SignedInName())))
-//line resources/views/layouts/app.go:303
+//line resources/views/layouts/app.go:309
 		}
 		if err == nil {
 			_, err = io.WriteString(w, "</span>\n")
@@ -308,9 +314,9 @@ func renderLayoutsApp(w io.Writer, data any, sections map[string]func(io.Writer)
 			_, err = io.WriteString(w, "\t\t\t\t\t<form method=\"post\" action=\"")
 		}
 		if err == nil {
-//line resources/views/layouts/app.kyse.go:63
+//line resources/views/layouts/app.kyse.go:66
 			_, err = io.WriteString(w, template.HTMLEscapeString(view.Text(d.LogoutLink())))
-//line resources/views/layouts/app.go:314
+//line resources/views/layouts/app.go:320
 		}
 		if err == nil {
 			_, err = io.WriteString(w, "\">\n")

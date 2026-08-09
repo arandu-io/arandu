@@ -1,78 +1,26 @@
-package main
+package feature_test
 
 import (
-	"context"
-	"database/sql"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/arandu-io/arandu/tests"
 
 	"github.com/arandu-io/framework/config"
-	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/httpx"
 	"github.com/arandu-io/framework/httpx/middleware"
 	"github.com/arandu-io/framework/kernel"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	"github.com/arandu-io/arandu/bootstrap"
-	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/routes"
 )
 
-// These tests need no database. database/sql connects lazily, so the wiring, the
-// pipeline and every route can be exercised without a server running -- which is
-// what makes this a useful smoke test to keep in a project skeleton.
-func testKernel(t *testing.T, env config.Env) *kernel.Kernel {
-	t.Helper()
-
-	cfg := config.Config{
-		AppName:  "test",
-		Env:      env,
-		HTTPAddr: ":0",
-		AppKey:   []byte("0123456789abcdef0123456789abcdef"),
-		Database: config.DatabaseConfig{
-			Connection: data.DialectPostgres,
-			Host:       "127.0.0.1",
-			Port:       "1",
-			Database:   "does-not-exist",
-			Username:   "user",
-			Password:   "pass",
-		},
-		SessionTTL: time.Hour,
-		CSRFTTL:    time.Hour,
-		LogLevel:   slog.LevelError,
-		Editor:     "vscode",
-	}
-	if err := cfg.Validate(); err != nil {
-		t.Fatalf("the test configuration is not valid: %v", err)
-	}
-
-	sqldb, err := sql.Open(cfg.Database.Connection.Driver(), cfg.Database.DSN())
-	if err != nil {
-		t.Fatalf("sql.Open: %v", err)
-	}
-	t.Cleanup(func() { _ = sqldb.Close() })
-
-	k := bootstrap.Build(appconfig.From(cfg), data.Wrap(sqldb, cfg.Database.Connection)).Kernel
-	if err := k.Boot(context.Background()); err != nil {
-		t.Fatalf("Boot: %v", err)
-	}
-	return k
-}
-
-// TestTheLandingPageRenders walks the whole view path in one request: the route
-// from routes/web.go, the controller from app/Http/Controllers, the typed data,
-// the kyse page and the layout it extends.
-//
-// It fails if the generated views were not committed, which is the mistake a
-// skeleton invites: everything compiles, and every page answers with "no view
-// named home".
 func TestTheLandingPageRenders(t *testing.T) {
-	k := testKernel(t, config.EnvDev)
+	k := tests.Kernel(t, config.EnvDev)
 
 	rec := httptest.NewRecorder()
 	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
@@ -113,7 +61,7 @@ func TestTheLandingPageRenders(t *testing.T) {
 // page would answer for unknown URLs -- with 200, hiding the 404 and shadowing
 // any route that is not mounted in this environment.
 func TestTheRootRouteDoesNotSwallowEveryPath(t *testing.T) {
-	k := testKernel(t, config.EnvDev)
+	k := tests.Kernel(t, config.EnvDev)
 
 	rec := httptest.NewRecorder()
 	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/there-is-no-such-page", nil))
@@ -145,7 +93,7 @@ func TestTheHomeRouteIsAddressableByName(t *testing.T) {
 // TestLoginFormIsServedWithACSRFToken is the phase 1 claim in one request: the
 // application boots, routes, and hands the browser a token bound to its session.
 func TestLoginFormIsServedWithACSRFToken(t *testing.T) {
-	k := testKernel(t, config.EnvDev)
+	k := tests.Kernel(t, config.EnvDev)
 
 	rec := httptest.NewRecorder()
 	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/auth/login", nil))
@@ -167,7 +115,7 @@ func TestLoginFormIsServedWithACSRFToken(t *testing.T) {
 // TestWriteWithoutCSRFIsRejected proves the middleware is actually in the
 // pipeline, which a wiring file can silently get wrong.
 func TestWriteWithoutCSRFIsRejected(t *testing.T) {
-	k := testKernel(t, config.EnvDev)
+	k := tests.Kernel(t, config.EnvDev)
 
 	rec := httptest.NewRecorder()
 	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/auth/login", nil))
@@ -180,7 +128,7 @@ func TestWriteWithoutCSRFIsRejected(t *testing.T) {
 // TestHealthFailsWithoutTheDatabase: the probe has to depend on the database, or
 // a pod with no connection keeps receiving traffic.
 func TestHealthFailsWithoutTheDatabase(t *testing.T) {
-	k := testKernel(t, config.EnvProd)
+	k := tests.Kernel(t, config.EnvProd)
 
 	rec := httptest.NewRecorder()
 	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_arandu/health", nil))
@@ -194,7 +142,7 @@ func TestHealthFailsWithoutTheDatabase(t *testing.T) {
 }
 
 func TestSecurityHeadersAreApplied(t *testing.T) {
-	k := testKernel(t, config.EnvProd)
+	k := tests.Kernel(t, config.EnvProd)
 
 	rec := httptest.NewRecorder()
 	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/auth/login", nil))
@@ -214,7 +162,7 @@ func TestDebugConsoleIsDevelopmentOnly(t *testing.T) {
 		config.EnvDev:  http.StatusOK,
 		config.EnvProd: http.StatusNotFound,
 	} {
-		k := testKernel(t, env)
+		k := tests.Kernel(t, env)
 		rec := httptest.NewRecorder()
 		k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_arandu/debug", nil))
 		if rec.Code != want {
@@ -224,7 +172,7 @@ func TestDebugConsoleIsDevelopmentOnly(t *testing.T) {
 }
 
 func TestRoutesAreListedByModule(t *testing.T) {
-	k := testKernel(t, config.EnvDev)
+	k := tests.Kernel(t, config.EnvDev)
 
 	out := kernel.FormatRoutes(k.Routes())
 
@@ -240,7 +188,7 @@ func TestUnknownCommandIsRejected(t *testing.T) {
 	t.Setenv("DB_CONNECTION", "sqlite")
 	t.Setenv("DB_DATABASE", filepath.Join(t.TempDir(), "test.sqlite"))
 
-	err := dispatch("migrat", nil)
+	err := bootstrap.Dispatch("migrat", nil)
 
 	if err == nil {
 		t.Fatal("an unknown command was accepted")

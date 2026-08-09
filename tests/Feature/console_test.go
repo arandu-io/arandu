@@ -1,4 +1,4 @@
-package main
+package feature_test
 
 import (
 	"context"
@@ -23,7 +23,7 @@ func bootedApp(t *testing.T) (http.Handler, *data.DB) {
 	t.Helper()
 	sqliteEnv(t)
 
-	if err := dispatch("migrate", nil); err != nil {
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	cfg, db, _ := openForTest(t)
@@ -103,8 +103,8 @@ func TestTheConsoleSeesTheQueriesOfTheRequest(t *testing.T) {
 }
 
 func TestTheGrantStillComesFromTheSession(t *testing.T) {
-	g := security.SystemGrant("user.view", tenantID())
-	if data.Tenant(g) != tenantID() {
+	g := security.SystemGrant("user.view", bootstrap.Tenant())
+	if data.Tenant(g) != bootstrap.Tenant() {
 		t.Fatal("the tenant no longer comes from the Grant")
 	}
 }

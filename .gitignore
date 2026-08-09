@@ -1,8 +1,21 @@
+# What never belongs in the repository.
+#
+# The per-directory .gitignore files are a different job: storage/ has to exist
+# in a clone and be empty, so each of its leaves carries a `*` plus
+# `!.gitignore`. This file is about what the project produces, not about what it
+# has to keep an empty place for.
+
+# Secrets. .env.example is committed; .env never is.
 .env
+.env.*
+!.env.example
+
+# Build output.
 bin/
 tmp/
 *.test
 *.out
+coverage.*
 
 # `go build .` from the root drops the binary here, named after the module.
 #
@@ -15,8 +28,26 @@ tmp/
 go.work
 go.work.sum
 
-.DS_Store
-# SQLite lives here in development. The file is never committed.
+# SQLite lives here in development. The file is never committed: the schema is
+# database/migrations, and a committed database disagrees with them by the
+# second day.
 database/*.sqlite
 database/*.sqlite-shm
 database/*.sqlite-wal
+database/*.db
+
+# The Tailwind binary `aru view:build` downloads and pins. It is a tool, not a
+# dependency: arandu.toml records which version, and that is what is committed.
+.arandu/
+
+# What the editors and the operating systems leave behind.
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+
+# .vscode IS committed, deliberately: it is what hides the generated views from
+# the file tree, and a project where half the team sees them and half does not
+# is a project arguing about a file nobody edits.
+!.vscode/

@@ -47,6 +47,20 @@ import (
 	// its source and each directory is its own package. Adding a directory means
 	// adding a line here, and a view nobody can reach says so at the first
 	// request rather than never.
+
+	// The engines this binary can speak. Each is its own module, so removing an
+	// import removes the driver from the build, from go.sum and from the
+	// vulnerability surface -- which is the whole reason they are separate.
+	//
+	// SQLite is the development default and needs no cgo. Adding MySQL is
+	// `go get github.com/arandu-io/database/mysql` plus a line here.
+	//
+	// They are in bootstrap rather than in main because bootstrap is what
+	// composes the application, and the tests compose it too: with them in main
+	// every feature test opened a connection to a driver nobody had registered.
+	_ "github.com/arandu-io/database/pgx"
+	_ "github.com/arandu-io/database/sqlite"
+
 	_ "github.com/arandu-io/arandu/resources/views"
 	_ "github.com/arandu-io/arandu/resources/views/layouts"
 )

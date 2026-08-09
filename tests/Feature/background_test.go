@@ -1,4 +1,4 @@
-package main
+package feature_test
 
 import (
 	"context"
@@ -46,14 +46,14 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 	}
 
 	sched, err := scheduler.New([]kernel.Task{task}, scheduler.Options{
-		Tenants: func(context.Context) ([]string, error) { return []string{tenantID()}, nil },
+		Tenants: func(context.Context) ([]string, error) { return []string{bootstrap.Tenant()}, nil },
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 
 	// Run it now rather than waiting for 3am, on the same path the loop uses.
-	if err := sched.RunNow(ctx, "billing.close", tenantID()); err != nil {
+	if err := sched.RunNow(ctx, "billing.close", bootstrap.Tenant()); err != nil {
 		t.Fatalf("RunNow: %v", err)
 	}
 
@@ -98,7 +98,7 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if ranFor != tenantID() {
+	if ranFor != bootstrap.Tenant() {
 		t.Errorf("the handler ran for %q, want the tenant that scheduled it", ranFor)
 	}
 	if cycle != "2026-08" {
@@ -115,7 +115,7 @@ func TestAJobIsCommittedWithTheWriteThatProducedIt(t *testing.T) {
 	refused := errors.New("the rule said no")
 
 	err := data.Transaction(ctx, db, func(ctx context.Context) error {
-		g := security.SystemGrant("invoice.send", tenantID())
+		g := security.SystemGrant("invoice.send", bootstrap.Tenant())
 		j, err := jobs.New(g, "", "invoice.send", nil)
 		if err != nil {
 			return err
@@ -138,7 +138,7 @@ func TestAJobIsCommittedWithTheWriteThatProducedIt(t *testing.T) {
 // booted, or `aru schedule:list` reports nothing forever and nobody notices.
 func TestTheSchedulerIsWiredIntoTheApplication(t *testing.T) {
 	sqliteEnv(t)
-	if err := dispatch("migrate", nil); err != nil {
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 

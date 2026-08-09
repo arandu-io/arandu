@@ -1,9 +1,11 @@
-package main
+package feature_test
 
 import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/arandu-io/arandu/bootstrap"
 
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/events"
@@ -18,7 +20,7 @@ func migratedDB(t *testing.T) *data.DB {
 	t.Helper()
 	sqliteEnv(t)
 
-	if err := dispatch("migrate", nil); err != nil {
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	_, db, _ := openForTest(t)
@@ -29,7 +31,7 @@ func TestTheEventCommitsWithTheWrite(t *testing.T) {
 	db := migratedDB(t)
 	outbox := events.NewOutbox(db)
 	ctx := context.Background()
-	g := security.SystemGrant("customer.create", tenantID())
+	g := security.SystemGrant("customer.create", bootstrap.Tenant())
 
 	err := data.Transaction(ctx, db, func(ctx context.Context) error {
 		if _, err := db.ExecContext(ctx, `CREATE TABLE customer (id TEXT PRIMARY KEY)`); err != nil {
@@ -49,7 +51,7 @@ func TestTheEventCommitsWithTheWrite(t *testing.T) {
 		t.Fatalf("Transaction: %v", err)
 	}
 
-	pending, err := outbox.Pending(ctx, tenantID(), 10)
+	pending, err := outbox.Pending(ctx, bootstrap.Tenant(), 10)
 	if err != nil {
 		t.Fatalf("Pending: %v", err)
 	}
@@ -63,7 +65,7 @@ func TestTheEventCommitsWithTheWrite(t *testing.T) {
 	}
 	// The Grant is the audit trail: who authorized it, which action, which
 	// tenant, without a second table.
-	if stored.Action != "customer.create" || stored.TenantID != tenantID() {
+	if stored.Action != "customer.create" || stored.TenantID != bootstrap.Tenant() {
 		t.Errorf("the Grant did not reach the row: %+v", stored)
 	}
 
@@ -87,7 +89,7 @@ func TestARolledBackWriteStoresNoEvent(t *testing.T) {
 	failed := errors.New("the rule said no")
 
 	err := data.Transaction(ctx, db, func(ctx context.Context) error {
-		if err := outbox.Store(ctx, security.SystemGrant("customer.create", tenantID()), []events.Event{
+		if err := outbox.Store(ctx, security.SystemGrant("customer.create", bootstrap.Tenant()), []events.Event{
 			{Name: "customer.created", Aggregate: "customer", AggregateID: "c-2"},
 		}); err != nil {
 			return err
@@ -98,7 +100,7 @@ func TestARolledBackWriteStoresNoEvent(t *testing.T) {
 		t.Fatalf("err = %v, want the caller's error", err)
 	}
 
-	pending, err := outbox.Pending(ctx, tenantID(), 10)
+	pending, err := outbox.Pending(ctx, bootstrap.Tenant(), 10)
 	if err != nil {
 		t.Fatalf("Pending: %v", err)
 	}
@@ -115,7 +117,7 @@ func TestPublishingMarksTheEvent(t *testing.T) {
 	ctx := context.Background()
 
 	err := data.Transaction(ctx, db, func(ctx context.Context) error {
-		return outbox.Store(ctx, security.SystemGrant("invoice.pay", tenantID()), []events.Event{
+		return outbox.Store(ctx, security.SystemGrant("invoice.pay", bootstrap.Tenant()), []events.Event{
 			{Name: "invoice.paid", Aggregate: "invoice", AggregateID: "i-1"},
 		})
 	})
@@ -123,7 +125,7 @@ func TestPublishingMarksTheEvent(t *testing.T) {
 		t.Fatalf("Transaction: %v", err)
 	}
 
-	pending, err := outbox.Pending(ctx, tenantID(), 10)
+	pending, err := outbox.Pending(ctx, bootstrap.Tenant(), 10)
 	if err != nil || len(pending) != 1 {
 		t.Fatalf("Pending: %v, %d events", err, len(pending))
 	}
@@ -131,7 +133,7 @@ func TestPublishingMarksTheEvent(t *testing.T) {
 	if err := outbox.MarkFailed(ctx, pending[0].ID, errors.New("the broker refused")); err != nil {
 		t.Fatalf("MarkFailed: %v", err)
 	}
-	again, err := outbox.Pending(ctx, tenantID(), 10)
+	again, err := outbox.Pending(ctx, bootstrap.Tenant(), 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +144,7 @@ func TestPublishingMarksTheEvent(t *testing.T) {
 	if err := outbox.MarkPublished(ctx, pending[0].ID); err != nil {
 		t.Fatalf("MarkPublished: %v", err)
 	}
-	after, err := outbox.Pending(ctx, tenantID(), 10)
+	after, err := outbox.Pending(ctx, bootstrap.Tenant(), 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +161,7 @@ func TestAnotherTenantDoesNotSeeTheEvent(t *testing.T) {
 	ctx := context.Background()
 
 	err := data.Transaction(ctx, db, func(ctx context.Context) error {
-		return outbox.Store(ctx, security.SystemGrant("invoice.pay", tenantID()), []events.Event{
+		return outbox.Store(ctx, security.SystemGrant("invoice.pay", bootstrap.Tenant()), []events.Event{
 			{Name: "invoice.paid", Aggregate: "invoice", AggregateID: "i-1"},
 		})
 	})

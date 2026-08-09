@@ -2,6 +2,8 @@
 
 package layouts
 
+import "github.com/arandu-io/kyse/components"
+
 <!doctype html>
 {{-- No x-data on <html>. theme.js applies the theme to that element before the
      body is parsed, and Alpine only reads it back afterwards. Binding it here
@@ -52,6 +54,7 @@ package layouts
 		<header class="flex items-center justify-between border-b py-6">
 			<a class="text-sm font-semibold tracking-tight" href="{{ .HomeLink() }}">{{ .BrandName() }}</a>
 			<nav class="flex items-center gap-3 text-sm">
+				{!! components.ThemeToggle() !!}
 				@if(!.SignedIn())
 					<a class="btn" data-variant="ghost" data-size="sm" href="{{ .LoginLink() }}">Sign in</a>
 					@if(.RegisterLink() != "")

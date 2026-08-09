@@ -1,10 +1,13 @@
-package main
+package unit_test
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/arandu-io/arandu/tests"
 )
 
 // The workflow is not this repository's private business. `aru new` clones the
@@ -16,7 +19,7 @@ const workflowPath = ".github/workflows/ci.yml"
 
 func workflow(t *testing.T) string {
 	t.Helper()
-	body, err := os.ReadFile(workflowPath)
+	body, err := os.ReadFile(filepath.Join(tests.Root(t), workflowPath))
 	if err != nil {
 		t.Fatalf("reading %s: %v", workflowPath, err)
 	}

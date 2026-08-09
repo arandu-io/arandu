@@ -1,9 +1,12 @@
-package main
+package unit_test
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/arandu-io/arandu/tests"
 )
 
 // arandu.toml pins the binaries `aru view:build` downloads, and every project
@@ -20,7 +23,7 @@ import (
 func tools(t *testing.T) map[string]string {
 	t.Helper()
 
-	body, err := os.ReadFile("arandu.toml")
+	body, err := os.ReadFile(filepath.Join(tests.Root(t), "arandu.toml"))
 	if err != nil {
 		t.Fatalf("reading arandu.toml: %v", err)
 	}
@@ -70,7 +73,7 @@ func TestTheToolchainPinsOnlyWhatIsDownloaded(t *testing.T) {
 // the CLI downloads, which sends the next person looking for a build step that
 // does not exist. Every mention had to go, not only the key.
 func TestTheToolchainCommentDoesNotPromiseATemplBuild(t *testing.T) {
-	body, err := os.ReadFile("arandu.toml")
+	body, err := os.ReadFile(filepath.Join(tests.Root(t), "arandu.toml"))
 	if err != nil {
 		t.Fatalf("reading arandu.toml: %v", err)
 	}

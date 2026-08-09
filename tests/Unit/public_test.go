@@ -1,12 +1,15 @@
-package main
+package unit_test
 
 import (
 	"encoding/binary"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/arandu-io/arandu/tests"
 
 	"github.com/arandu-io/framework/config"
 )
@@ -20,7 +23,7 @@ import (
 // exist.
 
 func TestTheFixedPublicPathsAreServed(t *testing.T) {
-	k := testKernel(t, config.EnvDev)
+	k := tests.Kernel(t, config.EnvDev)
 
 	for _, tc := range []struct {
 		path        string
@@ -49,7 +52,7 @@ func TestTheFixedPublicPathsAreServed(t *testing.T) {
 // emits <link rel="icon" href="/favicon.ico">, and a page that asks for a file
 // the application does not answer for is a 404 on every single request.
 func TestTheLayoutLinksAFaviconThatExists(t *testing.T) {
-	k := testKernel(t, config.EnvDev)
+	k := tests.Kernel(t, config.EnvDev)
 
 	page := httptest.NewRecorder()
 	k.Handler().ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/", nil))
@@ -69,7 +72,7 @@ func TestTheLayoutLinksAFaviconThatExists(t *testing.T) {
 // which is indistinguishable from a working icon in every test that only checks
 // the status. The skeleton shipped exactly that -- favicon.ico, zero bytes.
 func TestTheFaviconIsARealIcon(t *testing.T) {
-	body, err := os.ReadFile("public/favicon.ico")
+	body, err := os.ReadFile(filepath.Join(tests.Root(t), "public", "favicon.ico"))
 	if err != nil {
 		t.Fatalf("reading public/favicon.ico: %v", err)
 	}

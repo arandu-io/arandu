@@ -1,4 +1,4 @@
-package main
+package feature_test
 
 import (
 	"context"
@@ -34,20 +34,20 @@ func sqliteEnv(t *testing.T) {
 func TestMigrateAndRollbackOnSQLite(t *testing.T) {
 	sqliteEnv(t)
 
-	if err := dispatch("migrate", nil); err != nil {
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	// Twice, because a deploy pipeline runs it on every release.
-	if err := dispatch("migrate", nil); err != nil {
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("second migrate: %v", err)
 	}
-	if err := dispatch("migrate:status", nil); err != nil {
+	if err := bootstrap.Dispatch("migrate:status", nil); err != nil {
 		t.Fatalf("migrate:status: %v", err)
 	}
-	if err := dispatch("migrate:rollback", nil); err != nil {
+	if err := bootstrap.Dispatch("migrate:rollback", nil); err != nil {
 		t.Fatalf("migrate:rollback: %v", err)
 	}
-	if err := dispatch("migrate:fresh", nil); err != nil {
+	if err := bootstrap.Dispatch("migrate:fresh", nil); err != nil {
 		t.Fatalf("migrate:fresh: %v", err)
 	}
 }
@@ -59,14 +59,14 @@ func TestLoginOnSQLite(t *testing.T) {
 	t.Setenv("ARANDU_ADMIN_EMAIL", "admin@example.test")
 	t.Setenv("ARANDU_ADMIN_PASSWORD", "a-long-enough-password")
 
-	if err := dispatch("migrate", nil); err != nil {
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if err := dispatch("db:seed", nil); err != nil {
+	if err := bootstrap.Dispatch("db:seed", nil); err != nil {
 		t.Fatalf("db:seed: %v", err)
 	}
 	// Seeding has to be safe to run again, or it cannot be part of a deploy.
-	if err := dispatch("db:seed", nil); err != nil {
+	if err := bootstrap.Dispatch("db:seed", nil); err != nil {
 		t.Fatalf("second db:seed: %v", err)
 	}
 
@@ -144,11 +144,11 @@ func TestLoginOnSQLite(t *testing.T) {
 // to get this command wrong.
 func TestSeedRefusesAnUnknownClass(t *testing.T) {
 	sqliteEnv(t)
-	if err := dispatch("migrate", nil); err != nil {
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	err := dispatch("db:seed", []string{"--class=UserSeeder"})
+	err := bootstrap.Dispatch("db:seed", []string{"--class=UserSeeder"})
 
 	if err == nil {
 		t.Fatal("an unknown seeder was accepted")
@@ -164,7 +164,7 @@ func TestFreshRefusesOutsideDevelopment(t *testing.T) {
 	sqliteEnv(t)
 	t.Setenv("APP_ENV", "prod")
 
-	err := dispatch("migrate:fresh", nil)
+	err := bootstrap.Dispatch("migrate:fresh", nil)
 
 	if err == nil {
 		t.Fatal("migrate:fresh ran outside development")
@@ -212,7 +212,7 @@ func openForTest(t *testing.T) (appconfig.Config, *data.DB, func()) {
 	if err != nil {
 		t.Fatalf("config: %v", err)
 	}
-	db, closeDB, err := open(cfg)
+	db, closeDB, err := bootstrap.Open(cfg)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
