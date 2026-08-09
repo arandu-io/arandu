@@ -35,7 +35,7 @@ import (
 // a glob would also embed this source file, and a public/ that silently
 // publishes whatever landed in it is how a stray dump file becomes a URL.
 //
-//go:embed favicon.ico robots.txt
+//go:embed favicon.ico favicon.png robots.txt
 var files embed.FS
 
 // contentTypes is the whole table, and it is deliberately short. A public/ that
@@ -44,6 +44,10 @@ var files embed.FS
 // have.
 var contentTypes = map[string]string{
 	".ico": "image/x-icon",
+	// The logo, at the size a modern browser prefers. It is linked beside the
+	// .ico rather than instead of it: Safari and every feed reader still ask
+	// for /favicon.ico by that name, whatever the markup says.
+	".png": "image/png",
 	".txt": "text/plain; charset=utf-8",
 }
 

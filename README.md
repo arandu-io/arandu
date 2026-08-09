@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/logo.png" alt="Arandu" width="140" height="140">
+</p>
+
 <h1 align="center">arandu-io/arandu</h1>
 
 <p align="center">The Arandu application skeleton.</p>
