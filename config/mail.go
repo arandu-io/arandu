@@ -13,8 +13,17 @@ const (
 	MailerLog Mailer = "log"
 	// MailerSMTP is any SMTP server.
 	MailerSMTP Mailer = "smtp"
-	// MailerSES is Amazon SES, through the mail/ses submodule.
-	MailerSES Mailer = "ses"
+	// MailerResend is Resend, through the mail/resend submodule.
+	//
+	// Resend and SendGrid rather than Amazon SES, and it is a decision rather
+	// than an omission: SES needs an AWS account, a sending identity, a region
+	// and a sandbox exit request before the first message leaves, and the two
+	// below need an API key. Laravel ships a ResendTransport of its own.
+	MailerResend Mailer = "resend"
+	// MailerSendGrid is SendGrid, through the mail/sendgrid submodule.
+	MailerSendGrid Mailer = "sendgrid"
+	// MailerArray keeps messages in memory, for tests to read.
+	MailerArray Mailer = "array"
 )
 
 // Mail is what config/mail.php holds.
@@ -31,6 +40,10 @@ type Mail struct {
 	// session sends the password in the clear.
 	Encryption string
 
+	// Key authenticates with Resend or SendGrid. It is never in the repository:
+	// MAIL_KEY comes from the environment, like every other credential.
+	Key string
+
 	// FromAddress and FromName are the envelope every message leaves with.
 	FromAddress string
 	FromName    string
@@ -44,6 +57,7 @@ func loadMail(base framework.Config) Mail {
 		Username:    env("MAIL_USERNAME", ""),
 		Password:    env("MAIL_PASSWORD", ""),
 		Encryption:  env("MAIL_ENCRYPTION", "starttls"),
+		Key:         env("MAIL_KEY", ""),
 		FromAddress: env("MAIL_FROM_ADDRESS", "no-reply@localhost"),
 		FromName:    env("MAIL_FROM_NAME", base.AppName),
 	}
