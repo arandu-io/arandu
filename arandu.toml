@@ -14,5 +14,18 @@
 # that writes the views, which is what keeps the two from drifting (ADR 0020).
 # Nothing to download, nothing to verify, nothing to cache.
 
+# The oldest CLI this project can be built with.
+#
+# It is here because of what its absence looks like. A project written with a
+# current `aru`, opened with an older one, is refused view by view -- one message
+# per line, each about markup that is correct -- and nothing in that output says
+# the CLI is what is old. Sixty errors, and the first thing anybody tries is
+# editing a template that was never wrong.
+#
+# A floor, not a pin: a newer CLI is always fine. Raise it when the project
+# starts using something a released CLI cannot compile.
+[arandu]
+aru = "v0.17.0"
+
 [tools]
 tailwindcss = "v4.3.3"
