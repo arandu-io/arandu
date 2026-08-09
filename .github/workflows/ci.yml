@@ -25,6 +25,18 @@ jobs:
           # be testing against. The minimum in go.mod stays where it is.
           go-version: stable
 
+      # The views are compiled here, not committed.
+      #
+      # `aru view:build` turns every .kyse.go into the Go beside it, and that
+      # output is build output: .gitignore keeps it out of the tree the way
+      # Laravel keeps storage/framework/views out of its own. Which means this
+      # step is not a convenience -- without it nothing below compiles, and the
+      # failure is `undefined: renderHome` rather than anything about views.
+      - name: build the views
+        run: |
+          go install github.com/arandu-io/aru@latest
+          "$(go env GOPATH)/bin/aru" view:build
+
       - name: gofmt
         # `gofmt -l .` skips nothing, and two things in this repository are not
         # valid Go on purpose:

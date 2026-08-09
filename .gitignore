@@ -36,6 +36,23 @@ database/*.sqlite-shm
 database/*.sqlite-wal
 database/*.db
 
+# The compiled views.
+#
+# `aru view:build` writes home.go beside home.kyse.go, and Laravel does the same
+# thing into storage/framework/views -- which it gitignores, for the reason this
+# does: a compiled template is build output, and build output in a repository is
+# a file people read diffs of, resolve conflicts in, and eventually edit.
+#
+# The build step is not optional and never was: `aru dev` runs it, the Taskfile
+# runs it, CI runs it and the Dockerfile runs it. What changes is that the tree
+# now shows what somebody wrote.
+#
+# A component LIBRARY is the opposite case and commits them: `go get` has no
+# build step to run, so a module whose generated files are missing is one nobody
+# can import. See arandu-io/kyse.
+resources/views/**/*.go
+!resources/views/**/*.kyse.go
+
 # The Tailwind binary `aru view:build` downloads and pins. It is a tool, not a
 # dependency: arandu.toml records which version, and that is what is committed.
 .arandu/

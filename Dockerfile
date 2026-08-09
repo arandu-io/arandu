@@ -26,6 +26,16 @@ ARG COMMIT=unknown
 #
 # -trimpath keeps the build machine's paths out of the binary, so a stack trace
 # from production does not name somebody's home directory.
+
+# The views, compiled in the image rather than copied in.
+#
+# They are build output and are not in the repository (see .gitignore), so the
+# binary would not link without this. Installing the CLI here costs a layer and
+# buys the property that the image is built from sources only -- nothing in it
+# came from somebody's laptop.
+RUN go install github.com/arandu-io/aru@latest && \
+    "$(go env GOPATH)/bin/aru" view:build
+
 RUN CGO_ENABLED=0 go build \
       -trimpath \
       -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" \
