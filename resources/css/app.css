@@ -25,7 +25,7 @@
 @import "tailwindcss" source(none);
 
 @source "../views/**/*.kyse.go";
-@source "../views/**/*.go";
+@source "../../storage/framework/views/**/*.go";
 
 /* The design system: the tokens, the component layer, and one style pack.
  *

@@ -5,7 +5,7 @@ import (
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/framework/view"
 
-	"github.com/arandu-io/arandu/resources/views"
+	"github.com/arandu-io/arandu/storage/framework/views"
 )
 
 // HomeController answers the landing page.

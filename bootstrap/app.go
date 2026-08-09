@@ -61,8 +61,8 @@ import (
 	_ "github.com/arandu-io/database/pgx"
 	_ "github.com/arandu-io/database/sqlite"
 
-	_ "github.com/arandu-io/arandu/resources/views"
-	_ "github.com/arandu-io/arandu/resources/views/layouts"
+	_ "github.com/arandu-io/arandu/storage/framework/views"
+	_ "github.com/arandu-io/arandu/storage/framework/views/layouts"
 )
 
 // AppModule is this project's module path. The error page uses it to tell your
