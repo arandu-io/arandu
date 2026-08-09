@@ -6,6 +6,8 @@ github.com/arandu-io/database/sqlite v0.1.0 h1:BrFB5QpBHe9pCyZl2rAXux8UePTImJgd3
 github.com/arandu-io/database/sqlite v0.1.0/go.mod h1:5g/T6m0v2Lztu4CUeNrXyuLrpUOH4Oj5Zgz92tQC/3Y=
 github.com/arandu-io/framework v0.23.0 h1:II2QNFufkCCZFacuLaiRbM+/eBahzCc50ajai5vBJUA=
 github.com/arandu-io/framework v0.23.0/go.mod h1:c0r4p08puM7BwQ4NJg4M/Yjf5ECeYeheis0F+j6a7X8=
+github.com/arandu-io/framework v0.24.0 h1:QmRdZbKbWNUJfcNF3hFDRfcpplcnmci5WT3zEgWCvJ0=
+github.com/arandu-io/framework v0.24.0/go.mod h1:c0r4p08puM7BwQ4NJg4M/Yjf5ECeYeheis0F+j6a7X8=
 github.com/arandu-io/kyse v0.2.0 h1:WYKjG7mCQvy7qHZu1+j4gFCFZ+CY2jVXwrp1cUk7PHI=
 github.com/arandu-io/kyse v0.2.0/go.mod h1:OaeVNZapXDXCC+fYCdRFAbUslyfCISVO92uDI6Cs8js=
 github.com/arandu-io/queue v0.2.0 h1:6QJImUH1GzHVX+9HuOC2eW/Q8hn9Baki/aTmY4g9/3Y=
