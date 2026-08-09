@@ -132,7 +132,7 @@ func TestEachSuiteHoldsWhatItsNameSays(t *testing.T) {
 	// the store and the publisher together against a real schema. "Feature"
 	// means more than one piece interacting, and HTTP is the common case rather
 	// than the definition.
-	boots := regexp.MustCompile(`tests\.Kernel\(|bootstrap\.Dispatch\(|bootstrap\.Open\(|httptest\.NewRequest\(|migratedDB\(`)
+	boots := regexp.MustCompile(`tests\.App\(|tests\.Kernel\(|bootstrap\.Dispatch\(|bootstrap\.Open\(|httptest\.NewRequest\(|migratedDB\(`)
 
 	for _, suite := range []string{"Feature", "Unit"} {
 		dir := filepath.Join(tests.Root(t), "tests", suite)

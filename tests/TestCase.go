@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/arandu-io/framework/arandutest"
 	"github.com/arandu-io/framework/config"
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/kernel"
@@ -99,4 +100,47 @@ func File(t *testing.T, name string) string {
 		t.Fatalf("reading %s: %v", name, err)
 	}
 	return string(body)
+}
+
+// App boots the whole application on a throwaway SQLite database, migrated, and
+// returns a browser for it.
+//
+// It is Laravel's RefreshDatabase and $this->get() in one call, and it is the
+// difference between a feature test worth writing and one nobody writes: every
+// alternative starts with twelve lines of environment, connection and migration
+// that have nothing to do with what is being proved.
+//
+// SQLite in a temporary directory, so the tests need nothing installed and two
+// of them cannot see each other's rows. The file goes with t.TempDir.
+func App(t *testing.T) (*arandutest.Client, *data.DB) {
+	t.Helper()
+
+	t.Setenv("APP_ENV", "dev")
+	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
+	t.Setenv("DB_CONNECTION", "sqlite")
+	t.Setenv("DB_DATABASE", filepath.Join(t.TempDir(), "test.sqlite"))
+	t.Setenv("ARANDU_TENANT_ID", "11111111-1111-4111-8111-111111111111")
+
+	// The schema, through the same command a deploy runs. A test that creates
+	// tables another way is a test that keeps passing after a migration breaks.
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	cfg, err := appconfig.Load()
+	if err != nil {
+		t.Fatalf("loading the configuration: %v", err)
+	}
+
+	db, closeDB, err := bootstrap.Open(cfg)
+	if err != nil {
+		t.Fatalf("opening the database: %v", err)
+	}
+	t.Cleanup(closeDB)
+
+	app := bootstrap.Build(cfg, db)
+	if err := app.Kernel.Boot(context.Background()); err != nil {
+		t.Fatalf("Boot: %v", err)
+	}
+	return arandutest.NewClient(t, app.Kernel.Handler()), db
 }
