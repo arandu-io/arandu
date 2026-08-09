@@ -3,6 +3,7 @@ package unit_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -103,6 +104,60 @@ func TestEveryDirectoryThatMustExistIsKept(t *testing.T) {
 		}
 		if _, err := os.Stat(filepath.Join(full, ".gitkeep")); err != nil {
 			t.Errorf("%s is empty and has no .gitkeep: it will not be in a clone", d)
+		}
+	}
+}
+
+// TestEachSuiteHoldsWhatItsNameSays.
+//
+// The two suites are not two folders to spread files across. Laravel means
+// something by each, and so does this:
+//
+//	Feature  boots the application, or drives more than one piece of it
+//	Unit     checks one thing, with nothing running
+//
+// The distinction earns its keep when a suite is slow: `go test ./tests/Unit/`
+// is the one somebody runs on every save, and it stops being that the first time
+// a test in it opens a database.
+//
+// It is checked by what a file reaches for, not by what it is called. A Unit
+// test that boots the kernel is in the wrong suite whatever its name is -- and
+// two files were, until this ran: the fixed public paths were served in Unit,
+// and the icon's bytes were read in Feature.
+func TestEachSuiteHoldsWhatItsNameSays(t *testing.T) {
+	// What only a Feature test may reach for.
+	//
+	// Booting and serving, and also opening a database: the relay tests make no
+	// HTTP request and are Feature all the same, because they drive the outbox,
+	// the store and the publisher together against a real schema. "Feature"
+	// means more than one piece interacting, and HTTP is the common case rather
+	// than the definition.
+	boots := regexp.MustCompile(`tests\.Kernel\(|bootstrap\.Dispatch\(|bootstrap\.Open\(|httptest\.NewRequest\(|migratedDB\(`)
+
+	for _, suite := range []string{"Feature", "Unit"} {
+		dir := filepath.Join(tests.Root(t), "tests", suite)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("reading tests/%s: %v", suite, err)
+		}
+
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), "_test.go") {
+				continue
+			}
+			body, err := os.ReadFile(filepath.Join(dir, e.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			switch found := boots.Match(body); {
+			case suite == "Unit" && found:
+				t.Errorf("tests/Unit/%s boots the application: move it to tests/Feature, or the suite "+
+					"nobody waits for becomes one they do", e.Name())
+			case suite == "Feature" && !found:
+				t.Errorf("tests/Feature/%s boots nothing: move it to tests/Unit, or Feature stops "+
+					"meaning what it says", e.Name())
+			}
 		}
 	}
 }
