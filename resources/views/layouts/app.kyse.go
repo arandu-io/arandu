@@ -15,6 +15,21 @@ import "github.com/arandu-io/kyse/components"
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	{{-- What a rejected form means.
+	     htmx swaps a response only when its table of response handling says to,
+	     and the default in the copy this framework embeds ends with
+	     {"code":"[45]..","swap":false} -- so a 422 is fetched, is correct, and is
+	     thrown away. The person sees the form they submitted, unchanged, with no
+	     message on it, and concludes the button does nothing. That is exactly
+	     what happened: a password one character short answered 422 with the
+	     reason in the body, and the screen said nothing at all.
+	     422 comes before the catch-all because htmx takes the first entry that
+	     matches. It lives here, once: the layout is what decides what a fragment
+	     answer means, and a per-page opt-in would be a second way to answer a
+	     rejected form (RULE 9). A meta tag is not a script, so it costs nothing
+	     against script-src 'self'. See framework/httpx/context.go. --}}
+	<meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"422","swap":true},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
 	<title>{{ .PageTitle() }}</title>
 	<link rel="icon" href="/favicon.ico" sizes="any">
 	<link rel="icon" href="/favicon.png" type="image/png">
