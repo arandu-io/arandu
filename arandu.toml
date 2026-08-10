@@ -25,7 +25,7 @@
 # A floor, not a pin: a newer CLI is always fine. Raise it when the project
 # starts using something a released CLI cannot compile.
 [arandu]
-aru = "v0.29.0"
+aru = "v0.29.1"
 
 [tools]
 tailwindcss = "v4.3.3"
