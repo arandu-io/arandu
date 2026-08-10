@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"github.com/arandu-io/framework/httpx"
+	"github.com/arandu-io/framework/modules/auth"
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/framework/view"
 
@@ -27,12 +28,28 @@ type HomeController struct {
 	// know about a token and a cookie.
 	sessions *security.SessionStore
 	csrf     *security.CSRF
+
+	// people and tenant are how the id in a session becomes a name to greet. A
+	// session carries an id and not a name on purpose: a name kept in one stays
+	// wrong after somebody changes theirs. The tenant is whose rows are read
+	// (RULE 14), from the configuration and never from the request.
+	people *auth.Service
+	tenant string
 }
 
 // NewHomeController returns the controller. `bootstrap` builds it and hands it
 // to the routes.
-func NewHomeController(appName string, sessions *security.SessionStore, csrf *security.CSRF) *HomeController {
-	return &HomeController{appName: appName, sessions: sessions, csrf: csrf}
+//
+// The parameter list is the one `go run github.com/arandu-io/ui@latest auth`
+// publishes, and it has to stay that way. That command replaces this file with
+// no flag at all -- the layout and the pages that extend it are one unit -- and
+// a constructor it emits that bootstrap/app.go does not call is a project that
+// stops compiling on a command whose whole promise is that it can be run again.
+func NewHomeController(appName string, sessions *security.SessionStore, csrf *security.CSRF, people *auth.Service, tenant string) *HomeController {
+	return &HomeController{
+		appName: appName, sessions: sessions, csrf: csrf,
+		people: people, tenant: tenant,
+	}
 }
 
 // Compile-time proof that this controller answers GET / the way Resource and the
@@ -66,19 +83,26 @@ func (c *HomeController) Index(ctx *httpx.Context) error {
 		return err
 	}
 
+	// The name to greet, from the id the session carries. One lookup by primary
+	// key for the person who is signed in, and the id is the fallback: a header
+	// is not worth a 500, and a guest never reaches the lookup at all.
+	name := subject.ID
+	if signedIn && c.people != nil {
+		if names, err := c.people.Names(ctx.Ctx(), c.tenant, []string{subject.ID}); err == nil && names[subject.ID] != "" {
+			name = names[subject.ID]
+		}
+	}
+
 	return ctx.View("home", views.HomeData{
 		Page: view.Page{
 			Title:         c.appName,
 			AppName:       c.appName,
 			Token:         token,
 			Authenticated: signedIn,
-			// The identifier, because that is what a session carries. Show a
-			// display name here once you have a screen that loads the user
-			// through its policy.
-			UserName:  subject.ID,
-			HomeURL:   "/",
-			LoginURL:  "/auth/login",
-			LogoutURL: "/auth/logout",
+			UserName:      name,
+			HomeURL:       "/",
+			LoginURL:      "/auth/login",
+			LogoutURL:     "/auth/logout",
 		},
 		Name: "world",
 		Features: []views.Feature{

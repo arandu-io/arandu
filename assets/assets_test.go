@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/arandu-io/framework/httpx"
@@ -51,6 +52,54 @@ func TestTheBrowserGetsThisProjectsStylesheet(t *testing.T) {
 	if sum(served) != sum(onDisk) {
 		t.Errorf("the browser is served a different stylesheet than assets/app.css.\n  served   %s (%d bytes)\n  on disk  %s (%d bytes)\nThis is the framework's default: nothing registered this project's.",
 			sum(served), len(served), sum(onDisk), len(onDisk))
+	}
+}
+
+// TestTheStylesheetCarriesTheClassesTheMarkupRenders guards the other half of
+// the same pipeline: not who receives the file, but what is inside it.
+//
+// Tailwind emits a rule only for a class it read out of a file some @source
+// names. resources/css/app.css can name directories of this project, and the
+// components are an imported module (ADR 0027) whose source is in the module
+// cache -- so this file, 183 KB of it, had zero occurrences of
+// `.text-destructive`, which components.Field writes on the error line of every
+// form, and zero of `size-3 rounded-full`, which are the theme picker's colour
+// swatches: spans with no rule for size, which is a span of no size.
+//
+// Nothing failed. `aru view:build` reported success and the page rendered. This
+// file is committed and is what `aru new` hands to every project, so a stylesheet
+// that is quietly missing a class is a defect that ships by being copied.
+//
+// The two halves are named on purpose. .text-destructive can only come from the
+// imported library and .max-w-3xl only from this project's own layout, so the
+// test says which of the two sources stopped being read.
+func TestTheStylesheetCarriesTheClassesTheMarkupRenders(t *testing.T) {
+	css, err := os.ReadFile("app.css")
+	if err != nil {
+		t.Fatalf("assets/app.css is missing: it is committed so that `go build` works on a fresh clone: %v", err)
+	}
+	stylesheet := string(css)
+
+	for _, want := range []struct {
+		class  string
+		drawn  string
+		broken string
+	}{
+		{".text-destructive", "the validation message under a components.Field",
+			"a rejected form explains itself in the body colour, so nothing on the screen says which field was refused"},
+		{".w-44", "the menu of components.ThemeToggle",
+			"the theme menu has no width and collapses onto its trigger"},
+		{".size-3", "each colour swatch of components.ThemeToggle",
+			"the swatches have no size, so the menu offers six choices with nothing to look at"},
+		{".rounded-full", "each colour swatch of components.ThemeToggle",
+			"the swatches are squares"},
+		{".max-w-3xl", "the page column in resources/views/layouts/app",
+			"every page runs the full width of the window with no measure at all"},
+	} {
+		if !strings.Contains(stylesheet, want.class) {
+			t.Errorf("%s is not in the compiled stylesheet, and it is what draws %s: %s.\nRun `aru view:build`, and if that does not put it there, the file it is written in is not one the stylesheet declares as a source.",
+				want.class, want.drawn, want.broken)
+		}
 	}
 }
 
