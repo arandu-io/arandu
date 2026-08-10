@@ -12,6 +12,8 @@ github.com/arandu-io/framework v0.24.1 h1:TSzGGy5NULLM7nXCclGWaTWiJx9eIR8U6TDv+f
 github.com/arandu-io/framework v0.24.1/go.mod h1:c0r4p08puM7BwQ4NJg4M/Yjf5ECeYeheis0F+j6a7X8=
 github.com/arandu-io/framework v0.25.0 h1:yeLOiRWC4WKS8mBKgkHKun2rvzmRkLx6Pk+GtAUicsA=
 github.com/arandu-io/framework v0.25.0/go.mod h1:c0r4p08puM7BwQ4NJg4M/Yjf5ECeYeheis0F+j6a7X8=
+github.com/arandu-io/framework v0.25.1 h1:XLl/eSX3s2lumvwHFBTuTYrjbxA6Glvuh+TyQeBDdzI=
+github.com/arandu-io/framework v0.25.1/go.mod h1:c0r4p08puM7BwQ4NJg4M/Yjf5ECeYeheis0F+j6a7X8=
 github.com/arandu-io/kyse v0.2.0 h1:WYKjG7mCQvy7qHZu1+j4gFCFZ+CY2jVXwrp1cUk7PHI=
 github.com/arandu-io/kyse v0.2.0/go.mod h1:OaeVNZapXDXCC+fYCdRFAbUslyfCISVO92uDI6Cs8js=
 github.com/arandu-io/kyse v0.5.0 h1:ABv8KMTnC0h+bxHxGGv6+3xYa74tnLPaO6/vugu6COY=
