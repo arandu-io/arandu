@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -70,9 +72,15 @@ func TestTheBrowserGetsThisProjectsStylesheet(t *testing.T) {
 // file is committed and is what `aru new` hands to every project, so a stylesheet
 // that is quietly missing a class is a defect that ships by being copied.
 //
-// The two halves are named on purpose. .text-destructive can only come from the
-// imported library and .max-w-3xl only from this project's own layout, so the
-// test says which of the two sources stopped being read.
+// The two halves are checked differently, on purpose. A class that can only
+// come from the imported library is named here, because naming it is the only
+// way to say which source stopped being read. A class from this project's own
+// views is READ OUT OF THE LAYOUT instead of named: the starter kit replaces
+// that file, so a hardcoded ".max-w-3xl" passed here and failed in a project
+// that had run `go run github.com/arandu-io/ui@latest auth` -- the width the kit
+// draws with is not the one this layout draws with, and Tailwind emits only what
+// it read. A test that has to be edited whenever a view changes is a test that
+// gets edited into passing.
 func TestTheStylesheetCarriesTheClassesTheMarkupRenders(t *testing.T) {
 	css, err := os.ReadFile("app.css")
 	if err != nil {
@@ -80,6 +88,9 @@ func TestTheStylesheetCarriesTheClassesTheMarkupRenders(t *testing.T) {
 	}
 	stylesheet := string(css)
 
+	// From the imported component library, which is the half that was silently
+	// missing: its source is in the module cache and nothing in
+	// resources/css/app.css names it (ADR 0037).
 	for _, want := range []struct {
 		class  string
 		drawn  string
@@ -93,15 +104,55 @@ func TestTheStylesheetCarriesTheClassesTheMarkupRenders(t *testing.T) {
 			"the swatches have no size, so the menu offers six choices with nothing to look at"},
 		{".rounded-full", "each colour swatch of components.ThemeToggle",
 			"the swatches are squares"},
-		{".max-w-3xl", "the page column in resources/views/layouts/app",
-			"every page runs the full width of the window with no measure at all"},
 	} {
 		if !strings.Contains(stylesheet, want.class) {
-			t.Errorf("%s is not in the compiled stylesheet, and it is what draws %s: %s.\nRun `aru view:build`, and if that does not put it there, the file it is written in is not one the stylesheet declares as a source.",
+			t.Errorf("%s is not in the compiled stylesheet, and it is what draws %s: %s.\nThe imported component library is not being read as a source -- see ADR 0037.",
 				want.class, want.drawn, want.broken)
 		}
 	}
+
+	// And from this project's own layout, whatever it currently is.
+	layout := filepath.Join("..", "resources", "views", "layouts", "app.kyse.go")
+	body, err := os.ReadFile(layout)
+	if err != nil {
+		t.Fatalf("the layout is missing: %v", err)
+	}
+	classes := utilities(string(body))
+	if len(classes) < 5 {
+		t.Fatalf("only %d plain utility classes were found in %s; this test cannot say anything", len(classes), layout)
+	}
+	for _, class := range classes {
+		if !strings.Contains(stylesheet, "."+class) {
+			t.Errorf("%s renders class %q and the compiled stylesheet has no rule for it.\nRun `aru view:build`; if that does not put it there, this project's own views are not declared as a source in resources/css/app.css.",
+				layout, class)
+		}
+	}
 }
+
+// utilities pulls the plain class names out of markup.
+//
+// Plain on purpose: a variant (sm:flex), an arbitrary value (w-[3px]) and an
+// interpolated one are all things this test cannot reason about without
+// reimplementing Tailwind's scanner, and a test that guesses is a test that
+// fails for the wrong reason.
+func utilities(markup string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, attr := range classAttr.FindAllStringSubmatch(markup, -1) {
+		for _, name := range strings.Fields(attr[1]) {
+			if plainClass.MatchString(name) && !seen[name] {
+				seen[name] = true
+				out = append(out, name)
+			}
+		}
+	}
+	return out
+}
+
+var (
+	classAttr  = regexp.MustCompile(`class="([^"{}]*)"`)
+	plainClass = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+)
 
 func sum(b []byte) string {
 	h := md5.Sum(b)
