@@ -11,7 +11,7 @@
 package providers
 
 import (
-	"github.com/arandu-io/framework/httpx"
+	"github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/kernel"
 
 	"github.com/arandu-io/arandu/database/migrations"
@@ -45,7 +45,7 @@ var (
 func (*AppServiceProvider) Name() string { return "app" }
 
 // Routes registers what routes/web.go declares.
-func (p *AppServiceProvider) Routes(r *httpx.Router) { routes.Web(r, p.deps) }
+func (p *AppServiceProvider) Routes(r *http.Router) { routes.Web(r, p.deps) }
 
 // Migrations are this application's own, from database/migrations.
 //

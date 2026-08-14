@@ -7,7 +7,7 @@
 package routes
 
 import (
-	"github.com/arandu-io/framework/httpx"
+	"github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/security"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
@@ -44,7 +44,7 @@ type Deps struct {
 //	r.Get("/", handler).Name("home")
 //	r.Resource("invoices", invoiceController)      // the seven REST routes
 //
-// The guards live in github.com/arandu-io/framework/httpx/middleware, which this
+// The guards live in github.com/arandu-io/framework/http/middleware, which this
 // file does not import yet because it registers nothing that needs one:
 //
 //	r.Action("GET", "/dashboard", ctrl.Index, middleware.RequireAuth(d.Sessions)).Name("dashboard")
@@ -59,7 +59,7 @@ type Deps struct {
 // which addresses are open. The sign-in screen is guarded the same way, by the
 // auth module that registers it, so somebody already signed in is not shown a
 // form telling them they are not.
-func Web(r *httpx.Router, d Deps) {
+func Web(r *http.Router, d Deps) {
 	// "/{$}" and not "/". This is the one place Go's router does not behave the
 	// way it conventionally does: a pattern ending in a slash matches every path below
 	// it, so "GET /" would answer for /anything -- including the 404s, and

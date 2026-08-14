@@ -10,8 +10,8 @@ import (
 	"github.com/arandu-io/arandu/tests"
 
 	"github.com/arandu-io/framework/config"
-	"github.com/arandu-io/framework/httpx"
-	"github.com/arandu-io/framework/httpx/middleware"
+	fhttp "github.com/arandu-io/framework/http"
+	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/framework/kernel"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
@@ -78,7 +78,7 @@ func TestTheRootRouteDoesNotSwallowEveryPath(t *testing.T) {
 // router needs and not what a href should contain, and a table that returned it
 // verbatim would put a literal {$} in every link to the landing page.
 func TestTheHomeRouteIsAddressableByName(t *testing.T) {
-	r := httpx.NewRouter()
+	r := fhttp.NewRouter()
 	routes.Web(r, routes.Deps{Home: controllers.NewHomeController("test", nil, nil, nil, "")})
 
 	got, err := r.Table().URL("home")

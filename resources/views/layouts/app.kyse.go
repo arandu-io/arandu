@@ -28,7 +28,7 @@ import "github.com/arandu-io/kyse/components"
 	     matches. It lives here, once: the layout is what decides what a fragment
 	     answer means, and a per-page opt-in would be a second way to answer a
 	     rejected form (RULE 9). A meta tag is not a script, so it costs nothing
-	     against script-src 'self'. See framework/httpx/context.go. --}}
+	     against script-src 'self'. See framework/http/context.go. --}}
 	<meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"422","swap":true},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
 	<title>{{ .PageTitle() }}</title>
 	<link rel="icon" href="/favicon.ico" sizes="any">

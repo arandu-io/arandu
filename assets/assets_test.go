@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arandu-io/framework/httpx"
+	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/view"
 
 	_ "github.com/arandu-io/arandu/assets"
@@ -35,7 +35,7 @@ func TestTheBrowserGetsThisProjectsStylesheet(t *testing.T) {
 		t.Fatalf("assets/app.css is missing: it is committed so that `go build` works on a fresh clone: %v", err)
 	}
 
-	r := httpx.NewRouter()
+	r := fhttp.NewRouter()
 	view.NewModule().Routes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()

@@ -11,7 +11,7 @@ package controllers
 import (
 	"net/http"
 
-	"github.com/arandu-io/framework/httpx"
+	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/validation"
 )
 
@@ -30,7 +30,7 @@ type Controller struct{}
 // tells the browser, the logs and every dashboard that the write succeeded --
 // and HTMX still swaps the fragment either way, so nothing looks wrong until
 // somebody asks why the success rate is 100%.
-func (Controller) Invalid(ctx *httpx.Context, view string, data any) error {
+func (Controller) Invalid(ctx *fhttp.Context, view string, data any) error {
 	return ctx.Fragment(http.StatusUnprocessableEntity, view, data)
 }
 

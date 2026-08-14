@@ -28,7 +28,7 @@ import (
 	"path"
 	"sort"
 
-	"github.com/arandu-io/framework/httpx"
+	fhttp "github.com/arandu-io/framework/http"
 )
 
 // The files, compiled in. The list is explicit rather than a directory glob:
@@ -103,7 +103,7 @@ func Names() []string {
 // Registering the names rather than mounting a file server under a prefix is
 // what keeps `aru routes` honest: every URL this application answers is a route
 // in the table, including these.
-func Routes(r *httpx.Router) {
+func Routes(r *fhttp.Router) {
 	for _, name := range Names() {
 		r.Get("/"+name, handler(name))
 	}

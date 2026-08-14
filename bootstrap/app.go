@@ -19,7 +19,7 @@ import (
 
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/events"
-	"github.com/arandu-io/framework/httpx/middleware"
+	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/framework/mail"
 	"github.com/arandu-io/framework/modules/auth"
