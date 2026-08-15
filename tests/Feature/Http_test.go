@@ -37,7 +37,7 @@ func TestTheLandingPageRenders(t *testing.T) {
 	// The application name, and not a literal from the page.
 	//
 	// This used to assert "Hello world", a phrase of the skeleton's own landing
-	// page -- and `aru make:auth` replaces that page, along with the layout and
+	// page -- and the starter kit replaces that page, along with the layout and
 	// the controller, exactly as `php artisan ui bootstrap --auth` does. The
 	// test then failed in every project that ran the command, on its first push,
 	// for something the person did not break.

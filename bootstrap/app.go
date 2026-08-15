@@ -45,10 +45,11 @@ import (
 	// layouts one and every page fails instead, because a page renders its
 	// layout.
 	//
-	// One line per directory of views, because the generated file sits beside
-	// its source and each directory is its own package. Adding a directory means
-	// adding a line here, and a view nobody can reach says so at the first
-	// request rather than never.
+	// One line per directory of views. `aru view:build` writes the generated
+	// package under storage/framework/views/, mirroring the source tree, and
+	// each directory is its own package. Adding a directory means adding a line
+	// here, and a view nobody can reach says so at the first request rather
+	// than never.
 
 	// The engines this binary can speak. Each is its own module, so removing an
 	// import removes the driver from the build, from go.sum and from the
@@ -235,14 +236,13 @@ func mailTransport(cfg appconfig.Mail) mail.Transport {
 		}
 	case appconfig.MailerArray:
 		return &mail.Array{}
-	case appconfig.MailerResend, appconfig.MailerSendGrid:
-		// The adapters are submodules, because in Go there is no optional
-		// dependency and a provider's client in the core is that client in every
-		// binary. Add the one you use and return it here:
-		//
-		//	go get github.com/arandu-io/mail/resend
-		//	return resend.New(cfg.Key)
-		panic("mail: " + string(cfg.Mailer) + " needs its submodule: go get github.com/arandu-io/mail/" + string(cfg.Mailer))
+	case appconfig.MailerResend:
+		// Both transports are in the core: each one is an HTTPS call to a
+		// documented endpoint, so there is no client library to make optional.
+		// Set MAIL_MAILER and MAIL_KEY and it sends.
+		return mail.Resend{Key: cfg.Key}
+	case appconfig.MailerSendGrid:
+		return mail.SendGrid{Key: cfg.Key}
 	default:
 		return mail.Log{}
 	}

@@ -11,7 +11,7 @@ import (
 )
 
 // There is one way the CSRF token reaches an HTMX request, and it is the
-// hx-headers attribute on <body>. The layout `aru make:auth` writes carries it,
+// hx-headers attribute on <body>. The layout the starter kit publishes carries it,
 // the framework's own sign-in page carries it, and the error page names it by
 // that string when a write is rejected.
 //
