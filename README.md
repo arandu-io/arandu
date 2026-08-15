@@ -4,7 +4,7 @@
 
 <h1 align="center">arandu-io/arandu</h1>
 
-<p align="center">The Arandu application skeleton.</p>
+<p align="center">The project skeleton `aru new` clones — a running application from the first commit.</p>
 
 <p align="center">
 <a href="https://github.com/arandu-io/arandu/actions/workflows/ci.yml"><img src="https://github.com/arandu-io/arandu/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
@@ -26,17 +26,43 @@ aru new my-app
 cd my-app && aru dev
 ```
 
-The tree is the conventional one — `app/Http/Controllers`, `app/Models`,
-`app/Policies`, `bootstrap/`, `config/`, `database/`, `resources/views`,
-`routes/`, `storage/`, `public/` — so nothing about where a file lives has to be
-learned.
+That gives you a Go framework for web applications, services and APIs, built
+around development speed, a single compiled binary instead of a JavaScript
+bundle, and authorization the compiler charges for: a repository call with no
+`Grant` does not compile.
 
-Three directories carry the difference: `app/Services/`, `app/Repositories/` and
-a mandatory `app/Policies/`. Elsewhere those are a habit an organised team keeps;
-here they are skeleton, and `aru doctor` asks for them.
+## What it delivers
 
-It runs with `git clone && aru dev`. No `node_modules`, no `package.json`, no JS
-lockfile, and no Node installed — assets are embedded in the binary.
+- **A conventional tree** — `app/Http/Controllers`, `app/Models`,
+  `app/Policies`, `app/Repositories`, `app/Services`, `app/Jobs`,
+  `app/Events`, `app/Listeners`, `app/Mail`, `bootstrap/`, `config/`,
+  `database/`, `resources/views/`, `routes/`, `storage/`, `public/` — so
+  nothing about where a file lives has to be learned.
+- **A mandatory `app/Policies/`** — elsewhere a policy directory is a habit an
+  organised team keeps; here `aru doctor` asks for one per entity, with the
+  rule `repository-without-policy`.
+- **A binary, not a toolchain** — it runs with `git clone && aru dev`. No
+  `node_modules`, no `package.json`, no JavaScript lockfile, and no Node
+  installed: the view compiler and every script are embedded in the binary.
+- **`bootstrap/app.go`** — the one place the application is wired. `aru
+  make:module` prints the lines a generated module needs and never edits this
+  file itself: a generator that rewrites your wiring behind your back is a
+  generator whose output nobody can account for.
+
+`aru doctor` runs 23 named checks against this tree — from a repository
+missing its policy to a tenant read off the request instead of the `Grant` —
+and CI fails on the first error.
+
+3,439 lines of production code and 2,096 of test, across 16 test files —
+small on purpose: it is what a project starts from, not what it grows into.
+
+## The rest of Arandu
+
+`aru` is the command line that clones and drives this skeleton;
+[`arandu-io/framework`](https://github.com/arandu-io/framework) is what it
+runs on; `hesape` is the 47-package collection the framework is built from;
+`examples` is a complete application, read-worthy end to end, built the same
+way `aru new` starts one.
 
 ## Learning Arandu
 
