@@ -4,7 +4,7 @@
 # and what every platform consumes -- Dokploy, Coolify, Kamal, Fly, Railway, ECS
 # and Kubernetes all take an OCI image and need nothing else from us.
 
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 
 # git for the version stamp, and libstdc++ for the Tailwind binary. There is no
 # node, no python and no build toolchain here, which is the point of RULE 13.
