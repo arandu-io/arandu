@@ -1,0 +1,30 @@
+# Two ecosystems, because those are the two this project has: the Go module
+# graph and the actions the workflows pin. There is no npm entry here and there
+# will not be one -- nothing in any of these repositories installs Node.
+#
+# A gomod entry watches exactly one directory. Go publishes a submodule as its
+# own module with its own go.mod, and every third-party driver in this project
+# lives in one of those, so a file declaring only "/" would watch the part of
+# the graph with nothing in it and miss the part that has all of it.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 5
+    groups:
+      gomod:
+        patterns:
+          - "*"
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"

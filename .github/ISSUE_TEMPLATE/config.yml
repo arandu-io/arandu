@@ -1,0 +1,21 @@
+# Blank issues stay on. This project has no chat server, no forum and no
+# mailing list, so the tracker is the only public channel there is -- turning
+# blank issues off would leave a question with nowhere to land but a bug report
+# form it does not fit.
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/arandu-io/arandu/security/policy
+    about: >-
+      Never in a public issue. The security policy has the private channel, the
+      timelines and what counts as a vulnerability here.
+  - name: Architecture decisions
+    url: https://github.com/arandu-io/docs
+    about: >-
+      Every decision that closed a door has a record carrying the reason. Read
+      the one your change contradicts before proposing it.
+  - name: API reference
+    url: https://pkg.go.dev/github.com/arandu-io/arandu
+    about: >-
+      Generated from the doc comments, on every exported symbol. There is no
+      usage guide yet -- that is a later phase.

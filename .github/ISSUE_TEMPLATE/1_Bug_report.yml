@@ -1,0 +1,79 @@
+name: Bug Report
+description: Report something that is broken.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A bug report is something a maintainer can run. The fields below are
+        what it takes to run it: which module and version, which Go, which
+        operating system, and the smallest sequence that reproduces the
+        problem.
+
+        Do not report a vulnerability here. A public issue about one is closed
+        and moved to a private advisory -- see `SECURITY.md` in this repository
+        for the channel.
+
+  - type: input
+    id: version
+    attributes:
+      label: Repository and version
+      description: >-
+        The repository the bug is in, and the version you are on. For a Go
+        module that is the `require` line from your `go.mod`, or the output of
+        `go list -m <module>`.
+      placeholder: github.com/arandu-io/arandu v0.7.1
+    validations:
+      required: true
+
+  - type: input
+    id: go-version
+    attributes:
+      label: Go version
+      description: Paste the output of `go version`. Not a description of it.
+      placeholder: go version go1.26.5 darwin/arm64
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: >-
+        Name and version. If you build for a different target than the one you
+        run on, give both.
+      placeholder: macOS 15.5
+    validations:
+      required: true
+
+  - type: textarea
+    id: behaviour
+    attributes:
+      label: What happens, and what you expected instead
+      description: >-
+        Both halves. "It does not work" is missing the half that tells a
+        maintainer which of the two is wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        The smallest sequence that reproduces it, from a state somebody else can
+        reach. Cut everything the failure does not need, and say so if the
+        problem disappears when you cut a particular step. A link to a
+        repository that reproduces it is worth more than any description.
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Command and output
+      description: >-
+        The command you ran and its complete output: the error, the stack trace
+        if there is one, and any `aru doctor` line that came with it. Paste it
+        rather than summarising it -- the line that explains the failure is
+        often the one that looked irrelevant.
+      render: text
