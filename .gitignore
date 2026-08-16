@@ -71,3 +71,8 @@ Thumbs.db
 # the file tree, and a project where half the team sees them and half does not
 # is a project arguing about a file nobody edits.
 !.vscode/
+
+# Configuracao do harness. Vive na raiz do diretorio de trabalho, nao aqui:
+# um arquivo por repositorio ja divergiu, e o hook de commit-msg em .githooks/
+# e a camada que de fato reprova atribuicao de IA.
+.claude/
