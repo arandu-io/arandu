@@ -72,7 +72,6 @@ var portugueseMarkers = []string{
 
 // TestTheWorkflowIsWrittenInEnglish.
 //
-// RULE 6: Portuguese belongs to the conversation and to the decision documents.
 // Everything that ships is English, and this workflow ships -- into the
 // repository of a person who has no reason to read Portuguese, to explain why
 // their build just failed.

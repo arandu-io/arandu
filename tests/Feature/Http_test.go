@@ -36,11 +36,10 @@ func TestTheLandingPageRenders(t *testing.T) {
 	}
 	// The application name, and not a literal from the page.
 	//
-	// This used to assert "Hello world", a phrase of the skeleton's own landing
-	// page -- and the starter kit replaces that page, along with the layout and
-	// the controller, exactly as `php artisan ui bootstrap --auth` does. The
-	// test then failed in every project that ran the command, on its first push,
-	// for something the person did not break.
+	// Asserting a phrase of the skeleton's own landing page would fail in every
+	// project that installed the starter kit, which replaces that page along
+	// with the layout and the controller -- on its first push, for something the
+	// person did not break.
 	//
 	// The app name survives the swap because both controllers pass it, and it
 	// still proves what this test is for: a value the controller was given
@@ -56,10 +55,10 @@ func TestTheLandingPageRenders(t *testing.T) {
 	}
 }
 
-// TestTheRootRouteDoesNotSwallowEveryPath is the one place Go's router does not
-// behave like Laravel's: "GET /" matches every path below it, so the landing
-// page would answer for unknown URLs -- with 200, hiding the 404 and shadowing
-// any route that is not mounted in this environment.
+// TestTheRootRouteDoesNotSwallowEveryPath guards a property of Go's router:
+// "GET /" matches every path below it, so an unguarded landing page would answer
+// for unknown URLs -- with 200, hiding the 404 and shadowing any route that is
+// not mounted in this environment.
 func TestTheRootRouteDoesNotSwallowEveryPath(t *testing.T) {
 	k := tests.Kernel(t, config.EnvDev)
 

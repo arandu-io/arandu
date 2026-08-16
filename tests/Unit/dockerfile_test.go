@@ -59,9 +59,9 @@ func TestTheContainerDoesNotRunAsRoot(t *testing.T) {
 	}
 }
 
-// TestTheImageDoesNotMigrateAtBoot is RULE 16, checked where it would be
-// violated. With N replicas starting together, N migrations race -- and the
-// tempting place to put `aru migrate` is exactly the entrypoint.
+// TestTheImageDoesNotMigrateAtBoot checks the rule where it would be broken.
+// With N replicas starting together, N migrations race -- and the tempting place
+// to put `aru migrate` is exactly the entrypoint.
 func TestTheImageDoesNotMigrateAtBoot(t *testing.T) {
 	body := dockerfile(t)
 

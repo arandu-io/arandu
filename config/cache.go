@@ -10,8 +10,8 @@ import (
 type CacheStore string
 
 // The supported stores. Two, and they are not two ways to do one thing: memory
-// is right for one process and wrong for two, and the interface is the same
-// (RULE 11 -- an adapter behind an interface is not a mode).
+// is right for one process and wrong for two, and the interface is the same --
+// an adapter behind an interface is not a mode.
 const (
 	// CacheMemory keeps entries in the process. Right for development and for a
 	// single replica; behind a load balancer, half the requests miss.
@@ -20,7 +20,8 @@ const (
 	CacheRedis CacheStore = "redis"
 )
 
-// Cache is what config/cache.php holds.
+// Cache is which backend the cache runs on, where it is, and how long an entry
+// lives when the caller states no lifetime.
 type Cache struct {
 	Store CacheStore
 
@@ -31,7 +32,7 @@ type Cache struct {
 	// deployments can share one server without reading each other's entries.
 	//
 	// It is not the tenant: the tenant is prepended per entry, from the Grant,
-	// and never from configuration (RULE 14).
+	// and never from configuration.
 	Prefix string
 
 	// TTL is how long an entry lives when the caller states no lifetime.

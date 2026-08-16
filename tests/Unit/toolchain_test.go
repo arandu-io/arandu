@@ -12,11 +12,11 @@ import (
 // arandu.toml pins the binaries `aru view:build` downloads, and every project
 // made with `aru new` receives this exact file.
 //
-// It used to pin templ, with a comment saying the CLI fetches it. It does not:
-// the view engine is kyse, which is code inside `aru` rather than a release on
-// somebody's GitHub (ADR 0020). A pin for a tool nobody downloads is worse than
-// no pin -- it is a version number people maintain, upgrade and argue about for
-// a build step that does not exist.
+// It pins only what is actually downloaded. The view engine is kyse, which is
+// code inside `aru` rather than a release fetched from somewhere, so it has no
+// entry here. A pin for a tool nobody downloads is worse than no pin -- it is a
+// version number people maintain, upgrade and argue about for a build step that
+// does not exist.
 
 // tools parses the [tools] table. The format is the subset `aru` reads: a
 // section header and key = "value" lines.

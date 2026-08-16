@@ -6,9 +6,9 @@
 // process listens itself.
 //
 // Almost nothing is here. The wiring is bootstrap/app.go and the commands are
-// bootstrap/console.go, for the reason Laravel's index.php is twenty lines:
-// `main` cannot be imported, so anything living here is anything a test cannot
-// reach -- and the tests worth having boot the whole application.
+// bootstrap/console.go, because `main` cannot be imported: anything living here
+// is anything a test cannot reach, and the tests worth having boot the whole
+// application.
 //
 // `aru serve` runs this binary with that argument, because only this binary
 // knows which modules exist.

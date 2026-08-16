@@ -1,11 +1,11 @@
 // Package tests is the base every test in this project builds on.
 //
-// It is tests/TestCase.php, in the shape Go allows: a package the suites import
-// rather than a class they extend. What belongs here is what more than one suite
-// needs -- booting the application, opening a database, reading a file from the
-// project root -- and nothing else. A helper used by one test belongs beside it.
+// It is a package the suites import rather than a base class they extend. What
+// belongs here is what more than one suite needs -- booting the application,
+// opening a database, reading a file from the project root -- and nothing else.
+// A helper used by one test belongs beside it.
 //
-// The two suites are the Laravel ones and they mean the same thing:
+// The two suites:
 //
 //	tests/Feature/  boots the application and makes a request
 //	tests/Unit/     checks one thing without booting anything
@@ -105,10 +105,10 @@ func File(t *testing.T, name string) string {
 // App boots the whole application on a throwaway SQLite database, migrated, and
 // returns a browser for it.
 //
-// It is Laravel's RefreshDatabase and $this->get() in one call, and it is the
-// difference between a feature test worth writing and one nobody writes: every
-// alternative starts with twelve lines of environment, connection and migration
-// that have nothing to do with what is being proved.
+// A fresh database and a request client in one call, which is the difference
+// between a feature test worth writing and one nobody writes: every alternative
+// starts with twelve lines of environment, connection and migration that have
+// nothing to do with what is being proved.
 //
 // SQLite in a temporary directory, so the tests need nothing installed and two
 // of them cannot see each other's rows. The file goes with t.TempDir.

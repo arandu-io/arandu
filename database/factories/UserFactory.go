@@ -28,7 +28,7 @@ type UserFactory struct {
 //
 // The tenant is required rather than defaulted. A factory that picks its own
 // would build rows nobody can reach, and the failure would only show up when
-// somebody tried to log in (RULE 14).
+// somebody tried to log in.
 func NewUserFactory(tenant string) UserFactory {
 	return UserFactory{tenant: tenant, roles: []string{models.RoleMember}}
 }

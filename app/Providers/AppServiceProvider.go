@@ -7,7 +7,7 @@
 // bootstrap/app.go and passed in by hand.
 //
 // The name survives anyway, and on purpose: this is the file somebody opens
-// looking for "where the application registers itself" (RULE 10).
+// looking for "where the application registers itself".
 package providers
 
 import (

@@ -9,8 +9,8 @@
 // to stay exactly what it is and the hash has nowhere to go.
 //
 // That is the whole reason this package exists, and the reason it is not a
-// second asset pipeline (RULE 9): one path for anything a page references, this
-// one for the short list of names the outside world already knows.
+// second asset pipeline: one path for anything a page references, this one for
+// the short list of names the outside world already knows.
 //
 // There is no document root here either. A public/ directory is what a web
 // server points at; ours is compiled into the binary like everything else, so

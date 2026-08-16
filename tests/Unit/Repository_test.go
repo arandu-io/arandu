@@ -12,7 +12,7 @@ import (
 // What the repository is allowed to contain, checked by reading the files rather
 // than by trusting a name.
 //
-// Every rule here exists because something got committed. A pattern written for
+// Each check reads content rather than matching a name: a pattern written for
 // one shape of mistake misses the next one, and the next one is what ships.
 
 // sqliteMagic is the first sixteen bytes of every SQLite file, whatever it is

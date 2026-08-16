@@ -1,10 +1,9 @@
 // Console is the command side of this application.
 //
-// It lives in bootstrap rather than in main for the reason Laravel's does: the
-// entry point is thin and what it runs is a package. `main` cannot be imported,
-// so anything that lives there is anything a test cannot reach -- and the tests
-// that matter most here are the ones that boot the whole application and make a
-// request.
+// It lives in bootstrap rather than in main so that the entry point stays thin
+// and what it runs is a package. `main` cannot be imported, so anything that
+// lives there is anything a test cannot reach -- and the tests that matter most
+// here are the ones that boot the whole application and make a request.
 //
 // tests/Feature/ imports this.
 package bootstrap

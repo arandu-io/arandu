@@ -153,8 +153,8 @@ func TestPublishingMarksTheEvent(t *testing.T) {
 	}
 }
 
-// TestAnotherTenantDoesNotSeeTheEvent: RULE 14 reaches the outbox too. A relay
-// running for one tenant must not read another's events.
+// TestAnotherTenantDoesNotSeeTheEvent: the tenant scope reaches the outbox too.
+// A relay running for one tenant must not read another's events.
 func TestAnotherTenantDoesNotSeeTheEvent(t *testing.T) {
 	db := migratedDB(t)
 	outbox := events.NewOutbox(db)

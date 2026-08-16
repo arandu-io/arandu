@@ -6,7 +6,7 @@ import "time"
 type QueueConnection string
 
 // The supported connections. Both implement the same jobs.Queue contract, so
-// moving between them changes this value and nothing else (RULE 11).
+// moving between them changes this value and nothing else.
 const (
 	// QueueDatabase stores jobs in a table of the application's own database,
 	// which is what makes a job commitable by the same transaction as the row it
@@ -16,7 +16,7 @@ const (
 	QueueKV QueueConnection = "kv"
 )
 
-// Queue is what config/queue.php holds.
+// Queue is where queued work is stored, and how a worker runs it.
 type Queue struct {
 	Connection QueueConnection
 

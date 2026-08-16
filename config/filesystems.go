@@ -16,12 +16,12 @@ const (
 	DiskS3 Disk = "s3"
 )
 
-// Filesystems is what config/filesystems.php holds.
+// Filesystems is where uploaded files live, and what it takes to reach them.
 //
-// There is no public disk and no storage:link. Assets are embedded in the binary
-// (RULE 13) and an uploaded file is served by a handler that checked a Grant
-// first -- a directory the web server publishes is a directory with no policy in
-// front of it.
+// There is no public disk and no symlink into one. Assets are embedded in the
+// binary and an uploaded file is served by a handler that checked a Grant first
+// -- a directory the web server publishes is a directory with no policy in front
+// of it.
 type Filesystems struct {
 	// Default is the disk a write goes to when none is named.
 	Default Disk

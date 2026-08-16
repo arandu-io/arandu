@@ -15,11 +15,10 @@ import (
 // the framework's own sign-in page carries it, and the error page names it by
 // that string when a write is rejected.
 //
-// The skeleton also used to ship resources/js/app.js, which attached the same
-// header from a htmx:configRequest listener. Nothing embedded it, nothing served
-// it and no layout referenced it, so it never ran -- and had it run, it would
-// have been a second answer to a question that already has one (RULE 9). It was
-// deleted. This test is what keeps it deleted.
+// A resources/js/app.js attaching the same header from a htmx:configRequest
+// listener would be a second answer to a question that already has one, and
+// nothing embeds, serves or references such a file, so it would never even run.
+// This test is what keeps it out.
 
 // TestResourcesHoldNoJavaScript: resources/ is the input of `aru view:build`,
 // and that build knows two kinds of file -- .kyse.go, which it compiles, and

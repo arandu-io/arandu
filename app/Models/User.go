@@ -18,9 +18,9 @@ import (
 // User is the authenticated account.
 //
 // It is an alias of the auth module's type, not a copy. Two structs describing
-// one table is two ways to describe one thing (RULE 9), and the copy is the one
-// that drifts: the module owns the columns, the migration and the hashing, and
-// this name is here so app/Models/User.go is where the user model is found.
+// one table is two ways to describe one thing, and the copy is the one that
+// drifts: the module owns the columns, the migration and the hashing, and this
+// name is here so app/Models/User.go is where the user model is found.
 //
 // The password hash never leaves the type: User implements MarshalJSON and
 // LogValue so a dump, a log line or a JSON response cannot carry it.
@@ -38,8 +38,8 @@ const (
 // UserRepository is the only door to the users table.
 //
 // Every method takes a Grant, including the reads. A read path without a policy
-// is a cross-tenant data leak with a technical name (RULE 17), so List and Find
-// are on this interface for exactly the same reason Create is.
+// is a cross-tenant data leak with a technical name, so List and Find are on
+// this interface for exactly the same reason Create is.
 //
 // It is declared here, next to the model, and implemented in app/Repositories --
 // or, as below, by the module that owns the table. The interface is what lets a

@@ -112,9 +112,9 @@ func TestLoginOnSQLite(t *testing.T) {
 		// The shape depends on the client: an HTMX request gets 204 with
 		// HX-Redirect, a plain form post gets 303 with Location. It also
 		// depends on WHICH sign-in module is wired -- the framework ships a
-		// minimal one and the starter kit replaces it, at the same path. This
-		// test used to demand 200 and HX-Redirect, so following the kit's own
-		// wiring instruction turned the skeleton's suite red.
+		// minimal one and the starter kit replaces it, at the same path.
+		// Demanding one status and one header would turn this suite red for
+		// anybody who installed the kit.
 		if rec.Code != http.StatusOK && rec.Code != http.StatusNoContent && rec.Code != http.StatusSeeOther {
 			t.Fatalf("status = %d, want 2xx or 303 (the email is matched case-insensitively)", rec.Code)
 		}
@@ -159,11 +159,11 @@ func TestSeedRefusesAnUnknownName(t *testing.T) {
 
 // TestTheOldClassFlagSaysWhatToTypeInstead.
 //
-// The name used to be `--class=X`, which is Laravel's spelling. It is positional
-// now, and a name that is sometimes a flag and sometimes a word is two spellings
-// of one thing (RULE 9). What matters is that the refusal contains the command
-// to run -- an error that only says "unknown argument" sends somebody to the
-// source of a CLI to find out what changed.
+// The seeder name is positional, and a name that is sometimes a flag and
+// sometimes a word is two spellings of one thing. What matters is that the
+// refusal of `--class=X` contains the command to run -- an error that only says
+// "unknown argument" sends somebody to the source of a CLI to find out what
+// changed.
 func TestTheOldClassFlagSaysWhatToTypeInstead(t *testing.T) {
 	sqliteEnv(t)
 	if err := bootstrap.Dispatch("migrate", nil); err != nil {

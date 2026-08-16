@@ -61,26 +61,26 @@ func TestTheBrowserGetsThisProjectsStylesheet(t *testing.T) {
 // the same pipeline: not who receives the file, but what is inside it.
 //
 // Tailwind emits a rule only for a class it read out of a file some @source
-// names. resources/css/app.css can name directories of this project, and the
-// components are an imported module (ADR 0027) whose source is in the module
-// cache -- so this file, 183 KB of it, had zero occurrences of
+// names. resources/css/app.css can name directories of this project, but the
+// components are an imported module whose source is in the module cache -- so a
+// stylesheet can be 183 KB and still hold zero occurrences of
 // `.text-destructive`, which components.Field writes on the error line of every
 // form, and zero of `size-3 rounded-full`, which are the theme picker's colour
 // swatches: spans with no rule for size, which is a span of no size.
 //
-// Nothing failed. `aru view:build` reported success and the page rendered. This
-// file is committed and is what `aru new` hands to every project, so a stylesheet
-// that is quietly missing a class is a defect that ships by being copied.
+// Nothing fails when that happens. The build reports success and the page
+// renders. This file is committed and is what `aru new` hands to every project,
+// so a stylesheet quietly missing a class is a defect that ships by being
+// copied.
 //
 // The two halves are checked differently, on purpose. A class that can only
 // come from the imported library is named here, because naming it is the only
 // way to say which source stopped being read. A class from this project's own
 // views is READ OUT OF THE LAYOUT instead of named: the starter kit replaces
-// that file, so a hardcoded ".max-w-3xl" passed here and failed in a project
-// that had run `go run github.com/arandu-io/ui@latest auth` -- the width the kit
-// draws with is not the one this layout draws with, and Tailwind emits only what
-// it read. A test that has to be edited whenever a view changes is a test that
-// gets edited into passing.
+// that file, so a hardcoded ".max-w-3xl" passes here and fails in a project that
+// installed the kit -- the width the kit draws with is not the one this layout
+// draws with, and Tailwind emits only what it read. A test that has to be edited
+// whenever a view changes is a test that gets edited into passing.
 func TestTheStylesheetCarriesTheClassesTheMarkupRenders(t *testing.T) {
 	css, err := os.ReadFile("app.css")
 	if err != nil {
@@ -88,9 +88,9 @@ func TestTheStylesheetCarriesTheClassesTheMarkupRenders(t *testing.T) {
 	}
 	stylesheet := string(css)
 
-	// From the imported component library, which is the half that was silently
-	// missing: its source is in the module cache and nothing in
-	// resources/css/app.css names it (ADR 0037).
+	// From the imported component library, which is the half that goes missing
+	// silently: its source is in the module cache and nothing in
+	// resources/css/app.css names it.
 	for _, want := range []struct {
 		class  string
 		drawn  string

@@ -6,7 +6,7 @@ import (
 	framework "github.com/arandu-io/framework/config"
 )
 
-// Logging is what config/logging.php holds.
+// Logging is what is written to stdout, and how much of it.
 //
 // There is one channel and it is stdout. A stack of channels exists where a
 // process cannot be relied on to have a collector in front of it; a container

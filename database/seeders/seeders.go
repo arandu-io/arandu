@@ -22,7 +22,7 @@ type Deps struct {
 	Auth *auth.Service
 	// Tenant is the tenant seeded rows belong to. It comes from the application,
 	// never from the seeder: a seeder that picks its own tenant seeds data nobody
-	// can reach (RULE 14).
+	// can reach.
 	Tenant string
 
 	// Args is what came after the seeder's name on the command line.
@@ -56,10 +56,9 @@ var registry = []Seeder{
 //	aru db:seed PostSeeder                         one of them
 //	aru db:seed UserSeeder -e a@b.com -p secret    one of them, with arguments
 //
-// The name is positional. Laravel spells it `--class=`, and this used to as
-// well; a name that is sometimes a flag and sometimes a word is two spellings of
-// one thing (RULE 9), so the flag form is refused with the word to use instead
-// rather than accepted quietly.
+// The name is positional. A name that is sometimes a flag and sometimes a word
+// is two spellings of one thing, so the flag form `--class=` is refused with the
+// word to use instead rather than accepted quietly.
 //
 // Everything after the name reaches the seeder as Deps.Args, unparsed. What a
 // flag means is the seeder's business: this function does not know that

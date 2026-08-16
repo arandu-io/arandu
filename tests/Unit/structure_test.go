@@ -12,11 +12,10 @@ import (
 
 // TestEveryTestLivesInTheTestsDirectory.
 //
-// The suites are Laravel's, and they mean what they mean there: tests/Feature
-// boots the application and makes a request, tests/Unit checks one thing without
-// booting anything. A `_test.go` anywhere else is the arrangement this project
-// moved away from -- a source file and its test side by side, doubling every
-// listing with files nobody opens on purpose.
+// tests/Feature boots the application and makes a request; tests/Unit checks one
+// thing without booting anything. A `_test.go` anywhere else puts a source file
+// and its test side by side, doubling every listing with files nobody opens on
+// purpose.
 //
 // Two exceptions, and neither is a preference:
 //
@@ -61,10 +60,10 @@ func TestEveryTestLivesInTheTestsDirectory(t *testing.T) {
 // at all -- and storage/framework/cache missing is a runtime failure on the
 // first request, not a build error anybody sees.
 //
-// The two answers are Laravel's, and they are different on purpose: storage
-// keeps a .gitignore that ignores everything but itself, because the contents
-// are produced and must never be committed; a source directory that starts empty
-// keeps a .gitkeep, because its contents are written by hand and belong in git.
+// The two answers are different on purpose: storage keeps a .gitignore that
+// ignores everything but itself, because the contents are produced and must
+// never be committed; a source directory that starts empty keeps a .gitkeep,
+// because its contents are written by hand and belong in git.
 func TestEveryDirectoryThatMustExistIsKept(t *testing.T) {
 	root := tests.Root(t)
 
@@ -110,8 +109,8 @@ func TestEveryDirectoryThatMustExistIsKept(t *testing.T) {
 
 // TestEachSuiteHoldsWhatItsNameSays.
 //
-// The two suites are not two folders to spread files across. Laravel means
-// something by each, and so does this:
+// The two suites are not two folders to spread files across. Each means
+// something:
 //
 //	Feature  boots the application, or drives more than one piece of it
 //	Unit     checks one thing, with nothing running

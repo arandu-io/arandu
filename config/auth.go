@@ -8,14 +8,14 @@ import "time"
 // refuses an empty tenant, because a system grant with no tenant reads across
 // every customer of the system. An application that never thinks about tenancy
 // still writes every row under this value, so growing into multi-tenant later is
-// a change of resolver and not a migration of data (RULE 14).
+// a change of resolver and not a migration of data.
 const DefaultTenant = "00000000-0000-4000-8000-000000000001"
 
-// Auth is what config/auth.php holds: who may sign in, and for how long.
+// Auth is who may sign in, and for how long.
 //
 // What it deliberately does not hold is a list of guards and providers. There is
 // one way to authenticate -- the auth module, over the users table -- and a
-// second configurable path would be a second way to do one thing (RULE 9).
+// second configurable path would be a second way to do one thing.
 type Auth struct {
 	// Tenant is the tenant every login belongs to. A multi-tenant deployment
 	// resolves it from the host name instead; see auth.TenantResolver.

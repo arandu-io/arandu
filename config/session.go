@@ -11,7 +11,7 @@ import (
 type SessionDriver string
 
 // The supported drivers. Same contract, same code path: swapping them is one
-// line in bootstrap and no change anywhere else (RULE 11).
+// line in bootstrap and no change anywhere else.
 const (
 	// SessionMemory keeps sessions in the process. Right for one instance and
 	// wrong for two: behind a load balancer, half the requests land on the
@@ -21,7 +21,8 @@ const (
 	SessionKV SessionDriver = "kv"
 )
 
-// Session is what config/session.php holds.
+// Session is where session state is kept, how long it lasts, and how the cookie
+// that carries its id is scoped.
 type Session struct {
 	Driver SessionDriver
 

@@ -19,9 +19,9 @@ import (
 //
 // It is an alias of the auth module's policy, not a second one. The module owns
 // the table, the actions and the tenant check, and a copy here would be the one
-// that drifts -- two policies for one entity is two answers to one question
-// (RULE 9). The name is here so app/Policies/UserPolicy.go is where the user's
-// policy is found.
+// that drifts -- two policies for one entity is two answers to one question. The
+// name is here so app/Policies/UserPolicy.go is where the user's policy is
+// found.
 //
 // Replace the alias with a struct of your own the day this application needs a
 // rule the module does not have. The contract is security.Policy[models.User],

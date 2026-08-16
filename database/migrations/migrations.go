@@ -9,9 +9,9 @@
 // is that nothing hides it.
 //
 // And a migration never runs at boot. `aru migrate` is a pipeline step: with N
-// replicas starting together, N migrations race (RULE 16). Every migration is
-// also compatible with the previous version of the binary during a rollout -- a
-// new column is nullable or has a default, and dropping one takes two releases.
+// replicas starting together, N migrations race. Every migration is also
+// compatible with the previous version of the binary during a rollout -- a new
+// column is nullable or has a default, and dropping one takes two releases.
 package migrations
 
 import "github.com/arandu-io/framework/kernel"

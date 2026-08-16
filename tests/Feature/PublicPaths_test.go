@@ -14,10 +14,9 @@ import (
 // The two URLs nobody writes a link to and every client asks for anyway.
 //
 // A browser requests /favicon.ico on its own, and the layout links it by name;
-// a crawler requests /robots.txt before anything else. Both used to answer 404,
-// because the skeleton had the files on disk and no way to serve them: there is
-// no document root here, so a file that is not embedded and routed does not
-// exist.
+// a crawler requests /robots.txt before anything else. Having the files on disk
+// is not enough to answer either: there is no document root here, so a file that
+// is not embedded and routed does not exist.
 
 func TestTheFixedPublicPathsAreServed(t *testing.T) {
 	k := tests.Kernel(t, config.EnvDev)

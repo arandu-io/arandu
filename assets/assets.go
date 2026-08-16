@@ -27,7 +27,7 @@ var stylesheet []byte
 // name there is.
 //
 // It replaces the framework's default rather than adding a second file: one
-// name, one URL, one set of bytes, no cascade order to get wrong (RULE 9).
+// name, one URL, one set of bytes, no cascade order to get wrong.
 //
 // Importing this package is what makes it happen -- the same shape as a
 // database/sql driver, and the same shape the views themselves use. bootstrap

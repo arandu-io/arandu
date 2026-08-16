@@ -18,8 +18,8 @@ type Credential struct {
 // call in production.
 func (c Credential) Configured() bool { return c.Key != "" && c.Secret != "" }
 
-// Services is what config/services.php holds: the credentials of everything this
-// application calls that is not its own database.
+// Services holds the credentials of everything this application calls that is
+// not its own database.
 //
 // One field per service, added as the application grows. Cloudflare comes first
 // because it is the suggested default for storage and for the edge.

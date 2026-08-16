@@ -29,7 +29,7 @@ const (
 	//
 	// Both are in the core rather than in a submodule, because neither needs a
 	// dependency to reach: one POST with a JSON body is net/http, which every
-	// binary already links. See ADR 0031.
+	// binary already links.
 	MailerResend Mailer = "resend"
 	// MailerSendGrid is SendGrid.
 	MailerSendGrid Mailer = "sendgrid"
@@ -45,11 +45,10 @@ const (
 //	MAIL_URL=sendgrid://SG.xxxxxxxx
 //	MAIL_URL=array://                                 what tests read
 //
-// It used to be seven variables -- MAIL_MAILER, MAIL_HOST, MAIL_PORT,
-// MAIL_USERNAME, MAIL_PASSWORD, MAIL_ENCRYPTION, MAIL_KEY -- and the same
-// argument applies as to the database: the scheme is the transport, so a
-// configuration cannot say resend and carry an SMTP host, and a credential
-// cannot be left behind in a variable the new transport does not read.
+// One URL rather than seven variables, for the same reason the database has
+// one: the scheme is the transport, so a configuration cannot say resend and
+// carry an SMTP host, and a credential cannot be left behind in a variable the
+// new transport does not read.
 //
 // The sender is not part of it. MAIL_FROM_ADDRESS and MAIL_FROM_NAME are who
 // the application is, not where the message goes, and they do not change when
@@ -78,9 +77,10 @@ type Mail struct {
 	FromName    string
 }
 
-// retiredMailVars are what used to carry the transport. Refused rather than
-// ignored: a MAIL_KEY nobody reads is a provider silently not configured, and
-// the first thing anybody notices is a customer who never got the mail.
+// retiredMailVars are the variables MAIL_URL replaced. Setting one is refused
+// rather than ignored: a MAIL_KEY nobody reads is a provider silently not
+// configured, and the first thing anybody notices is a customer who never got
+// the mail.
 var retiredMailVars = []string{
 	"MAIL_MAILER", "MAIL_HOST", "MAIL_PORT",
 	"MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_ENCRYPTION", "MAIL_KEY",

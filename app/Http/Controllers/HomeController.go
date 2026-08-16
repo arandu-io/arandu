@@ -31,8 +31,8 @@ type HomeController struct {
 
 	// people and tenant are how the id in a session becomes a name to greet. A
 	// session carries an id and not a name on purpose: a name kept in one stays
-	// wrong after somebody changes theirs. The tenant is whose rows are read
-	// (RULE 14), from the configuration and never from the request.
+	// wrong after somebody changes theirs. The tenant is whose rows are read, and
+	// it comes from the configuration and never from the request.
 	people *auth.Service
 	tenant string
 }

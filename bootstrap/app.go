@@ -7,7 +7,7 @@
 // `aru make:module` does NOT edit this file. It writes the code and prints the
 // three lines to paste, because a generator that edited it behind your back
 // would be a generator whose output nobody can account for -- and this file
-// saying what the application is, exactly, is the point of ADR 0001.
+// saying what the application is, exactly, is the point.
 //
 // Everything below is ordinary Go: read it top to bottom and you know the
 // whole application.
