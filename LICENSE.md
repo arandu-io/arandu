@@ -1,6 +1,6 @@
 The MIT License (MIT)
 
-Copyright (c) HYZIS - Serviços Digitais LTDA
+Copyright (c) HYZIS - SERVICOS DIGITAIS LTDA - EPP
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
