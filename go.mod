@@ -35,7 +35,7 @@ require (
 
 // This is the project skeleton, not a library: nobody imports it, you clone it
 // once. That is what allows it to depend on a driver at all -- the core keeps
-// its two dependencies. See docs/adr/0004 and 0006.
+// its two dependencies. See 10-adr/ADR-0004-dependency-free-core.md and 10-adr/ADR-0006-cli-in-separate-module.md.
 //
 // It requires two compartments because .env offers two engines out of the box.
 // A project that settles on one deletes the other import and runs `go mod
