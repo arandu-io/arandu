@@ -15,15 +15,18 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/arandu-io/framework/arandutest"
-	"github.com/arandu-io/framework/config"
 	"github.com/arandu-io/framework/data"
+	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
 	"github.com/arandu-io/framework/kernel"
+	"github.com/arandu-io/hesape/config"
+	"github.com/arandu-io/hesape/database"
 
 	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
@@ -39,12 +42,17 @@ import (
 func Kernel(t *testing.T, env config.Env) *kernel.Kernel {
 	t.Helper()
 
-	cfg := config.Config{
-		AppName:  "test",
-		Env:      env,
-		HTTPAddr: ":0",
-		AppKey:   []byte("0123456789abcdef0123456789abcdef"),
-		Database: config.DatabaseConfig{
+	cfg := fwbootstrap.Configuration{
+		App: config.App{
+			Name:     "test",
+			Env:      env,
+			URL:      &url.URL{Scheme: "http", Host: "localhost"},
+			HTTPAddr: ":0",
+			Timezone: time.UTC,
+			Locale:   "en",
+			Key:      []byte("0123456789abcdef0123456789abcdef"),
+		},
+		Database: database.Config{
 			Connection: data.DialectPostgres,
 			Host:       "127.0.0.1",
 			Port:       "1",
@@ -52,12 +60,15 @@ func Kernel(t *testing.T, env config.Env) *kernel.Kernel {
 			Username:   "user",
 			Password:   "pass",
 		},
-		SessionTTL: time.Hour,
-		CSRFTTL:    time.Hour,
-		LogLevel:   slog.LevelError,
-		Editor:     "vscode",
+		Observability: fwbootstrap.Observability{
+			LogLevel: slog.LevelError,
+			Editor:   "vscode",
+		},
 	}
-	if err := cfg.Validate(); err != nil {
+	// The App block is the one with rules -- the key length, the environment, the
+	// address -- and a test that writes it by hand is a test that can get them
+	// wrong. Asking here is what turns that into a line naming the field.
+	if err := cfg.App.Validate(); err != nil {
 		t.Fatalf("the test configuration is not valid: %v", err)
 	}
 

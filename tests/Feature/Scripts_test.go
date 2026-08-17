@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arandu-io/framework/config"
+	"github.com/arandu-io/hesape/config"
 
 	"github.com/arandu-io/arandu/tests"
 )

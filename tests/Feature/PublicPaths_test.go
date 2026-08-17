@@ -8,7 +8,7 @@ import (
 
 	"github.com/arandu-io/arandu/tests"
 
-	"github.com/arandu-io/framework/config"
+	"github.com/arandu-io/hesape/config"
 )
 
 // The two URLs nobody writes a link to and every client asks for anyway.

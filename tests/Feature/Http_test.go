@@ -9,10 +9,10 @@ import (
 
 	"github.com/arandu-io/arandu/tests"
 
-	"github.com/arandu-io/framework/config"
 	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/framework/kernel"
+	"github.com/arandu-io/hesape/config"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	"github.com/arandu-io/arandu/bootstrap"

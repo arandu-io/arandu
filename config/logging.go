@@ -3,7 +3,8 @@ package config
 import (
 	"log/slog"
 
-	framework "github.com/arandu-io/framework/config"
+	"github.com/arandu-io/framework/foundation/bootstrap"
+	hconfig "github.com/arandu-io/hesape/config"
 )
 
 // Logging is what is written to stdout, and how much of it.
@@ -27,13 +28,13 @@ type Logging struct {
 	Sampling int
 }
 
-func loadLogging(base framework.Config) Logging {
+func loadLogging(base bootstrap.Configuration) Logging {
 	format := env("LOG_FORMAT", "json")
-	if base.Env == framework.EnvDev {
+	if base.App.Env.Is(hconfig.EnvDev) {
 		format = env("LOG_FORMAT", "text")
 	}
 	return Logging{
-		Level:    base.LogLevel,
+		Level:    base.Observability.LogLevel,
 		Format:   format,
 		Sampling: envInt("LOG_SAMPLING", 0),
 	}

@@ -27,8 +27,8 @@ type Auth struct {
 	// PasswordResetTTL is how long a reset link stays valid.
 	PasswordResetTTL time.Duration
 
-	// SessionTTL is how long a signed-in session lasts. It comes from the
-	// framework configuration, which is what the session store was built with.
+	// SessionTTL is how long a signed-in session lasts. It is SESSION_TTL, the
+	// same value the session store is built with.
 	SessionTTL time.Duration
 }
 

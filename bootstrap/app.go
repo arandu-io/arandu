@@ -102,7 +102,7 @@ type App struct {
 func Build(cfg appconfig.Config, db *data.DB) App {
 	fw := cfg.Framework
 
-	csrf := security.NewCSRF(fw.AppKey, cfg.Session.CSRFTTL)
+	csrf := security.NewCSRF(fw.App.Key, cfg.Session.CSRFTTL)
 
 	// The core ships the in-memory session backend, which is right for one
 	// instance and wrong for two: behind a load balancer, half the requests land
@@ -110,7 +110,7 @@ func Build(cfg appconfig.Config, db *data.DB) App {
 	// this for kv.NewSessionBackend(client) -- github.com/arandu-io/kv, same
 	// interface, one line. SESSION_DRIVER is what says which one is expected;
 	// the same applies to the limiter below.
-	sessions := security.NewSessionStore(fw.AppKey, cfg.Session.TTL, cfg.Session.Secure, security.NewMemoryBackend())
+	sessions := security.NewSessionStore(fw.App.Key, cfg.Session.TTL, cfg.Session.Secure, security.NewMemoryBackend())
 
 	limiter := middleware.NewMemoryLimiter()
 
@@ -160,7 +160,7 @@ func Build(cfg appconfig.Config, db *data.DB) App {
 		// a panic in any middleware below it escapes without a page.
 		Use(
 			middleware.Recover(cfg.App.IsDev(), errorpage.Options{
-				Editor:    fw.Editor,
+				Editor:    fw.Observability.Editor,
 				AppModule: AppModule,
 				// What the registered modules know about the state of the
 				// system right now -- the outbox falling behind, and whatever
@@ -171,7 +171,7 @@ func Build(cfg appconfig.Config, db *data.DB) App {
 			// k.Recorder() is the buffer behind /_arandu/debug. It is nil
 			// outside development, and passing nil records nothing -- which is
 			// what production does.
-			middleware.Observe(cfg.App.IsDev(), fw.TracingSecret, k.Recorder()),
+			middleware.Observe(cfg.App.IsDev(), fw.Observability.TracingSecret, k.Recorder()),
 			middleware.SecurityHeaders(cfg.App.IsDev()),
 			middleware.RateLimit(limiter, 300, time.Minute, middleware.KeyBySession(sessions.IDFromRequest)),
 			middleware.CSRFProtect(csrf, sessions.IDFromRequest),

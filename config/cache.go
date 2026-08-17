@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	framework "github.com/arandu-io/framework/config"
+	"github.com/arandu-io/framework/foundation/bootstrap"
 )
 
 // CacheStore is which backend the cache runs on.
@@ -39,9 +39,9 @@ type Cache struct {
 	TTL time.Duration
 }
 
-func loadCache(base framework.Config) Cache {
+func loadCache(base bootstrap.Configuration) Cache {
 	store := CacheStore(env("CACHE_STORE", string(CacheMemory)))
-	url := env("REDIS_URL", base.RedisURL)
+	url := env("REDIS_URL", "")
 	if store == CacheRedis && url == "" {
 		// Falling back rather than failing: a cache that silently answers nothing
 		// is worse than one that says which variable is missing, and the kernel
@@ -51,7 +51,7 @@ func loadCache(base framework.Config) Cache {
 	return Cache{
 		Store:  store,
 		URL:    url,
-		Prefix: env("CACHE_PREFIX", base.AppName+":cache:"),
+		Prefix: env("CACHE_PREFIX", base.App.Name+":cache:"),
 		TTL:    envSeconds("CACHE_TTL", 10*time.Minute),
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	framework "github.com/arandu-io/framework/config"
+	"github.com/arandu-io/framework/foundation/bootstrap"
 )
 
 // Mailer is the transport outgoing mail leaves by.
@@ -86,7 +86,7 @@ var retiredMailVars = []string{
 	"MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_ENCRYPTION", "MAIL_KEY",
 }
 
-func loadMail(base framework.Config) Mail {
+func loadMail(base bootstrap.Configuration) Mail {
 	for _, name := range retiredMailVars {
 		if env(name, "") == "" {
 			continue
@@ -104,7 +104,7 @@ and MAIL_FROM_NAME -- those are who the application is, not where mail goes.`)
 
 	cfg := parseMailURL(env("MAIL_URL", "log://"))
 	cfg.FromAddress = env("MAIL_FROM_ADDRESS", "no-reply@localhost")
-	cfg.FromName = env("MAIL_FROM_NAME", base.AppName)
+	cfg.FromName = env("MAIL_FROM_NAME", base.App.Name)
 	return cfg
 }
 
