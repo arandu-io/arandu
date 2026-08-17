@@ -3,10 +3,10 @@ module github.com/arandu-io/arandu
 go 1.26
 
 require (
-	github.com/arandu-io/database v0.3.0
+	github.com/arandu-io/database v0.4.0
 	github.com/arandu-io/database/pgx v0.2.0
 	github.com/arandu-io/database/sqlite v0.2.0
-	github.com/arandu-io/framework v0.26.0
+	github.com/arandu-io/framework v0.27.0
 	github.com/arandu-io/queue v0.3.0
 )
 
