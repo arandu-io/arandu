@@ -17,9 +17,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           # Not go-version-file: go.mod declares the MINIMUM language version
-          # ("go 1.25"), and setup-go installs exactly that -- 1.25.0, whose
-          # standard library carries vulnerabilities fixed in 1.25.11 and later.
-          # govulncheck below is right to fail on it.
+          # ("go 1.26"), and setup-go installs exactly that -- 1.26.0, whose
+          # standard library carries vulnerabilities fixed in later patch
+          # releases. govulncheck below is right to fail on it.
           #
           # "stable" is the version people actually run, which is what CI should
           # be testing against. The minimum in go.mod stays where it is.
