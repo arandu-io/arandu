@@ -104,6 +104,8 @@ func TestTheStylesheetCarriesTheClassesTheMarkupRenders(t *testing.T) {
 			"the swatches have no size, so the menu offers six choices with nothing to look at"},
 		{".rounded-full", "each colour swatch of components.ThemeToggle",
 			"the swatches are squares"},
+		{".tabular-nums", "the figures column of a components.StatCard",
+			"the figures are set in proportional digits, so a column of them does not line up and shifts width as the values change"},
 	} {
 		if !strings.Contains(stylesheet, want.class) {
 			t.Errorf("%s is not in the compiled stylesheet, and it is what draws %s: %s.\nThe imported component library is not being read as a source -- see ADR 0037.",
