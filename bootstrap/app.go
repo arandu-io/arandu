@@ -39,6 +39,12 @@ import (
 	// is silently absent from the page.
 	_ "github.com/arandu-io/arandu/assets"
 
+	// This application's own schema changes. Importing them is what registers
+	// them: each one calls migrations.Register from init(), and a package
+	// nothing imports is not in the binary at all -- so without this line `aru
+	// migrate` finds nothing and says so only by creating no tables.
+	_ "github.com/arandu-io/arandu/database/migrations"
+
 	// Importing the views is what registers them: every generated view calls
 	// view.Register from init(), the same shape a database/sql driver has. Drop
 	// one and ctx.View("home") answers "no view named home" -- and drop the
@@ -194,8 +200,8 @@ func Build(cfg appconfig.Config, db *data.DB) App {
 			// `aru work` -- the same image with another argument, which is what
 			// keeps the deploy at one artifact.
 			queue.NewModule(queueStore),
-			// This application: its routes, from routes/web.go, and its own
-			// migrations, from database/migrations.
+			// This application: its routes, from routes/web.go. Its migrations
+			// arrive by the blank import above, not through here.
 			providers.NewAppServiceProvider(deps),
 			// `aru make:module` adds the next modules here.
 		)
