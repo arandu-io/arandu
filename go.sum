@@ -10,8 +10,12 @@ github.com/arandu-io/framework v0.26.0 h1:Ly8QEw/Ju+INqTh3G0isD/8JncrX2mzGVVBk4C
 github.com/arandu-io/framework v0.26.0/go.mod h1:AZBwAYbJhT+2t1Q9UH0GOBrfpnwjTcv9wYe8/SK72+M=
 github.com/arandu-io/framework v0.27.0 h1:wISFKHgtR9QuXB6x9yumvbOlnHhjsFGeLlAUoBwTOGk=
 github.com/arandu-io/framework v0.27.0/go.mod h1:4Qm1/vzo+uMcWSHkJr1/FtPqiCUTMZEkgycNZ0DMiKA=
+github.com/arandu-io/framework v0.28.0 h1:cXmCqCoZUiM6RnbK/jEuMsW+ZrRm6XEGiWRS+qqyuFA=
+github.com/arandu-io/framework v0.28.0/go.mod h1:AvdQtBmsLBou6zOvG3YIu/+MvmC0CXBAWURTLJxFGQU=
 github.com/arandu-io/hesape v0.4.0 h1:RlaLEOfkboYHrEx0D1TRcdkgzOVvAX5g5AhTXZvVYSE=
 github.com/arandu-io/hesape v0.4.0/go.mod h1:4gen5S5dLVIeyiltJmbQb10ZM9/PMY8EMKHz72OSxGA=
+github.com/arandu-io/hesape v0.5.0 h1:H/+1BnGRB+99aSDYwGRZlKeQrrv7KiwlBd9YH4EIoI0=
+github.com/arandu-io/hesape v0.5.0/go.mod h1:4gen5S5dLVIeyiltJmbQb10ZM9/PMY8EMKHz72OSxGA=
 github.com/arandu-io/kyse v0.8.0 h1:napijEZGxr5KxGCmIeh/7xZGskehTTE2GVZTwBnGMNY=
 github.com/arandu-io/kyse v0.8.0/go.mod h1:dt7z5kSchwlLOHLB7LIUj9VGdAkGNCvaX0czjh1c9fI=
 github.com/arandu-io/queue v0.3.0 h1:A3AjhR1bEvfO9UM4SH3c4cxddKeBmWa/ghdNScWovMQ=
