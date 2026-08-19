@@ -6,11 +6,11 @@ require (
 	github.com/arandu-io/database v0.5.0
 	github.com/arandu-io/database/pgx v0.2.0
 	github.com/arandu-io/database/sqlite v0.2.0
-	github.com/arandu-io/framework v0.29.0
+	github.com/arandu-io/framework v0.30.0
 	github.com/arandu-io/queue v0.5.0
 )
 
-require github.com/arandu-io/hesape v0.6.0
+require github.com/arandu-io/hesape v0.7.0
 
 require (
 	github.com/arandu-io/kyse v0.8.0
