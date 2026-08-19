@@ -10,7 +10,7 @@ require (
 	github.com/arandu-io/queue v0.5.0
 )
 
-require github.com/arandu-io/hesape v0.7.0
+require github.com/arandu-io/hesape v0.8.0
 
 require (
 	github.com/arandu-io/kyse v0.9.0
