@@ -6,7 +6,7 @@ require (
 	github.com/arandu-io/database v0.5.0
 	github.com/arandu-io/database/pgx v0.2.0
 	github.com/arandu-io/database/sqlite v0.2.0
-	github.com/arandu-io/framework v0.30.0
+	github.com/arandu-io/framework v0.31.0
 	github.com/arandu-io/queue v0.5.0
 )
 
