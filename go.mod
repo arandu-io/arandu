@@ -13,7 +13,7 @@ require (
 require github.com/arandu-io/hesape v0.7.0
 
 require (
-	github.com/arandu-io/kyse v0.8.0
+	github.com/arandu-io/kyse v0.9.0
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
