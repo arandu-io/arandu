@@ -27,6 +27,7 @@ import (
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/framework/view"
+	"github.com/arandu-io/kv"
 	"github.com/arandu-io/queue"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
@@ -109,6 +110,11 @@ func Build(cfg appconfig.Config, db *data.DB) App {
 	fw := cfg.Framework
 
 	csrf := security.NewCSRF(fw.App.Key, cfg.Session.CSRFTTL)
+
+	// The key-value connection, when the configuration asks for one. It is nil
+	// for the in-process store, and that is what CACHE_STORE=memory says: a
+	// single replica, caching and locking inside itself.
+	cache := cacheClient(cfg.Cache)
 
 	// The core ships the in-memory session backend, which is right for one
 	// instance and wrong for two: behind a load balancer, half the requests land
@@ -206,12 +212,21 @@ func Build(cfg appconfig.Config, db *data.DB) App {
 			// `aru make:module` adds the next modules here.
 		)
 
+	// The key-value connection reports itself on the health check and gives its
+	// pool back at shutdown. Without the module, "the store is down" arrives as
+	// a class of request failures somebody has to correlate by hand.
+	if cache != nil {
+		k.Register(kv.NewModule(cache))
+	}
+
 	// The scheduler goes last, because it collects the tasks the modules above
 	// declared. A module never starts its own goroutine; it declares work, and
 	// this is what runs it.
 	//
-	// Locker is nil here: one replica. Behind more than one, pass
-	// kv.NewLocker(client) or every replica runs every task.
+	// The Locker is what keeps a Singleton task on one replica. It is nil with
+	// the in-process store, which is the single-replica deployment; with a
+	// shared one it is the connection built above, and without it every replica
+	// runs every task.
 	//
 	// Tenants is nil too: a PerTenant task needs to know which tenants exist,
 	// and only the application knows where that list lives. Wire it and the
@@ -219,10 +234,42 @@ func Build(cfg appconfig.Config, db *data.DB) App {
 	// Recorder for the same reason as the worker: a scheduled task is
 	// investigated on the same page as a request, and costs nothing when
 	// nothing is recording.
-	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{Recorder: k.Recorder()})
+	//
+	// The interface is left nil rather than filled with a nil pointer: an
+	// interface holding a typed nil is not nil, and the scheduler would call
+	// through it.
+	var locker kernel.Locker
+	if cache != nil {
+		locker = kv.NewLocker(cache)
+	}
+	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{Recorder: k.Recorder(), Locker: locker})
 	k.Register(sched)
 
 	return App{Kernel: k, Auth: authService, Scheduler: sched, Queue: queueStore, Mail: mailer}
+}
+
+// cacheClient opens the key-value connection the configuration asked for, and
+// answers nil when it asked for none.
+//
+// Nil rather than an in-process client standing in for one, because the two are
+// not interchangeable and pretending they are is how a deployment ends up with
+// a lock that locks nothing: what the connection buys is state shared by every
+// replica, and a store inside the process has none to share. Every caller
+// branches on it, and having to branch is the point.
+//
+// It does not talk to the server. A connection that dialled here would make the
+// application refuse to start because the cache is down, which is the opposite
+// of what a cache is for; the health check is what reports it.
+func cacheClient(cfg appconfig.Cache) *kv.Client {
+	if cfg.Store != appconfig.CacheRedis {
+		return nil
+	}
+	return kv.Connect(kv.Options{
+		Address:  cfg.Address,
+		Password: cfg.Password,
+		Database: cfg.Database,
+		Prefix:   cfg.Prefix,
+	})
 }
 
 // mailTransport picks the transport the configuration asked for.
