@@ -8,11 +8,14 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/kernel"
+	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/database/migrations"
+	"github.com/arandu-io/kv"
 
 	appconfig "github.com/arandu-io/arandu/config"
 )
@@ -96,36 +99,71 @@ func newMigrator(db *data.DB, moduleMigrations []kernel.Migration) *migrations.M
 	return migrator.SetOutput(os.Stdout)
 }
 
+// migrateFlags is what the migration commands read off the command line.
+//
+// It carries the migrator's own options and the one flag that is not one:
+// --isolated does not change what a run does, it changes who is allowed to
+// start it, so it belongs to this file and never travels to the migrator.
+type migrateFlags struct {
+	migrations.Options
+
+	// Isolated says one process migrates and the rest carry on.
+	Isolated bool
+}
+
 // migrateOptions reads the flags the migration commands take.
 //
 // --pretend prints the statements a run would send and sends none of them.
 // --step gives every migration its own batch on the way up, so each can be
 // undone on its own; --step=N on the way down is how many to undo.
-func migrateOptions(args []string) (migrations.Options, error) {
-	var options migrations.Options
+//
+// --isolated takes a lock every replica can see, so that a release command run
+// by each container of a rollout migrates once. It belongs to migrate: there is
+// no isolated rollback, and a flag parsed and then ignored is worse than one
+// that is refused.
+func migrateOptions(args []string) (migrateFlags, error) {
+	var flags migrateFlags
 
 	for _, arg := range args {
 		switch {
 		case arg == "--pretend":
-			options.Pretend = true
+			flags.Pretend = true
 
 		case arg == "--step":
-			options.Step = true
+			flags.Step = true
+
+		case arg == "--isolated":
+			flags.Isolated = true
 
 		case strings.HasPrefix(arg, "--step="):
 			count := strings.TrimPrefix(arg, "--step=")
 			steps, err := strconv.Atoi(count)
 			if err != nil || steps < 1 {
-				return options, fmt.Errorf("--step= takes the number of migrations to roll back, and %q is not one", count)
+				return flags, fmt.Errorf("--step= takes the number of migrations to roll back, and %q is not one", count)
 			}
-			options.Steps = steps
+			flags.Steps = steps
 
 		default:
-			return options, fmt.Errorf("unknown flag: %s (expected --pretend, --step or --step=N)", arg)
+			return flags, fmt.Errorf("unknown flag: %s (expected --pretend, --step, --step=N or --isolated)", arg)
 		}
 	}
 
-	return options, nil
+	return flags, nil
+}
+
+// refuseIsolation is what the commands that cannot isolate answer.
+//
+// They cannot because there is nothing to isolate them with: the migrator locks
+// a run forward and offers no locked rollback or reset. Accepting the flag and
+// doing nothing with it would be a command that reports itself as isolated
+// while N replicas roll back over each other.
+func refuseIsolation(command string, flags migrateFlags) error {
+	if !flags.Isolated {
+		return nil
+	}
+	return fmt.Errorf("--isolated is a flag of migrate, and %s does not take it: "+
+		"only the forward run can be locked, and undoing a schema on one replica while another undoes it too "+
+		"is not something a lock here would prevent", command)
 }
 
 // prepareRepository creates the tracking table if it is not there yet.
@@ -143,15 +181,61 @@ func prepareRepository(ctx context.Context, migrator *migrations.Migrator, prete
 	return nil
 }
 
+// isolationLockTTL is how long an isolated run may hold the lock.
+//
+// It is the deadlock protection and nothing else: a process that dies partway
+// through holds the lock until it expires, and every later run waits it out. So
+// it is sized above the longest migration there is rather than against the
+// usual one, and an hour of refused runs after a crash is the price of a lock
+// that cannot expire under a migrator still using it. The other failure is the
+// one that cannot be undone -- two migrators altering one table.
+const isolationLockTTL = time.Hour
+
 // migrate applies everything that has not been applied yet.
-func migrate(ctx context.Context, db *data.DB, moduleMigrations []kernel.Migration, options migrations.Options) error {
+//
+// Without --isolated it is the plain run, which is correct because `aru migrate`
+// is a step of the pipeline and a pipeline step happens once. --isolated is for
+// the deployment that calls it from the release command of every container
+// instead: one of them takes the lock and migrates, and the rest apply nothing
+// and carry on.
+//
+// The store is the one the cache configuration named, and a nil one is refused
+// rather than worked around. A lock inside this process would satisfy every
+// type here and isolate nothing.
+func migrate(ctx context.Context, db *data.DB, moduleMigrations []kernel.Migration, flags migrateFlags, store *kv.Client) error {
+	// Refused before the tracking table is created, and before anything else
+	// touches the database: a command that cannot do what it was asked should
+	// leave nothing behind that says it tried.
+	if flags.Isolated && store == nil {
+		return fmt.Errorf("--isolated needs a store every replica can see, and CACHE_STORE names the in-process one: " +
+			"a lock held inside this process is invisible to the replica beside it, so the run would report itself " +
+			"isolated while N of them migrated at once. Set CACHE_STORE=redis and REDIS_URL")
+	}
+
 	migrator := newMigrator(db, moduleMigrations)
 
-	if err := prepareRepository(ctx, migrator, options.Pretend); err != nil {
+	if err := prepareRepository(ctx, migrator, flags.Pretend); err != nil {
 		return err
 	}
 
-	_, err := migrator.Run(ctx, nil, options)
+	if !flags.Isolated {
+		_, err := migrator.Run(ctx, nil, flags.Options)
+		return err
+	}
+
+	locks := cache.NewLocks(store)
+	migrator.IsolateWith(func(name string) migrations.IsolationLock {
+		return locks.Lock(name, isolationLockTTL)
+	})
+
+	// The answer to branch on is whether the run took the lock, and it is never
+	// the error. A replica that did not take it applied nothing, and that is
+	// success: the schema is being changed by whichever replica got there
+	// first, and this one's job is to carry on and let the application start.
+	// Reporting it as a failure would fail every deployment that rolls more
+	// than one replica, which is the deployment the flag exists for. The
+	// migrator has already said so on stdout.
+	_, _, err := migrator.RunIsolated(ctx, nil, flags.Options)
 	return err
 }
 
@@ -160,14 +244,18 @@ func migrate(ctx context.Context, db *data.DB, moduleMigrations []kernel.Migrati
 // A migration that declares no Down is not reversed, and that is not an error:
 // the migrator asks for the reverse half by type assertion, so a Down with the
 // wrong signature fails the build rather than rolling nothing back at run time.
-func rollback(ctx context.Context, db *data.DB, moduleMigrations []kernel.Migration, options migrations.Options) error {
-	migrator := newMigrator(db, moduleMigrations)
-
-	if err := prepareRepository(ctx, migrator, options.Pretend); err != nil {
+func rollback(ctx context.Context, db *data.DB, moduleMigrations []kernel.Migration, flags migrateFlags) error {
+	if err := refuseIsolation("migrate:rollback", flags); err != nil {
 		return err
 	}
 
-	_, err := migrator.Rollback(ctx, nil, options)
+	migrator := newMigrator(db, moduleMigrations)
+
+	if err := prepareRepository(ctx, migrator, flags.Pretend); err != nil {
+		return err
+	}
+
+	_, err := migrator.Rollback(ctx, nil, flags.Options)
 	return err
 }
 
@@ -235,21 +323,24 @@ func migrateStatus(ctx context.Context, db *data.DB, moduleMigrations []kernel.M
 // confirmation prompt in production; a framework whose thesis is that the
 // compiler enforces the rules should not rely on someone reading a prompt at
 // 3am, so this one simply does not run there.
-func fresh(ctx context.Context, cfg appconfig.Config, db *data.DB, moduleMigrations []kernel.Migration, options migrations.Options) error {
+func fresh(ctx context.Context, cfg appconfig.Config, db *data.DB, moduleMigrations []kernel.Migration, flags migrateFlags) error {
 	if !cfg.App.IsDev() {
 		return fmt.Errorf("migrate:fresh drops every table and only runs with APP_ENV=dev (this is %s)", cfg.App.Env)
+	}
+	if err := refuseIsolation("migrate:fresh", flags); err != nil {
+		return err
 	}
 
 	migrator := newMigrator(db, moduleMigrations)
 
-	if err := prepareRepository(ctx, migrator, options.Pretend); err != nil {
+	if err := prepareRepository(ctx, migrator, flags.Pretend); err != nil {
 		return err
 	}
 
-	if _, err := migrator.Reset(ctx, nil, options.Pretend); err != nil {
+	if _, err := migrator.Reset(ctx, nil, flags.Pretend); err != nil {
 		return err
 	}
 
-	_, err := migrator.Run(ctx, nil, options)
+	_, err := migrator.Run(ctx, nil, flags.Options)
 	return err
 }

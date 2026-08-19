@@ -103,6 +103,14 @@ type App struct {
 	// sends is built outside this function and reaching back in for the mailer
 	// later is the hidden coupling the explicit wiring exists to avoid.
 	Mail *mail.Mailer
+	// Cache is the key-value connection, and nil when the cache is the
+	// in-process one.
+	//
+	// It is returned as well as used because `migrate --isolated` takes its
+	// lock, and the migration commands are built outside this function. Nil is
+	// what that command refuses on: a lock inside one process isolates nothing
+	// from the replica beside it.
+	Cache *kv.Client
 }
 
 // Build wires the application and returns it ready to boot.
@@ -257,7 +265,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{Recorder: k.Recorder(), Locker: locker})
 	k.Register(sched)
 
-	return App{Kernel: k, Auth: authService, Scheduler: sched, Queue: queueStore, Mail: mailer}, nil
+	return App{Kernel: k, Auth: authService, Scheduler: sched, Queue: queueStore, Mail: mailer, Cache: cache}, nil
 }
 
 // cacheClient opens the key-value connection the configuration asked for, and

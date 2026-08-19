@@ -66,28 +66,28 @@ func Dispatch(command string, args []string) error {
 		return k.Run(ctx)
 
 	case "migrate":
-		options, err := migrateOptions(args)
+		flags, err := migrateOptions(args)
 		if err != nil {
 			return err
 		}
-		return migrate(ctx, db, k.Migrations(), options)
+		return migrate(ctx, db, k.Migrations(), flags, app.Cache)
 
 	case "migrate:rollback":
-		options, err := migrateOptions(args)
+		flags, err := migrateOptions(args)
 		if err != nil {
 			return err
 		}
-		return rollback(ctx, db, k.Migrations(), options)
+		return rollback(ctx, db, k.Migrations(), flags)
 
 	case "migrate:status":
 		return migrateStatus(ctx, db, k.Migrations())
 
 	case "migrate:fresh":
-		options, err := migrateOptions(args)
+		flags, err := migrateOptions(args)
 		if err != nil {
 			return err
 		}
-		return fresh(ctx, cfg, db, k.Migrations(), options)
+		return fresh(ctx, cfg, db, k.Migrations(), flags)
 
 	case "routes":
 		if err := k.Boot(ctx); err != nil {
