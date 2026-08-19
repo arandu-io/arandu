@@ -38,6 +38,7 @@ const defaultCachePort = "6379"
 //
 //	REDIS_URL=redis://127.0.0.1:6379
 //	REDIS_URL=redis://:password@cache.example.com:6379/1
+//	REDIS_URL=rediss://:password@cache.example.com:6380    encrypted
 type Cache struct {
 	Store CacheStore
 
@@ -53,6 +54,46 @@ type Cache struct {
 	// almost everything; separating environments belongs to separate instances,
 	// not to db 1.
 	Database int
+
+	// TLS says the connection is encrypted, and it is the scheme of the URL:
+	// rediss:// asks for it and redis:// does not.
+	//
+	// The scheme rather than a variable beside the URL, for the reason the
+	// mailer's encryption is smtps:// rather than MAIL_ENCRYPTION: a switch next
+	// to an address is a second place saying what the address already says, and
+	// the day they disagree the address is not the one that wins.
+	//
+	// It is off by default because a client that demanded it would refuse every
+	// server that does not offer it. On any network this process does not own,
+	// turning it on is the only correct setting: without it the password, the
+	// session ids and every cached value cross the wire in the clear.
+	TLS bool
+
+	// TLSCAFile is the authority that signed the server's certificate, when it
+	// is not one the system already trusts.
+	//
+	// These four are file paths rather than the certificates themselves,
+	// because an environment variable carries a string and a connection needs
+	// parsed keys. They are read once, where the client is built.
+	//
+	// A managed endpoint needs none of them: its certificate is signed by a
+	// public authority and the host half of the URL is the name that
+	// certificate has to carry. A self-hosted server needs all of them, and
+	// that is the case they exist for -- it presents a certificate from an
+	// authority of its own and, by default, asks for one back.
+	TLSCAFile string
+
+	// TLSCertFile and TLSKeyFile are this client's certificate and its private
+	// key, for a server that asks the client to prove who it is. Naming one
+	// without the other is refused: half a pair authenticates nobody.
+	TLSCertFile string
+	TLSKeyFile  string
+
+	// TLSServerName is the name the server's certificate must carry, when it is
+	// not the host of the URL. It is what an address reached through a tunnel or
+	// by IP needs, and setting it wrong is the one way to weaken the check
+	// without turning it off.
+	TLSServerName string
 
 	// Prefix is prepended to every key. It carries the application name so two
 	// deployments can share one server without reading each other's entries.
@@ -76,15 +117,20 @@ func loadCache(base bootstrap.Configuration) Cache {
 	}
 
 	cfg := Cache{
-		Store:  store,
-		Prefix: env("CACHE_PREFIX", base.App.Name+":cache:"),
-		TTL:    envSeconds("CACHE_TTL", 10*time.Minute),
+		Store:         store,
+		Prefix:        env("CACHE_PREFIX", base.App.Name+":cache:"),
+		TTL:           envSeconds("CACHE_TTL", 10*time.Minute),
+		TLSCAFile:     env("REDIS_CA_FILE", ""),
+		TLSCertFile:   env("REDIS_CERT_FILE", ""),
+		TLSKeyFile:    env("REDIS_KEY_FILE", ""),
+		TLSServerName: env("REDIS_TLS_SERVER_NAME", ""),
 	}
 	if store == CacheRedis {
 		endpoint := parseCacheURL(raw)
 		cfg.Address = endpoint.Address
 		cfg.Password = endpoint.Password
 		cfg.Database = endpoint.Database
+		cfg.TLS = endpoint.TLS
 	}
 	return cfg
 }
@@ -98,6 +144,7 @@ type cacheEndpoint struct {
 	Address  string
 	Password string
 	Database int
+	TLS      bool
 }
 
 // parseCacheURL reads REDIS_URL into the endpoint the client dials.
@@ -117,8 +164,13 @@ func parseCacheURL(raw string) cacheEndpoint {
     REDIS_URL=redis://:password@cache.example.com:6379/1`, raw))
 	}
 
-	if !strings.EqualFold(u.Scheme, "redis") {
-		panic(fmt.Sprintf("REDIS_URL uses the scheme %q, and this application speaks redis: %q", u.Scheme, raw))
+	// rediss is the encrypted connection and redis is the one in the clear, the
+	// same way smtps and smtp name the two SMTP sessions. Naming the difference
+	// in the scheme is what stops a configuration from carrying an address and a
+	// switch beside it that say different things.
+	encrypted := strings.EqualFold(u.Scheme, "rediss")
+	if !encrypted && !strings.EqualFold(u.Scheme, "redis") {
+		panic(fmt.Sprintf("REDIS_URL uses the scheme %q, and this application speaks redis and rediss: %q", u.Scheme, raw))
 	}
 
 	host := u.Hostname()
@@ -130,7 +182,7 @@ func parseCacheURL(raw string) cacheEndpoint {
 		port = defaultCachePort
 	}
 
-	out := cacheEndpoint{Address: net.JoinHostPort(host, port)}
+	out := cacheEndpoint{Address: net.JoinHostPort(host, port), TLS: encrypted}
 
 	if u.User != nil {
 		out.Password, _ = u.User.Password()

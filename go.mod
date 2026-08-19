@@ -12,7 +12,7 @@ require (
 
 require (
 	github.com/arandu-io/hesape v0.8.0
-	github.com/arandu-io/kv v0.4.0
+	github.com/arandu-io/kv v0.5.0
 )
 
 require (

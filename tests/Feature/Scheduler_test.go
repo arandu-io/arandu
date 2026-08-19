@@ -143,7 +143,10 @@ func TestTheSchedulerIsWiredIntoTheApplication(t *testing.T) {
 	}
 
 	cfg, db, _ := openForTest(t)
-	app := bootstrap.Build(cfg, db)
+	app, err := bootstrap.Build(cfg, db)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
 
 	if app.Scheduler == nil {
 		t.Fatal("the scheduler module was not registered")

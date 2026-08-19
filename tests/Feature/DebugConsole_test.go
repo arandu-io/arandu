@@ -27,7 +27,11 @@ func bootedApp(t *testing.T) (http.Handler, *data.DB) {
 		t.Fatalf("migrate: %v", err)
 	}
 	cfg, db, _ := openForTest(t)
-	k := bootstrap.Build(cfg, db).Kernel
+	app, err := bootstrap.Build(cfg, db)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	k := app.Kernel
 	if err := k.Boot(context.Background()); err != nil {
 		t.Fatalf("boot: %v", err)
 	}

@@ -85,6 +85,54 @@ func TestTheCacheURLBecomesTheEndpointTheClientDials(t *testing.T) {
 	}
 }
 
+// TestTheSchemeIsTheOnlyThingThatAsksForEncryption.
+//
+// There is no variable beside the URL saying the same thing, because a switch
+// next to an address is a second place to state what the address already
+// states, and on the day they disagree the address is not the one that wins.
+func TestTheSchemeIsTheOnlyThingThatAsksForEncryption(t *testing.T) {
+	for _, c := range []struct {
+		url string
+		on  bool
+	}{
+		{"rediss://cache.example.test:6380", true},
+		{"redis://cache.example.test:6379", false},
+		// The scheme is compared without regard to case, like every other
+		// scheme, so a URL written in capitals is not a connection in the clear.
+		{"REDISS://cache.example.test:6380", true},
+	} {
+		t.Run(c.url, func(t *testing.T) {
+			if cfg := loadCacheConfig(t, "redis", c.url); cfg.TLS != c.on {
+				t.Errorf("TLS = %v, want %v", cfg.TLS, c.on)
+			}
+		})
+	}
+}
+
+// TestTheCertificatesAreFilePathsTheConfigurationCarries.
+//
+// An environment variable cannot carry a parsed certificate, so it carries
+// where one is and the client is built from that -- once, at the edge.
+func TestTheCertificatesAreFilePathsTheConfigurationCarries(t *testing.T) {
+	t.Setenv("REDIS_CA_FILE", "/etc/cache/ca.pem")
+	t.Setenv("REDIS_CERT_FILE", "/etc/cache/client.pem")
+	t.Setenv("REDIS_KEY_FILE", "/etc/cache/client-key.pem")
+	t.Setenv("REDIS_TLS_SERVER_NAME", "cache.internal")
+
+	cfg := loadCacheConfig(t, "redis", "rediss://10.0.0.7:6380")
+
+	for _, c := range []struct{ field, got, want string }{
+		{"TLSCAFile", cfg.TLSCAFile, "/etc/cache/ca.pem"},
+		{"TLSCertFile", cfg.TLSCertFile, "/etc/cache/client.pem"},
+		{"TLSKeyFile", cfg.TLSKeyFile, "/etc/cache/client-key.pem"},
+		{"TLSServerName", cfg.TLSServerName, "cache.internal"},
+	} {
+		if c.got != c.want {
+			t.Errorf("%s = %q, want %q", c.field, c.got, c.want)
+		}
+	}
+}
+
 // TestTheInProcessStoreDialsNothing.
 //
 // REDIS_URL is read by the session configuration too, so it is set in

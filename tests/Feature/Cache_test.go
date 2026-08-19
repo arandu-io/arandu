@@ -28,7 +28,10 @@ func probeHealth(t *testing.T) *httptest.ResponseRecorder {
 	}
 
 	cfg, db, _ := openForTest(t)
-	app := bootstrap.Build(cfg, db)
+	app, err := bootstrap.Build(cfg, db)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
 	if err := app.Kernel.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}

@@ -78,7 +78,11 @@ func Kernel(t *testing.T, env config.Env) *kernel.Kernel {
 	}
 	t.Cleanup(func() { _ = sqldb.Close() })
 
-	k := bootstrap.Build(appconfig.From(cfg), data.Wrap(sqldb, cfg.Database.Connection)).Kernel
+	app, err := bootstrap.Build(appconfig.From(cfg), data.Wrap(sqldb, cfg.Database.Connection))
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	k := app.Kernel
 	if err := k.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
@@ -148,7 +152,10 @@ func App(t *testing.T) (*arandutest.Client, *data.DB) {
 	}
 	t.Cleanup(closeDB)
 
-	app := bootstrap.Build(cfg, db)
+	app, err := bootstrap.Build(cfg, db)
+	if err != nil {
+		t.Fatalf("wiring the application: %v", err)
+	}
 	if err := app.Kernel.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}

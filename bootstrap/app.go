@@ -14,6 +14,10 @@
 package bootstrap
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -106,7 +110,12 @@ type App struct {
 // It does not boot, listen or migrate. main.go decides which of those the
 // requested command needs, which is what keeps `aru routes` from opening a
 // socket and `aru work` from starting a scheduler.
-func Build(cfg appconfig.Config, db *data.DB) App {
+//
+// It fails when what the configuration named cannot be assembled -- a
+// certificate file that is not there is the case that exists today. Refusing
+// here is the point: the alternative is a process that starts having quietly
+// dropped what it was told to use.
+func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	fw := cfg.Framework
 
 	csrf := security.NewCSRF(fw.App.Key, cfg.Session.CSRFTTL)
@@ -114,7 +123,10 @@ func Build(cfg appconfig.Config, db *data.DB) App {
 	// The key-value connection, when the configuration asks for one. It is nil
 	// for the in-process store, and that is what CACHE_STORE=memory says: a
 	// single replica, caching and locking inside itself.
-	cache := cacheClient(cfg.Cache)
+	cache, err := cacheClient(cfg.Cache)
+	if err != nil {
+		return App{}, err
+	}
 
 	// The core ships the in-memory session backend, which is right for one
 	// instance and wrong for two: behind a load balancer, half the requests land
@@ -245,7 +257,7 @@ func Build(cfg appconfig.Config, db *data.DB) App {
 	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{Recorder: k.Recorder(), Locker: locker})
 	k.Register(sched)
 
-	return App{Kernel: k, Auth: authService, Scheduler: sched, Queue: queueStore, Mail: mailer}
+	return App{Kernel: k, Auth: authService, Scheduler: sched, Queue: queueStore, Mail: mailer}, nil
 }
 
 // cacheClient opens the key-value connection the configuration asked for, and
@@ -260,16 +272,88 @@ func Build(cfg appconfig.Config, db *data.DB) App {
 // It does not talk to the server. A connection that dialled here would make the
 // application refuse to start because the cache is down, which is the opposite
 // of what a cache is for; the health check is what reports it.
-func cacheClient(cfg appconfig.Cache) *kv.Client {
+func cacheClient(cfg appconfig.Cache) (*kv.Client, error) {
 	if cfg.Store != appconfig.CacheRedis {
-		return nil
+		return nil, nil
 	}
+
+	encryption, err := cacheTLS(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	return kv.Connect(kv.Options{
 		Address:  cfg.Address,
 		Password: cfg.Password,
 		Database: cfg.Database,
 		Prefix:   cfg.Prefix,
-	})
+		TLS:      encryption,
+	}), nil
+}
+
+// cacheTLS turns the file paths the configuration carries into the settings the
+// connection takes, and answers nil when the URL asked for no encryption.
+//
+// The translation happens here, once, and that asymmetry is deliberate: the
+// client speaks crypto/tls because it can, and configuration speaks paths
+// because an environment variable cannot carry a parsed certificate. A second
+// vocabulary on either side would say less than the one it replaced -- a
+// private authority and a client certificate are exactly what tls.Config
+// already names.
+//
+// A file that is named and cannot be read stops the boot, and the message names
+// which one. The alternative is a process that starts with encryption off after
+// being told to turn it on, and the difference between that and a plain
+// connection is invisible from the outside -- which is the whole failure.
+func cacheTLS(cfg appconfig.Cache) (*tls.Config, error) {
+	named := cfg.TLSCAFile != "" || cfg.TLSCertFile != "" || cfg.TLSKeyFile != "" || cfg.TLSServerName != ""
+
+	if !cfg.TLS {
+		if named {
+			// Refused rather than ignored, for the reason a retired MAIL_ variable
+			// is: certificates configured for a connection that carries none is
+			// somebody who believes the traffic is encrypted and is wrong.
+			return nil, fmt.Errorf("REDIS_URL asks for no encryption and the REDIS_*_FILE variables name certificates for it: " +
+				"write the endpoint as rediss:// to turn it on, or remove them")
+		}
+		return nil, nil
+	}
+
+	// TLS 1.2 is the floor. The default floor of a client is lower, and a
+	// connection that carries the password and every session id is not where to
+	// accept a version that is only there for what cannot be upgraded.
+	out := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: cfg.TLSServerName}
+
+	if cfg.TLSCAFile != "" {
+		authority, err := os.ReadFile(cfg.TLSCAFile)
+		if err != nil {
+			return nil, fmt.Errorf("REDIS_CA_FILE names %s, and the connection cannot be encrypted without it: %w", cfg.TLSCAFile, err)
+		}
+		roots := x509.NewCertPool()
+		if !roots.AppendCertsFromPEM(authority) {
+			return nil, fmt.Errorf("REDIS_CA_FILE names %s, and it holds no certificate this can read: it has to be PEM", cfg.TLSCAFile)
+		}
+		// The private root replaces the system pool rather than joining it: a
+		// server whose certificate a public authority signed does not need this
+		// variable at all, and keeping both would let a certificate from either
+		// side pass a check the operator meant to narrow.
+		out.RootCAs = roots
+	}
+
+	if (cfg.TLSCertFile == "") != (cfg.TLSKeyFile == "") {
+		return nil, fmt.Errorf("REDIS_CERT_FILE and REDIS_KEY_FILE are a pair and only one is set: " +
+			"a certificate without its key proves nothing, and a key without its certificate is sent to nobody")
+	}
+	if cfg.TLSCertFile != "" {
+		pair, err := tls.LoadX509KeyPair(cfg.TLSCertFile, cfg.TLSKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("REDIS_CERT_FILE names %s and REDIS_KEY_FILE names %s, and they are not a usable pair: %w",
+				cfg.TLSCertFile, cfg.TLSKeyFile, err)
+		}
+		out.Certificates = []tls.Certificate{pair}
+	}
+
+	return out, nil
 }
 
 // mailTransport picks the transport the configuration asked for.
