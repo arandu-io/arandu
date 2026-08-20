@@ -3,15 +3,14 @@ module github.com/arandu-io/arandu
 go 1.26
 
 require (
-	github.com/arandu-io/database v0.5.0
-	github.com/arandu-io/database/pgx v0.2.0
-	github.com/arandu-io/database/sqlite v0.2.0
 	github.com/arandu-io/framework v0.32.0
 	github.com/arandu-io/queue v0.5.0
 )
 
 require (
 	github.com/arandu-io/hesape v0.11.0
+	github.com/arandu-io/hesape/database/connectors/pgx v0.4.0
+	github.com/arandu-io/hesape/database/connectors/sqlite v0.4.0
 	github.com/arandu-io/kv v0.5.0
 )
 

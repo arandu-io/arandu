@@ -1,13 +1,11 @@
-github.com/arandu-io/database v0.5.0 h1:QDSKshHtj+2BGOxOasdaDuKQQV9CXGmPWari0PtOGeQ=
-github.com/arandu-io/database v0.5.0/go.mod h1:bCxhtJhES5xGDPOrSwEh6g1G/5F/3QEAagL/NJlhg1Y=
-github.com/arandu-io/database/pgx v0.2.0 h1:qsv4yRjN8pQ6jYKwzwy4Ty2eV+0Hf2Mm+8WqGMlEeoE=
-github.com/arandu-io/database/pgx v0.2.0/go.mod h1:ntvQVwmJtbxp90UDqX4G55yZNJy6duX1/rOqhBZZltU=
-github.com/arandu-io/database/sqlite v0.2.0 h1:tJGFIUFLZ5vjD9R/xGNo9evLUsRv7bY4BtmIpOi1j74=
-github.com/arandu-io/database/sqlite v0.2.0/go.mod h1:xSQdmiF3uWgNhOQuxLorDRjZSU8ZuUqYTyb/oozwUi4=
 github.com/arandu-io/framework v0.32.0 h1:PMFrjWw/83VWABJUumynWK4XGLWtTxa2+iAufcOR6pg=
 github.com/arandu-io/framework v0.32.0/go.mod h1:Qh6QXeDTcH8xzwScsrfnGoi3tVAQ8gTcMs5UoZNsGks=
 github.com/arandu-io/hesape v0.11.0 h1:l4yDXtqkLul14RWzr9sloKOJeHBcRX9tvZBKWPTcCnk=
 github.com/arandu-io/hesape v0.11.0/go.mod h1:4gen5S5dLVIeyiltJmbQb10ZM9/PMY8EMKHz72OSxGA=
+github.com/arandu-io/hesape/database/connectors/pgx v0.4.0 h1:3eDzceW7l3cD2gZMimWiG0zVAPsDl/7977XaH3W0Bm8=
+github.com/arandu-io/hesape/database/connectors/pgx v0.4.0/go.mod h1:mRL/8MiTZHRXFuo4TIPH9fntT1feWnUgfC9x2wV45dc=
+github.com/arandu-io/hesape/database/connectors/sqlite v0.4.0 h1:nGIEbkmK9aOOpisev4ZtcOaK6gewHErrkUAPQlXoU+Y=
+github.com/arandu-io/hesape/database/connectors/sqlite v0.4.0/go.mod h1:iAxPMEdhQNXDkzZh28D92P87NzMPwFXKeNBtmI0RxoE=
 github.com/arandu-io/kv v0.5.0 h1:tSFhYRyow7HuhC3UHqwdmJUEFDRIR+9KBF2foRxrmJY=
 github.com/arandu-io/kv v0.5.0/go.mod h1:1A2DEkprtZ/BV8cDfIZIwNPPclpvuqsGNufd9KKO43M=
 github.com/arandu-io/kyse v0.9.0 h1:LJP4L3zkRs0CXzX9mi6byeT31uz/566tQmGUw4pN0E4=

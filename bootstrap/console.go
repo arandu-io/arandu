@@ -14,12 +14,11 @@ import (
 
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/kernel"
+	"github.com/arandu-io/hesape/database"
 
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/database/seeders"
 	"github.com/arandu-io/arandu/routes"
-
-	adapter "github.com/arandu-io/database"
 )
 
 // Version and Commit are stamped by the build. See the Dockerfile.
@@ -156,5 +155,5 @@ func unknownCommand(command string) error {
 // two ways to connect is two places for a DSN to be built differently, and the
 // one nobody runs daily is the one that drifts.
 func Open(cfg appconfig.Config) (*data.DB, func(), error) {
-	return adapter.Open(cfg.Database.Connection)
+	return database.Open(cfg.Database.Connection)
 }
