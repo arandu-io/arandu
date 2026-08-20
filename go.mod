@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/arandu-io/hesape v0.9.0
+	github.com/arandu-io/hesape v0.10.0
 	github.com/arandu-io/kv v0.5.0
 )
 
