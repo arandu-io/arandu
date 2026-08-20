@@ -32,10 +32,11 @@ import (
 	appconfig "github.com/arandu-io/arandu/config"
 )
 
-// Kernel needs no database. database/sql connects lazily, so the wiring, the
+// Kernel boots the application for a test.
+//
+// It needs no database. database/sql connects lazily, so the wiring, the
 // pipeline and every route can be exercised without a server running -- which is
 // what makes this a useful smoke test to keep in a project skeleton.
-// Kernel boots the application for a test.
 //
 // Exported because both suites use it, which is the whole reason this package
 // exists.
