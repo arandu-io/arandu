@@ -1,0 +1,101 @@
+name: release
+
+# A tag is the release. Pushing one publishes it and writes it into
+# CHANGELOG.md, so the tag, the release and the file cannot disagree.
+#
+# # Why this is one workflow and not two
+#
+# The obvious shape is two: one that publishes the release on a tag, and one
+# that listens for `release` and writes the changelog. It does not work, and it
+# fails silently. An event raised by a job using GITHUB_TOKEN does not start
+# another workflow run, so the release published here would never reach a
+# listener -- a tag would be cut, a release would appear, and the file would
+# stay as it was with nothing anywhere saying why.
+#
+# Doing both here also means there is one answer to "what happens when I push a
+# tag", which is the point.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The whole history: the notes are generated against the previous tag,
+          # and a shallow clone has no previous tag to name.
+          fetch-depth: 0
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # The baseline for the notes, asked of the history rather than of a
+          # date-sorted tag list: sorting puts whatever tag was created last in
+          # front, and for a lightweight tag that is the commit's date and not
+          # the tag's. Two tags cut the same afternoon come back in an order
+          # nothing guarantees, and the second one then generates notes over the
+          # wrong range -- wrong, and it looks right.
+          previous="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+
+          if [ -n "$previous" ]; then
+            gh release create "$TAG" --verify-tag --title "$TAG" \
+              --generate-notes --notes-start-tag "$previous"
+          else
+            # The first tag of a repository has nothing to compare against, and
+            # --generate-notes over the whole history is every commit ever made.
+            gh release create "$TAG" --verify-tag --title "$TAG" \
+              --notes "First release."
+          fi
+
+      - name: Write it into the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          body="$(gh release view "$TAG" --json body --jq .body)"
+          day="$(gh release view "$TAG" --json publishedAt --jq .publishedAt)"
+          day="${day%%T*}"
+          previous="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+
+          if [ -n "$previous" ]; then
+            heading="## [${TAG}](https://github.com/${REPO}/compare/${previous}...${TAG}) - ${day}"
+          else
+            heading="## ${TAG} - ${day}"
+          fi
+
+          # The tag was cut on main, and main is what the file lives on. The
+          # checkout above is at the tag, which is detached.
+          git checkout main
+          git pull --ff-only
+
+          [ -f CHANGELOG.md ] || printf '# Release Notes\n' > CHANGELOG.md
+
+          {
+            head -1 CHANGELOG.md
+            printf '\n%s\n\n%s\n' "$heading" "$body"
+            tail -n +2 CHANGELOG.md
+          } > CHANGELOG.next
+          mv CHANGELOG.next CHANGELOG.md
+
+          git config user.name "HYZIS"
+          git config user.email "admin@hyz.is"
+          git add CHANGELOG.md
+          # A release with an empty body leaves the file alone, which is not a
+          # failure.
+          git diff --cached --quiet && exit 0
+          git commit -m "Write ${TAG} into the changelog"
+          git push origin main
