@@ -15,7 +15,8 @@ import (
 	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/database/migrations"
-	"github.com/arandu-io/kv"
+	hredis "github.com/arandu-io/hesape/redis"
+	"github.com/arandu-io/hesape/redis/connections"
 
 	appconfig "github.com/arandu-io/arandu/config"
 )
@@ -202,7 +203,7 @@ const isolationLockTTL = time.Hour
 // The store is the one the cache configuration named, and a nil one is refused
 // rather than worked around. A lock inside this process would satisfy every
 // type here and isolate nothing.
-func migrate(ctx context.Context, db *data.DB, moduleMigrations []kernel.Migration, flags migrateFlags, store *kv.Client) error {
+func migrate(ctx context.Context, db *data.DB, moduleMigrations []kernel.Migration, flags migrateFlags, store *connections.Connection) error {
 	// Refused before the tracking table is created, and before anything else
 	// touches the database: a command that cannot do what it was asked should
 	// leave nothing behind that says it tried.
@@ -223,7 +224,7 @@ func migrate(ctx context.Context, db *data.DB, moduleMigrations []kernel.Migrati
 		return err
 	}
 
-	locks := cache.NewLocks(store)
+	locks := cache.NewLocks(hredis.NewRedisStore(store))
 	migrator.IsolateWith(func(name string) migrations.IsolationLock {
 		return locks.Lock(name, isolationLockTTL)
 	})

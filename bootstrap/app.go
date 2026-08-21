@@ -32,8 +32,10 @@ import (
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/framework/view"
+	cache2 "github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/queue"
-	"github.com/arandu-io/kv"
+	hredis "github.com/arandu-io/hesape/redis"
+	"github.com/arandu-io/hesape/redis/connections"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	providers "github.com/arandu-io/arandu/app/Providers"
@@ -112,7 +114,7 @@ type App struct {
 	// lock, and the migration commands are built outside this function. Nil is
 	// what that command refuses on: a lock inside one process isolates nothing
 	// from the replica beside it.
-	Cache *kv.Client
+	Cache *connections.Connection
 }
 
 // Build wires the application and returns it ready to boot.
@@ -141,9 +143,12 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// The core ships the in-memory session backend, which is right for one
 	// instance and wrong for two: behind a load balancer, half the requests land
 	// on the replica that never saw the login. Behind more than one pod, swap
-	// this for kv.NewSessionBackend(client) -- github.com/arandu-io/kv, same
-	// interface, one line. SESSION_DRIVER is what says which one is expected;
-	// the same applies to the limiter below.
+	// the backend for one over the shared store:
+	//
+	//	security.NewSessionBackend(hredis.NewCacheBasedSessionHandler[security.Subject](cache))
+	//
+	// SESSION_DRIVER is what says which one is expected; the same applies to the
+	// limiter below.
 	sessions := security.NewSessionStore(fw.App.Key, cfg.Session.TTL, cfg.Session.Secure, security.NewMemoryBackend())
 
 	limiter := middleware.NewMemoryLimiter()
@@ -244,7 +249,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// pool back at shutdown. Without the module, "the store is down" arrives as
 	// a class of request failures somebody has to correlate by hand.
 	if cache != nil {
-		k.Register(kv.NewModule(cache))
+		k.Register(kernel.NewCacheModule("cache", cache))
 	}
 
 	// The scheduler goes last, because it collects the tasks the modules above
@@ -268,7 +273,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// through it.
 	var locker kernel.Locker
 	if cache != nil {
-		locker = kv.NewLocker(cache)
+		locker = kernel.NewLocker(cache2.NewLocks(hredis.NewRedisStore(cache)))
 	}
 	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{Recorder: k.Recorder(), Locker: locker})
 	k.Register(sched)
@@ -288,7 +293,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 // It does not talk to the server. A connection that dialled here would make the
 // application refuse to start because the cache is down, which is the opposite
 // of what a cache is for; the health check is what reports it.
-func cacheClient(cfg appconfig.Cache) (*kv.Client, error) {
+func cacheClient(cfg appconfig.Cache) (*connections.Connection, error) {
 	if cfg.Store != appconfig.CacheRedis {
 		return nil, nil
 	}
@@ -298,7 +303,7 @@ func cacheClient(cfg appconfig.Cache) (*kv.Client, error) {
 		return nil, err
 	}
 
-	return kv.Connect(kv.Options{
+	return connections.Connect(connections.Config{
 		Address:  cfg.Address,
 		Password: cfg.Password,
 		Database: cfg.Database,
