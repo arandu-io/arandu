@@ -131,7 +131,12 @@ func TestEachSuiteHoldsWhatItsNameSays(t *testing.T) {
 	// the store and the publisher together against a real schema. "Feature"
 	// means more than one piece interacting, and HTTP is the common case rather
 	// than the definition.
-	boots := regexp.MustCompile(`tests\.App\(|tests\.Kernel\(|bootstrap\.Dispatch\(|bootstrap\.Open\(|httptest\.NewRequest\(|migratedDB\(`)
+	// httptest.NewServer is on the list beside NewRequest, and it is the
+	// stronger of the two: NewRequest builds a request for a handler to be
+	// called with, and NewServer puts a listener on a port and answers over it.
+	// A test that does the second and not the first was reading as booting
+	// nothing.
+	boots := regexp.MustCompile(`tests\.App\(|tests\.Kernel\(|bootstrap\.Dispatch\(|bootstrap\.Open\(|httptest\.NewRequest\(|httptest\.NewServer\(|migratedDB\(`)
 
 	for _, suite := range []string{"Feature", "Unit"} {
 		dir := filepath.Join(tests.Root(t), "tests", suite)
