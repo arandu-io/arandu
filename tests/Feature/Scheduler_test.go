@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/arandu-io/framework/data"
-	"github.com/arandu-io/framework/jobs"
 	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/framework/security"
-	"github.com/arandu-io/queue"
+	"github.com/arandu-io/hesape/queue"
+	"github.com/arandu-io/hesape/queue/jobs"
 
 	"github.com/arandu-io/arandu/bootstrap"
 )
@@ -24,7 +24,7 @@ import (
 
 func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 	db := migratedDB(t)
-	store := queue.New(db)
+	store := queue.NewDatabaseQueue(db)
 	ctx := context.Background()
 
 	// A task that does what a scheduled task should: decide what work exists,
@@ -57,9 +57,9 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 		t.Fatalf("RunNow: %v", err)
 	}
 
-	pending, err := store.Pending(ctx, "")
+	pending, err := store.PendingSize(ctx, "")
 	if err != nil {
-		t.Fatalf("Pending: %v", err)
+		t.Fatalf("PendingSize: %v", err)
 	}
 	if pending != 1 {
 		t.Fatalf("%d jobs queued, want 1", pending)
@@ -71,8 +71,8 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 	var cycle string
 	done := make(chan struct{})
 
-	w := jobs.NewWorker(store, jobs.WorkerOptions{Poll: 5 * time.Millisecond})
-	w.HandleFunc("invoice.send", func(_ context.Context, g security.Grant, j jobs.Job) error {
+	w := queue.NewWorker(store, queue.WorkerOptions{Sleep: 5 * time.Millisecond})
+	w.HandleFunc("invoice.send", func(_ context.Context, g security.Grant, j *jobs.Job) error {
 		var payload struct {
 			Cycle string `json:"cycle"`
 		}
@@ -87,7 +87,7 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 	})
 
 	workerCtx, stop := context.WithCancel(ctx)
-	go func() { _ = w.Run(workerCtx) }()
+	go func() { _, _ = w.Daemon(workerCtx) }()
 	defer stop()
 
 	select {
@@ -110,7 +110,7 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 // the default. The work and the row it is about commit together or not at all.
 func TestAJobIsCommittedWithTheWriteThatProducedIt(t *testing.T) {
 	db := migratedDB(t)
-	store := queue.New(db)
+	store := queue.NewDatabaseQueue(db)
 	ctx := context.Background()
 	refused := errors.New("the rule said no")
 
@@ -129,7 +129,7 @@ func TestAJobIsCommittedWithTheWriteThatProducedIt(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 
-	if pending, err := store.Pending(ctx, ""); err != nil || pending != 0 {
+	if pending, err := store.PendingSize(ctx, ""); err != nil || pending != 0 {
 		t.Fatalf("%d jobs survived a rolled back transaction (%v)", pending, err)
 	}
 }
@@ -162,7 +162,7 @@ func TestTheSchedulerIsWiredIntoTheApplication(t *testing.T) {
 
 	// The jobs table is part of the schema the application migrates, or
 	// `aru work` fails on a table that does not exist.
-	if _, err := app.Queue.Pending(context.Background(), ""); err != nil {
+	if _, err := app.Queue.PendingSize(context.Background(), ""); err != nil {
 		t.Fatalf("the jobs table is missing from the migrations: %v", err)
 	}
 }

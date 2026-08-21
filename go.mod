@@ -2,10 +2,7 @@ module github.com/arandu-io/arandu
 
 go 1.26
 
-require (
-	github.com/arandu-io/framework v0.32.0
-	github.com/arandu-io/queue v0.5.0
-)
+require github.com/arandu-io/framework v0.32.0
 
 require (
 	github.com/arandu-io/hesape v0.11.0

@@ -5,15 +5,15 @@ import "time"
 // QueueConnection is where queued work is stored.
 type QueueConnection string
 
-// The supported connections. Both implement the same jobs.Queue contract, so
+// The supported connections. Both implement the same queue.Queue contract, so
 // moving between them changes this value and nothing else.
 const (
 	// QueueDatabase stores jobs in a table of the application's own database,
 	// which is what makes a job commitable by the same transaction as the row it
 	// is about.
 	QueueDatabase QueueConnection = "database"
-	// QueueKV stores them over RESP, for volume beyond a table.
-	QueueKV QueueConnection = "kv"
+	// QueueRedis stores them over RESP, for volume beyond a table.
+	QueueRedis QueueConnection = "redis"
 )
 
 // Queue is where queued work is stored, and how a worker runs it.
