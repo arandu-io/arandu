@@ -59,7 +59,10 @@ func TestTheSharedStoreIsOnTheHealthCheck(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503: the configured store does not answer, and nothing said so", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "kv") {
+	// The name is the one the bootstrap registers the connection under. It has
+	// to appear: a 503 that does not say which module is down sends whoever is
+	// on call to read every one of them.
+	if !strings.Contains(rec.Body.String(), "cache") {
 		t.Errorf("the failing module is not named in %q", rec.Body.String())
 	}
 }
