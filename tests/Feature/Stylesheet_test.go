@@ -1,4 +1,4 @@
-package assets_test
+package feature_test
 
 import (
 	"crypto/md5"
@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/arandu-io/framework/view"
 
 	_ "github.com/arandu-io/arandu/assets"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // TestTheBrowserGetsThisProjectsStylesheet is the regression guard for a whole
@@ -30,10 +30,7 @@ import (
 // disk. Anything weaker passes in the broken state: the framework's default is
 // also valid CSS, also served with a 200, and also has Tailwind's banner.
 func TestTheBrowserGetsThisProjectsStylesheet(t *testing.T) {
-	onDisk, err := os.ReadFile("app.css")
-	if err != nil {
-		t.Fatalf("assets/app.css is missing: it is committed so that `go build` works on a fresh clone: %v", err)
-	}
+	onDisk := []byte(tests.File(t, filepath.Join("assets", "app.css")))
 
 	r := fhttp.NewRouter()
 	view.NewModule().Routes(r)
@@ -82,11 +79,7 @@ func TestTheBrowserGetsThisProjectsStylesheet(t *testing.T) {
 // draws with, and Tailwind emits only what it read. A test that has to be edited
 // whenever a view changes is a test that gets edited into passing.
 func TestTheStylesheetCarriesTheClassesTheMarkupRenders(t *testing.T) {
-	css, err := os.ReadFile("app.css")
-	if err != nil {
-		t.Fatalf("assets/app.css is missing: it is committed so that `go build` works on a fresh clone: %v", err)
-	}
-	stylesheet := string(css)
+	stylesheet := tests.File(t, filepath.Join("assets", "app.css"))
 
 	// From the imported component library, which is the half that goes missing
 	// silently: its source is in the module cache and nothing in
@@ -114,12 +107,8 @@ func TestTheStylesheetCarriesTheClassesTheMarkupRenders(t *testing.T) {
 	}
 
 	// And from this project's own layout, whatever it currently is.
-	layout := filepath.Join("..", "resources", "views", "layouts", "app.kyse.go")
-	body, err := os.ReadFile(layout)
-	if err != nil {
-		t.Fatalf("the layout is missing: %v", err)
-	}
-	classes := utilities(string(body))
+	layout := filepath.Join("resources", "views", "layouts", "app.kyse.go")
+	classes := utilities(tests.File(t, layout))
 	if len(classes) < 5 {
 		t.Fatalf("only %d plain utility classes were found in %s; this test cannot say anything", len(classes), layout)
 	}
