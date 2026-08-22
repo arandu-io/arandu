@@ -28,8 +28,8 @@ jobs:
       # The views are compiled here, not committed.
       #
       # `aru view:build` turns every .kyse.go into the Go beside it, and that
-      # output is build output: .gitignore keeps it out of the tree the way
-      # Laravel keeps storage/framework/views out of its own. Which means this
+      # output is build output, and .gitignore keeps it out of the tree. Which
+      # means this
       # step is not a convenience -- without it nothing below compiles, and the
       # failure is `undefined: renderHome` rather than anything about views.
       - name: build the views
@@ -58,6 +58,20 @@ jobs:
 
       - name: vet
         run: go vet ./...
+
+      # The layout of the test tree, checked by the thing that can check it.
+      # The first of its four rules is the one that costs the most to get wrong:
+      # a file named CacheTest.go or cache_Test.go compiles as ordinary code and
+      # none of its tests run, with no error and no warning. The step below goes
+      # green and the suite is off.
+      #
+      # It sits after the view build, not before, and that is the one ordering
+      # this step has. Its fourth check asks `go list` what the production
+      # packages import, and until `aru view:build` has run there is no
+      # storage/framework/views for them to import -- the guard would report a
+      # module it could not read, which is honest and useless.
+      - name: test layout
+        run: bash tests/test-layout-guard.sh
 
       # These tests need no database: database/sql connects lazily, so the wiring,
       # the pipeline and every route are exercised without a server.
