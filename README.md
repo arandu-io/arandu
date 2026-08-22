@@ -39,8 +39,8 @@ bundle, and authorization the compiler charges for: a repository call with no
   `database/`, `resources/views/`, `routes/`, `storage/`, `public/` — so
   nothing about where a file lives has to be learned.
 - **A mandatory `app/Policies/`** — elsewhere a policy directory is a habit an
-  organised team keeps; here `aru doctor` asks for one per entity, with the
-  rule `repository-without-policy`.
+  organised team keeps; here `aru doctor` fails a repository whose entity has no
+  policy, and the policy denies by default with no allow-all branch.
 - **A binary, not a toolchain** — it runs with `git clone && aru dev`. No
   `node_modules`, no `package.json`, no JavaScript lockfile, and no Node
   installed: the view compiler and every script are embedded in the binary.
@@ -49,18 +49,20 @@ bundle, and authorization the compiler charges for: a repository call with no
   file itself: a generator that rewrites your wiring behind your back is a
   generator whose output nobody can account for.
 
-`aru doctor` runs 23 named checks against this tree — from a repository
-missing its policy to a tenant read off the request instead of the `Grant` —
-and CI fails on the first error.
+`aru doctor` checks this tree against the architecture rules — from a
+repository missing its policy to a tenant read off the request instead of the
+`Grant` — and CI runs it on every push, without `--strict`: an error fails the
+build, a warning stays the to-do it is, and a new project is never red for code
+the generator wrote.
 
-3,439 lines of production code and 2,096 of test, across 16 test files —
+3,337 lines of production code and 3,085 of test, across 20 test files —
 small on purpose: it is what a project starts from, not what it grows into.
 
 ## The rest of Arandu
 
 `aru` is the command line that clones and drives this skeleton;
 [`arandu-io/framework`](https://github.com/arandu-io/framework) is what it
-runs on; `hesape` is the 47-package collection the framework is built from;
+runs on; `hesape` is the component collection the framework is built from;
 `examples` is a complete application, read-worthy end to end, built the same
 way `aru new` starts one.
 
@@ -83,7 +85,8 @@ next phase, and it will be an Arandu application.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Before opening a pull request, the three
-commands at the top of that file have to pass, and CI runs exactly them.
+commands under "Before you open a pull request" have to pass — CI runs them, and
+then the binary, `aru doctor`, the image and `govulncheck` on top.
 
 ## Security Vulnerabilities
 
