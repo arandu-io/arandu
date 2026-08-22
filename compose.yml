@@ -1,8 +1,7 @@
 # Postgres and Redis for local development.
 #
-# This is a file, not a product. Go needs no equivalent of Laravel Sail: `go run`
-# already runs the application, so the only thing missing locally is the data
-# stores. See 06-escopo.md.
+# This is a file, not a product. `go run` already runs the application, so the
+# only thing missing locally is the data stores.
 
 services:
   postgres:

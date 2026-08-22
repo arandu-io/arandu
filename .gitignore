@@ -20,8 +20,8 @@ coverage.*
 # `go build .` from the root drops the binary here, named after the module.
 #
 # It is NOT "/app". That rule was here while the entry point was ./cmd/app, and
-# it silently excluded the whole app/ directory the day the tree became
-# Laravel's -- every controller, model and policy, untracked and invisible.
+# it silently excluded the whole app/ directory the day one appeared at the
+# root -- every controller, model and policy, untracked and invisible.
 /arandu
 
 # Local module resolution while the framework is not published.
@@ -39,10 +39,9 @@ database/*.db
 # The compiled views.
 #
 # `aru view:build` turns resources/views/home.kyse.go into
-# storage/framework/views/home.go, which is where Laravel puts a compiled Blade
-# template and is gitignored there for the same reason: a compiled view is build
-# output, and build output in a repository is a file people read diffs of,
-# resolve conflicts in, and eventually edit -- this one opens with DO NOT EDIT.
+# storage/framework/views/home.go. A compiled view is build output, and build
+# output in a repository is a file people read diffs of, resolve conflicts in,
+# and eventually edit -- this one opens with DO NOT EDIT.
 #
 # It sat beside the source before this, and hiding it in the editor was half an
 # answer: it was still in the tree, in diffs, on GitHub and in every clone.
