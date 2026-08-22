@@ -10,7 +10,7 @@ contact_links:
       Never in a public issue. The security policy has the private channel, the
       timelines and what counts as a vulnerability here.
   - name: Architecture decisions
-    url: https://github.com/arandu-io/docs
+    url: https://arandu.io/docs
     about: >-
       Every decision that closed a door has a record carrying the reason. Read
       the one your change contradicts before proposing it.

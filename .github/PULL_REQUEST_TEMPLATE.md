@@ -8,7 +8,7 @@ any heading that does not apply rather than filling it with nothing.
 ## Why
 
 The part that is not in the diff, and the part somebody will need in two years.
-If the change contradicts a decision recorded in `arandu-io/docs`, say which one
+If the change contradicts a decision recorded at arandu.io/docs, say which one
 and argue for changing it -- that is a normal thing to do, and it is better than
 a patch that quietly works around it.
 

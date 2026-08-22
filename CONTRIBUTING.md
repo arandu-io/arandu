@@ -100,7 +100,7 @@ No AI attribution of any kind: no `Co-Authored-By` for an assistant, no
 
 ## Architecture decisions
 
-The decisions this project has already made live in `arandu-io/docs`, and every
+The decisions this project has already made live at arandu.io/docs, and every
 one that closed a door has an ADR. If your change contradicts one, say so in the
 pull request and argue for the change of decision — that is a normal thing to
 do, and it is better than a patch that quietly works around it.

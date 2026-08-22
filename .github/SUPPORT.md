@@ -21,7 +21,7 @@ and it does not have to be filed as one to reach anybody.
 - **The CLI** -- `aru help` lists every command, and each one explains what it
   writes and what to do with it. `aru doctor` explains what it found and what
   breaks, not which rule was violated.
-- **Decisions** -- [arandu-io/docs](https://github.com/arandu-io/docs). Every
+- **Decisions** -- [arandu.io/docs](https://arandu.io/docs). Every
   decision that closed a door has an architecture decision record, and the
   record carries the reason. When the answer to "why can I not do this" is a
   decision, that is where it is written.
@@ -46,6 +46,6 @@ about one is closed and moved to a private advisory, with thanks.
 ## Proposing a change
 
 Open an issue before the pull request when the change adds a dependency, alters
-an exported API, or contradicts a decision recorded in `arandu-io/docs`. For
+an exported API, or contradicts a decision recorded at arandu.io/docs. For
 anything smaller the pull request is the proposal. `CONTRIBUTING.md` has the
 rest: sign-off, where a test goes, and what the commit message has to say.
