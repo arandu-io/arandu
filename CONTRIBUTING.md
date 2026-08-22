@@ -26,11 +26,15 @@ go test -race ./...
 ```
 
 The first line prints nothing when the tree is formatted. The filter is not
-optional and it is what CI runs: `gofmt -l .` skips nothing, and two things here
-are not valid Go on purpose -- the doctor fixtures under `testdata/`, one of
-which does not parse because that is the test, and the `*.kyse.go` sources,
-which the compiler excludes through their build tag. `gofmt` is the only tool in
-the chain that ignores build tags.
+optional and it is what CI runs: `gofmt -l .` skips nothing, and the views in
+`resources/views/` are not valid Go on purpose -- a `*.kyse.go` file opens with
+a build tag that keeps the compiler out, and holds template syntax below it.
+`gofmt` is the only tool in the chain that ignores build tags, so it is the only
+one that has to be told.
+
+The filter also excludes `testdata/`, and this repository has none. It is
+carried anyway because the command is the same in every repository of the
+project, and one that differs per repository is one nobody can paste.
 
 CI runs these three and a good deal besides; `.github/workflows/ci.yml` is the
 list, and it is the one that decides. It will grow, and this file will not
@@ -43,25 +47,48 @@ in an issue.
 
 ## Where a test goes
 
-Beside the code it tests, named `*_test.go`, in the same directory. There is no
-`tests/` directory, and that is not style: `go test` attributes coverage per
-directory, so a test filed elsewhere leaves the package under test reporting
-0% -- and it can only reach what the package exports.
+Under `tests/`, in the suite that says what the test does -- and which suite
+that is gets decided by what the test reaches for, not by what it is called:
 
-Which package the test declares is a real choice, and it answers one question:
-
-| declare | when |
+| suite | what belongs in it |
 |---|---|
-| `package X_test` | this is the **contract**. The test sees what a caller sees, which is the point |
-| `package X` | this is the **implementation**, and the test genuinely needs something the package does not export |
+| `tests/Feature/` | boots the application, or drives more than one piece of it at once |
+| `tests/Unit/` | one thing, with nothing running |
 
-Prefer the first. Take the second only when you use it -- `plans/testpackages.go`
-in the arandu-io working tree checks exactly that, by intersecting the
-identifiers a test names with what its package declares unexported, and the
-checklist runs it across every repository.
+The split earns its keep the day the suite gets slow: `go test ./tests/Unit/` is
+the one somebody runs on every save, and it stops being that the first time a
+test in it opens a database -- which is why opening one counts as booting, even
+where nothing is served. `tests/Unit/structure_test.go` checks the placement and
+the split by command, reading what each file reaches for rather than what it is
+named, and it is an ordinary test, so the `go test ./...` above is already
+running it.
 
-A `package main` has no external form: it cannot be imported, so its tests are
-internal and that is the end of it.
+The directories are capitalised and the `package` clause is not: a directory
+name is a label, an identifier is code. What the suites share sits in
+`tests/TestCase.go`, which is `package tests` for that reason -- and ordinary Go
+rather than a `_test.go`, which is what makes `tests.App` and `tests.Root`
+callable from both.
+
+That `go test` attributes coverage per directory is true, and what follows from
+it here is a flag rather than an argument: a suite in a directory of its own is
+run with `-coverpkg=./...`, or the run reports the coverage of the test packages
+themselves, which is near zero and reads as though the suite broke.
+
+The same fact decides the one test that does not move. A test that reads an
+identifier the package does not export cannot live in another package -- Go
+decides that, not this project -- and beside the code is also where its coverage
+lands on the package under test with no flag at all. It is named
+`<file>_internal_test.go`, so the name carries the reason it is there. The
+guard's standing exception is `assets/`, which proves the bytes it embeds are
+the ones the build produced; it does not yet know the suffix, so an internal
+test teaches it the name in the same change or arrives red.
+
+And having taken that package, use it. `plans/testpackages.go` in the arandu-io
+working tree intersects the identifiers a test names with what its package
+declares unexported -- an empty intersection is a test that took an access it
+never needed -- and the checklist runs it across every Go repository in the project. `package
+main` is outside that question: it cannot be imported, which is why what the
+tests drive lives in `bootstrap` and not at the root.
 
 ## What the commit message says
 
