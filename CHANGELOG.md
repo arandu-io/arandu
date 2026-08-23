@@ -1,5 +1,9 @@
 # Release Notes
 
+## [v0.8.0](https://github.com/arandu-io/arandu/compare/v0.7.1...v0.8.0) - 2026-08-23
+
+**Full Changelog**: https://github.com/arandu-io/arandu/compare/v0.7.1...v0.8.0
+
 Written by the release, not by hand. `.github/workflows/release.yml` publishes
 the release a tag names and prepends what it said, so the tag, the release and
 this file cannot disagree.
