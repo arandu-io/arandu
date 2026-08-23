@@ -2,10 +2,10 @@ module github.com/arandu-io/arandu
 
 go 1.26
 
-require github.com/arandu-io/framework v0.35.0
+require github.com/arandu-io/framework v0.37.0
 
 require (
-	github.com/arandu-io/hesape v0.12.0
+	github.com/arandu-io/hesape v0.14.0
 	github.com/arandu-io/hesape/database/connectors/pgx v0.5.0
 	github.com/arandu-io/hesape/database/connectors/sqlite v0.5.0
 	github.com/arandu-io/hesape/redis v0.5.0
@@ -18,7 +18,7 @@ require (
 )
 
 require (
-	github.com/arandu-io/kyse v0.9.0
+	github.com/arandu-io/kyse v0.12.1
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

@@ -91,12 +91,10 @@ func TestTheStylesheetCarriesTheClassesTheMarkupRenders(t *testing.T) {
 	}{
 		{".text-destructive", "the validation message under a components.Field",
 			"a rejected form explains itself in the body colour, so nothing on the screen says which field was refused"},
-		{".w-44", "the menu of components.ThemeToggle",
+		{".w-40", "the menu of components.ThemeToggle",
 			"the theme menu has no width and collapses onto its trigger"},
-		{".size-3", "each colour swatch of components.ThemeToggle",
-			"the swatches have no size, so the menu offers six choices with nothing to look at"},
-		{".rounded-full", "each colour swatch of components.ThemeToggle",
-			"the swatches are squares"},
+		{".size-4", "the icon beside each option of components.ThemeToggle",
+			"the icons have no size, so a menu of three modes shows three words and no marks"},
 		{".tabular-nums", "the figures column of a components.StatCard",
 			"the figures are set in proportional digits, so a column of them does not line up and shifts width as the values change"},
 	} {
