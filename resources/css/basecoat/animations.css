@@ -1,0 +1,61 @@
+/* Animations.
+ *
+ * Vendored from shadcn-htmx, MIT, copyright 2026 productdevbook. The notice is
+ * in LICENSE.md beside this file, and it covers these twelve blocks as it
+ * covers the rest of this directory.
+ *
+ * Only the CSS travelled. The markup that uses these names is written in this
+ * project, and so is everything else: a stylesheet under a permissive licence
+ * can be carried with its notice, and a component cannot -- the line is the
+ * kind of file rather than the project it came from, because "is this CSS or is
+ * this code" has an answer and "is this structure or implementation" never did.
+ *
+ * They are here because Basecoat has one keyframe and a panel that appears is
+ * not a panel that arrives. Nothing below is referenced by a rule in this
+ * directory yet; the components that use them name them.
+ */
+
+@keyframes scn-progress-indeterminate {
+  0%   { left: -33%; }
+  100% { left: 100%; }
+}
+
+@keyframes scn-popover-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)  scale(1); }
+}
+
+@keyframes scn-toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+@keyframes scn-toast-out {
+  from { opacity: 1; transform: translateY(0)   scale(1); }
+  to   { opacity: 0; transform: translateY(-8px) scale(0.98); }
+}
+
+@keyframes scn-toast-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scn-toast-in-left {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scn-sheet-in-right  { from { transform: translateX(100%); }  to { transform: translateX(0); } }
+
+@keyframes scn-sheet-in-left   { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+
+@keyframes scn-sheet-in-top    { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+
+@keyframes scn-sheet-in-bottom { from { transform: translateY(100%); }  to { transform: translateY(0); } }
+
+@keyframes scn-sheet-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+
+@keyframes scn-scroll-progress {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}

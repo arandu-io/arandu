@@ -45,6 +45,9 @@
 @import "./components/avatar.css";
 @import "./components/scrollbar.css";
 
+/* The keyframes the components above and below animate with. */
+@import "./animations.css";
+
 /* Not imported, and on disk if you want them: accordion, button-group, chart,
  * collapsible, combobox, command, drawer, input-group, item, kbd, progress,
  * radio, range, select, switch, tooltip. */
