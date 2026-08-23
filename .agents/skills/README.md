@@ -1,7 +1,12 @@
 # Skills
 
-Procedures an assistant follows when working in this project, in the location
-the tools agree on: `.agents/skills/<name>/SKILL.md`.
+Procedures an assistant follows when working in this project.
+
+They live in `.agents/skills/<name>/SKILL.md`, which is the path the coding
+assistants read from — Cursor, Codex, Cline, Copilot, Gemini CLI, Amp, OpenCode,
+Warp, Zed and the rest all look there. It is one directory rather than a file
+per vendor, so a skill written once is read by whatever this project is being
+written with.
 
 Each file opens with frontmatter carrying a `name` and a `description`. The
 description is what a tool reads to decide whether the skill is relevant, so it
