@@ -95,6 +95,32 @@
   --primary-foreground: oklch(0.99 0 0);
 }
 
+/* The spinner htmx no longer draws for itself.
+ *
+ * htmx ships these three rules and injects them as an inline <style> the first
+ * time it loads. The CSP is style-src 'self' with no 'unsafe-inline', so that
+ * element was refused on every page and the class did nothing -- an element
+ * marked hx-indicator stayed visible through the request and after it. The
+ * layout answers that by telling htmx not to try (includeIndicatorStyles:false
+ * in its htmx-config), which leaves the rules to be written once, here, where
+ * they are served from this origin like the rest of the stylesheet.
+ *
+ * They are htmx's own, unchanged: hidden by default, shown while the request
+ * that owns them is in flight. The second selector covers an indicator INSIDE
+ * the requesting element and the third covers the requesting element itself
+ * being the indicator, which is the shape a submit button takes. */
+@layer components {
+  .htmx-indicator {
+    opacity: 0;
+  }
+
+  .htmx-request .htmx-indicator,
+  .htmx-request.htmx-indicator {
+    opacity: 1;
+    transition: opacity 200ms ease-in;
+  }
+}
+
 /* The two rules the framework's own pages assume. Keep them: the error page and
  * the sign-in screen render before any application stylesheet is involved. */
 @layer base {

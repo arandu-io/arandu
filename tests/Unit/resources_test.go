@@ -65,3 +65,236 @@ func TestTheStylesheetDoesNotReadItsOwnOutput(t *testing.T) {
 		t.Error("with automatic detection off, the views have to be declared, or the stylesheet compiles to nothing")
 	}
 }
+
+// TestTheViewsCarryNoClientDirectives keeps expression-evaluating directives out
+// of the templates, and it is not a style rule.
+//
+// A directive library compiles the string in an attribute into a function at
+// runtime. The Content-Security-Policy this application serves is
+// script-src 'self' with no 'unsafe-eval', so that compilation is refused: the
+// directive does not misbehave, it throws where it is evaluated. The page still
+// answers 200, the markup is still correct, and the behaviour the attribute
+// described never runs once. Nothing fails loudly enough to be noticed from a
+// browser tab, which is why this is a test and not a review habit.
+//
+// Client behaviour here is delegation on data-* attributes, in one embedded
+// script. An attribute carries data; it is never evaluated.
+//
+// The scan reads attribute POSITION rather than the text of a file, because the
+// text is full of honest look-alikes: x- inside a value is a Tailwind class
+// (space-x-4, overflow-x-auto), and an @ at the start of a line is a kyse
+// directive (@if, @section, @csrf). Three shapes are directives and all three
+// are looked for -- x-on:click="...", its @click="..." shorthand, and the
+// :aria-current="..." binding shorthand.
+//
+// Kyse comments are stripped first. They do not reach the page, and they are
+// where this project explains itself: a comment saying an element deliberately
+// carries no x-data is telling the truth, and failing it for saying so only
+// teaches the next person to write the explanation somewhere nobody finds it.
+func TestTheViewsCarryNoClientDirectives(t *testing.T) {
+	views := filepath.Join(tests.Root(t), "resources", "views")
+
+	inspected := 0
+	err := filepath.WalkDir(views, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		inspected++
+
+		for _, name := range clientDirectives(string(body)) {
+			t.Errorf("%s carries %s: the CSP is script-src 'self' with no 'unsafe-eval', so the expression "+
+				"in that attribute is never evaluated and the behaviour never runs. Delegate on a data-* attribute instead.",
+				path, name)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking the views: %v", err)
+	}
+
+	// Every claim above is true of an empty tree, so a walk that read nothing
+	// would report a clean project having opened no file.
+	if inspected == 0 {
+		t.Fatal("no view was read, so this test checked nothing")
+	}
+}
+
+// clientDirectives reports the attribute names in one template that name a
+// client-side directive, in the order they appear.
+func clientDirectives(source string) []string {
+	var found []string
+	for _, tag := range tagBodies(stripKyseComments(source)) {
+		for _, attr := range attributes(tag) {
+			switch {
+			case strings.HasPrefix(attr.name, "x-"):
+				// The long form, with or without a value: x-cloak carries none.
+				found = append(found, attr.name)
+			case attr.assigned && (strings.HasPrefix(attr.name, "@") || strings.HasPrefix(attr.name, ":")):
+				// The two shorthands. Both are assignments, and requiring the
+				// value is what separates @click="..." from @endsection.
+				found = append(found, attr.name)
+			}
+		}
+	}
+	return found
+}
+
+// attribute is one attribute of a tag: its name, and whether a value followed.
+type attribute struct {
+	name     string
+	assigned bool
+}
+
+// attributes reads the attributes out of the region between an element name and
+// the bracket that closes its tag.
+//
+// A value is skipped whole rather than parsed, which is the point: a class list
+// is a value, and reading it as a row of names is how a guard like this starts
+// reporting Tailwind.
+func attributes(body string) []attribute {
+	var out []attribute
+
+	for i := 0; i < len(body); {
+		switch body[i] {
+		case ' ', '\t', '\n', '\r', '/', '"', '\'':
+			i++
+			continue
+		}
+
+		start := i
+		for i < len(body) && !space(body[i]) && body[i] != '=' && body[i] != '"' && body[i] != '\'' {
+			i++
+		}
+		name := body[start:i]
+
+		assigned := false
+		j := i
+		for j < len(body) && space(body[j]) {
+			j++
+		}
+		if j < len(body) && body[j] == '=' {
+			assigned = true
+			j++
+			for j < len(body) && space(body[j]) {
+				j++
+			}
+			if j < len(body) && (body[j] == '"' || body[j] == '\'') {
+				quote := body[j]
+				j++
+				for j < len(body) && body[j] != quote {
+					j++
+				}
+				if j < len(body) {
+					j++
+				}
+			} else {
+				for j < len(body) && !space(body[j]) {
+					j++
+				}
+			}
+			i = j
+		}
+
+		if name != "" {
+			out = append(out, attribute{name: name, assigned: assigned})
+		}
+	}
+	return out
+}
+
+// tagBodies returns the attribute region of every tag: what sits between the
+// element name and the bracket that closes the tag.
+//
+// Anything opening with a byte that cannot start an element name is skipped --
+// <!doctype and <!-- among them -- and so is a bare < written as prose.
+func tagBodies(source string) []string {
+	var bodies []string
+
+	for i := 0; i < len(source); {
+		if source[i] != '<' {
+			i++
+			continue
+		}
+
+		j := i + 1
+		if j < len(source) && source[j] == '/' {
+			j++
+		}
+		if j >= len(source) || !letter(source[j]) {
+			i++
+			continue
+		}
+		for j < len(source) && (letter(source[j]) || digit(source[j]) || source[j] == '-') {
+			j++
+		}
+
+		end, ok := closingBracket(source, j)
+		if !ok {
+			// An unterminated tag. Everything after it would be read as one
+			// enormous attribute region, so the scan stops instead.
+			break
+		}
+		bodies = append(bodies, source[j:end])
+		i = end + 1
+	}
+	return bodies
+}
+
+// closingBracket answers where a tag ends, ignoring a bracket inside a quoted
+// value -- the htmx-config meta carries several.
+func closingBracket(source string, from int) (int, bool) {
+	var quote byte
+
+	for i := from; i < len(source); i++ {
+		c := source[i]
+		if quote != 0 {
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '>':
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// stripKyseComments removes every {{-- --}} block. They are compiled away and
+// never reach a page.
+func stripKyseComments(source string) string {
+	const opener, closer = "{{--", "--}}"
+
+	var b strings.Builder
+	for {
+		i := strings.Index(source, opener)
+		if i < 0 {
+			b.WriteString(source)
+			return b.String()
+		}
+		b.WriteString(source[:i])
+
+		rest := source[i+len(opener):]
+		end := strings.Index(rest, closer)
+		if end < 0 {
+			// Unterminated: the rest of the file is comment.
+			return b.String()
+		}
+		source = rest[end+len(closer):]
+	}
+}
+
+func space(c byte) bool  { return c == ' ' || c == '\t' || c == '\n' || c == '\r' }
+func letter(c byte) bool { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') }
+func digit(c byte) bool  { return c >= '0' && c <= '9' }

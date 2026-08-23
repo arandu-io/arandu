@@ -5,10 +5,10 @@ package layouts
 import "github.com/arandu-io/kyse/components"
 
 <!doctype html>
-{{-- No x-data on <html>. theme.js applies the theme to that element before the
-     body is parsed, and Alpine only reads it back afterwards. Binding it here
-     instead threw on every page: x-data="theme" names a component and theme.js
-     registers a store, so the name was never going to resolve.
+{{-- The theme is carried by this element and by nothing else: theme.js writes
+     the dark class and the data-theme accent onto it before the body is parsed,
+     and the stylesheet keys on both. There is no client-side binding to declare
+     here, and no second copy of the choice for one to fall out of step with.
 
      This is a kyse comment, not an HTML one: it does not reach the page. --}}
 <html lang="en" class="h-full">
@@ -29,7 +29,7 @@ import "github.com/arandu-io/kyse/components"
 	     answer means, and a per-page opt-in would be a second way to answer a
 	     rejected form (RULE 9). A meta tag is not a script, so it costs nothing
 	     against script-src 'self'. See framework/http/context.go. --}}
-	<meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"422","swap":true},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
+	<meta name="htmx-config" content='{"includeIndicatorStyles":false,"responseHandling":[{"code":"204","swap":false},{"code":"422","swap":true},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
 	<title>{{ .PageTitle() }}</title>
 	<link rel="icon" href="/favicon.ico" sizes="any">
 	<link rel="icon" href="/favicon.png" type="image/png">
@@ -55,12 +55,13 @@ import "github.com/arandu-io/kyse/components"
 	     there is no bundler to write one (RULE 13). -->
 	<link rel="stylesheet" href="{{ view.URL("app.css") }}">
 	<script src="{{ view.URL("htmx.min.js") }}" defer></script>
-	<script src="{{ view.URL("alpine.min.js") }}" defer></script>
+	<script src="{{ view.URL("ui.js") }}" defer></script>
 	<script src="{{ view.URL("basecoat.bundle.js") }}" defer></script>
 
 	<!-- The theme is read before the first paint, so a person who chose dark does
-	     not get a white flash on every navigation. It is the one piece of script
-	     that cannot wait for Alpine, and it is four lines. -->
+	     not get a white flash on every navigation. It is the one script that
+	     cannot be deferred: everything else here reacts to a click, and this runs
+	     once, before there is a page to react on. -->
 	<script src="{{ view.URL("theme.js") }}"></script>
 </head>
 <!-- hx-headers is load-bearing: without it every hx-post fails the CSRF check,
