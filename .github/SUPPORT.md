@@ -2,12 +2,13 @@
 
 ## Where a question goes
 
-The issue tracker of the repository the question is about. That is the only
-public channel this project has: there is no chat server, no forum, no mailing
-list and no support address, and none is announced before there is somebody
-reading it. A channel that swallows the message is worse than no channel at
-all -- the same reasoning that put vulnerability reports behind a GitHub
-advisory instead of a mailbox.
+The issue tracker of the repository the question is about, and the Discussions
+of the same repository for conversation. Together these are the only public
+channels this project has: there is no chat server, no forum, no mailing list
+and no support address, and none is announced before there is somebody reading
+it. A channel that swallows the message is worse than no channel at all -- the
+same reasoning that put vulnerability reports behind a GitHub advisory instead
+of a mailbox.
 
 Blank issues are enabled for exactly this reason. A question is not a defect,
 and it does not have to be filed as one to reach anybody.
