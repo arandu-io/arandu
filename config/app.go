@@ -12,6 +12,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -69,29 +70,64 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	return From(base), nil
+	return From(base)
 }
 
 // From builds the application configuration on top of one the framework already
-// parsed and validated.
+// parsed. It validates that base and returns the first invalid application
+// setting instead of constructing a partial configuration.
 //
-// It is separate from Load so a test can supply a configuration without an
-// environment: the test writes the framework part it cares about and gets the
-// ten domains filled from their defaults.
-func From(base bootstrap.Configuration) Config {
-	return Config{
+// It is separate from Load so a test can supply a valid framework configuration
+// directly and get the ten application domains filled from their defaults.
+func From(base bootstrap.Configuration) (Config, error) {
+	if err := base.App.Validate(); err != nil {
+		return Config{}, fmt.Errorf("framework application configuration: %w", err)
+	}
+
+	auth, err := loadAuth()
+	if err != nil {
+		return Config{}, err
+	}
+	cache, err := loadCache(base)
+	if err != nil {
+		return Config{}, err
+	}
+	database, err := loadDatabase(base)
+	if err != nil {
+		return Config{}, err
+	}
+	logging, err := loadLogging(base)
+	if err != nil {
+		return Config{}, err
+	}
+	mail, err := loadMail(base)
+	if err != nil {
+		return Config{}, err
+	}
+	queue, err := loadQueue()
+	if err != nil {
+		return Config{}, err
+	}
+	session, err := loadSession(base)
+	if err != nil {
+		return Config{}, err
+	}
+
+	cfg := Config{
 		Framework:   base,
 		App:         loadApp(base),
-		Auth:        loadAuth(),
-		Cache:       loadCache(base),
-		Database:    loadDatabase(base),
+		Auth:        auth,
+		Cache:       cache,
+		Database:    database,
 		Filesystems: loadFilesystems(),
-		Logging:     loadLogging(base),
-		Mail:        loadMail(base),
-		Queue:       loadQueue(),
+		Logging:     logging,
+		Mail:        mail,
+		Queue:       queue,
 		Services:    loadServices(),
-		Session:     loadSession(base),
+		Session:     session,
 	}
+
+	return cfg, nil
 }
 
 func loadApp(base bootstrap.Configuration) App {
@@ -129,36 +165,47 @@ func env(key, fallback string) string {
 	return fallback
 }
 
-func envBool(key string, fallback bool) bool {
+func envBool(key string, fallback bool) (bool, error) {
 	v, ok := os.LookupEnv(key)
 	if !ok || v == "" {
-		return fallback
+		return fallback, nil
 	}
 	switch strings.ToLower(v) {
 	case "1", "true", "yes", "on":
-		return true
+		return true, nil
 	case "0", "false", "no", "off":
-		return false
+		return false, nil
 	default:
-		return fallback
+		return false, fmt.Errorf("%s has invalid boolean value %q", key, v)
 	}
 }
 
-func envInt(key string, fallback int) int {
-	if v, ok := os.LookupEnv(key); ok {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
+func envInt(key string, fallback int) (int, error) {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return fallback, nil
 	}
-	return fallback
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, fmt.Errorf("%s has invalid integer value %q: %w", key, v, err)
+	}
+	return n, nil
 }
 
 // envSeconds reads a duration expressed in seconds, not in Go's duration
 // syntax: these values are written by deployment tooling as often as by people,
 // and "3600" travels through a Helm chart better than "1h".
-func envSeconds(key string, fallback time.Duration) time.Duration {
-	if n := envInt(key, -1); n > 0 {
-		return time.Duration(n) * time.Second
+func envSeconds(key string, fallback time.Duration) (time.Duration, error) {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return fallback, nil
 	}
-	return fallback
+	n, err := envInt(key, 0)
+	if err != nil {
+		return 0, err
+	}
+	if n <= 0 {
+		return 0, fmt.Errorf("%s must be a positive number of seconds, got %q", key, v)
+	}
+	return time.Duration(n) * time.Second, nil
 }

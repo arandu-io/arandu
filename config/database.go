@@ -33,15 +33,27 @@ type Database struct {
 	ConnMaxLifetime time.Duration
 }
 
-func loadDatabase(base bootstrap.Configuration) Database {
+func loadDatabase(base bootstrap.Configuration) (Database, error) {
+	maxOpenConns, err := envInt("DB_MAX_OPEN_CONNS", 25)
+	if err != nil {
+		return Database{}, err
+	}
+	maxIdleConns, err := envInt("DB_MAX_IDLE_CONNS", 5)
+	if err != nil {
+		return Database{}, err
+	}
+	connMaxLifetime, err := envSeconds("DB_CONN_MAX_LIFETIME", time.Hour)
+	if err != nil {
+		return Database{}, err
+	}
 	return Database{
 		// Converted, never re-parsed: the two structs are the same fields under
 		// two names, and DATABASE_URL is read once, where everything else is. The
 		// conversion goes when the adapter this value is handed to takes the
 		// other name.
 		Connection:      database.Config(base.Database),
-		MaxOpenConns:    envInt("DB_MAX_OPEN_CONNS", 25),
-		MaxIdleConns:    envInt("DB_MAX_IDLE_CONNS", 5),
-		ConnMaxLifetime: envSeconds("DB_CONN_MAX_LIFETIME", time.Hour),
-	}
+		MaxOpenConns:    maxOpenConns,
+		MaxIdleConns:    maxIdleConns,
+		ConnMaxLifetime: connMaxLifetime,
+	}, nil
 }

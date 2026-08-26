@@ -56,11 +56,23 @@ type Session struct {
 	SameSite http.SameSite
 }
 
-func loadSession(base bootstrap.Configuration) Session {
+func loadSession(base bootstrap.Configuration) (Session, error) {
 	driver := SessionDriver(env("SESSION_DRIVER", string(SessionMemory)))
 	url := env("REDIS_URL", "")
 	if driver == SessionKV && url == "" {
 		driver = SessionMemory
+	}
+	secure, err := envBool("SESSION_SECURE", !base.App.Env.Is(hconfig.EnvDev))
+	if err != nil {
+		return Session{}, err
+	}
+	ttl, err := envSeconds("SESSION_TTL", 12*time.Hour)
+	if err != nil {
+		return Session{}, err
+	}
+	csrfTTL, err := envSeconds("CSRF_TTL", 2*time.Hour)
+	if err != nil {
+		return Session{}, err
 	}
 	return Session{
 		Driver: driver,
@@ -69,12 +81,12 @@ func loadSession(base bootstrap.Configuration) Session {
 		// the CSRF issuer are built in bootstrap/app.go, from this struct, and
 		// they take a duration rather than reading one -- so whoever assembles
 		// the application is who states it, and that is this package.
-		TTL:      envSeconds("SESSION_TTL", 12*time.Hour),
-		CSRFTTL:  envSeconds("CSRF_TTL", 2*time.Hour),
+		TTL:      ttl,
+		CSRFTTL:  csrfTTL,
 		Cookie:   env("SESSION_COOKIE", "arandu_session"),
 		Path:     env("SESSION_PATH", "/"),
 		Domain:   env("SESSION_DOMAIN", ""),
-		Secure:   envBool("SESSION_SECURE", !base.App.Env.Is(hconfig.EnvDev)),
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
-	}
+	}, nil
 }

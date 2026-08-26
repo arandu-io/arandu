@@ -2,6 +2,7 @@ package unit_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	appconfig "github.com/arandu-io/arandu/config"
@@ -16,6 +17,15 @@ import (
 // loadCacheConfig reads the configuration with the two cache variables set.
 func loadCacheConfig(t *testing.T, store, redisURL string) appconfig.Cache {
 	t.Helper()
+	cfg, err := loadApplicationConfig(t, store, redisURL)
+	if err != nil {
+		t.Fatalf("config: %v", err)
+	}
+	return cfg.Cache
+}
+
+func loadApplicationConfig(t *testing.T, store, redisURL string) (appconfig.Config, error) {
+	t.Helper()
 
 	t.Setenv("APP_ENV", "dev")
 	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
@@ -23,11 +33,7 @@ func loadCacheConfig(t *testing.T, store, redisURL string) appconfig.Cache {
 	t.Setenv("CACHE_STORE", store)
 	t.Setenv("REDIS_URL", redisURL)
 
-	cfg, err := appconfig.Load()
-	if err != nil {
-		t.Fatalf("config: %v", err)
-	}
-	return cfg.Cache
+	return appconfig.Load()
 }
 
 func TestTheCacheURLBecomesTheEndpointTheClientDials(t *testing.T) {
@@ -166,12 +172,13 @@ func TestAStoreThatCannotBeReachedIsRefusedAtBoot(t *testing.T) {
 		{"a database that is not a number", "redis://cache.example.test:6379/production"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Errorf("REDIS_URL=%q was accepted, and it configures no store", c.url)
-				}
-			}()
-			loadCacheConfig(t, "redis", c.url)
+			_, err := loadApplicationConfig(t, "redis", c.url)
+			if err == nil {
+				t.Fatalf("REDIS_URL=%q was accepted, and it configures no store", c.url)
+			}
+			if !strings.Contains(err.Error(), "REDIS_URL") {
+				t.Errorf("error = %q, want it to name REDIS_URL", err)
+			}
 		})
 	}
 }

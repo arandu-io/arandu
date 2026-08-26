@@ -28,14 +28,18 @@ type Logging struct {
 	Sampling int
 }
 
-func loadLogging(base bootstrap.Configuration) Logging {
+func loadLogging(base bootstrap.Configuration) (Logging, error) {
 	format := env("LOG_FORMAT", "json")
 	if base.App.Env.Is(hconfig.EnvDev) {
 		format = env("LOG_FORMAT", "text")
 	}
+	sampling, err := envInt("LOG_SAMPLING", 0)
+	if err != nil {
+		return Logging{}, err
+	}
 	return Logging{
 		Level:    base.Observability.LogLevel,
 		Format:   format,
-		Sampling: envInt("LOG_SAMPLING", 0),
-	}
+		Sampling: sampling,
+	}, nil
 }

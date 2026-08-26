@@ -39,11 +39,23 @@ type Auth struct {
 // that picks its own tenant seeds data nobody can reach.
 func Tenant() string { return env("ARANDU_TENANT_ID", DefaultTenant) }
 
-func loadAuth() Auth {
+func loadAuth() (Auth, error) {
+	passwordMinLength, err := envInt("AUTH_PASSWORD_MIN_LENGTH", 12)
+	if err != nil {
+		return Auth{}, err
+	}
+	passwordResetTTL, err := envSeconds("AUTH_PASSWORD_RESET_TTL", time.Hour)
+	if err != nil {
+		return Auth{}, err
+	}
+	sessionTTL, err := envSeconds("SESSION_TTL", 12*time.Hour)
+	if err != nil {
+		return Auth{}, err
+	}
 	return Auth{
 		Tenant:            Tenant(),
-		PasswordMinLength: envInt("AUTH_PASSWORD_MIN_LENGTH", 12),
-		PasswordResetTTL:  envSeconds("AUTH_PASSWORD_RESET_TTL", time.Hour),
-		SessionTTL:        envSeconds("SESSION_TTL", 12*time.Hour),
-	}
+		PasswordMinLength: passwordMinLength,
+		PasswordResetTTL:  passwordResetTTL,
+		SessionTTL:        sessionTTL,
+	}, nil
 }

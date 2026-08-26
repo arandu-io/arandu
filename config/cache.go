@@ -106,7 +106,7 @@ type Cache struct {
 	TTL time.Duration
 }
 
-func loadCache(base bootstrap.Configuration) Cache {
+func loadCache(base bootstrap.Configuration) (Cache, error) {
 	store := CacheStore(env("CACHE_STORE", string(CacheMemory)))
 	raw := env("REDIS_URL", "")
 	if store == CacheRedis && raw == "" {
@@ -116,23 +116,30 @@ func loadCache(base bootstrap.Configuration) Cache {
 		store = CacheMemory
 	}
 
+	ttl, err := envSeconds("CACHE_TTL", 10*time.Minute)
+	if err != nil {
+		return Cache{}, err
+	}
 	cfg := Cache{
 		Store:         store,
 		Prefix:        env("CACHE_PREFIX", base.App.Name+":cache:"),
-		TTL:           envSeconds("CACHE_TTL", 10*time.Minute),
+		TTL:           ttl,
 		TLSCAFile:     env("REDIS_CA_FILE", ""),
 		TLSCertFile:   env("REDIS_CERT_FILE", ""),
 		TLSKeyFile:    env("REDIS_KEY_FILE", ""),
 		TLSServerName: env("REDIS_TLS_SERVER_NAME", ""),
 	}
 	if store == CacheRedis {
-		endpoint := parseCacheURL(raw)
+		endpoint, err := parseCacheURL(raw)
+		if err != nil {
+			return Cache{}, err
+		}
 		cfg.Address = endpoint.Address
 		cfg.Password = endpoint.Password
 		cfg.Database = endpoint.Database
 		cfg.TLS = endpoint.TLS
 	}
-	return cfg
+	return cfg, nil
 }
 
 // cacheEndpoint is what one URL says about where the store is.
@@ -149,19 +156,15 @@ type cacheEndpoint struct {
 
 // parseCacheURL reads REDIS_URL into the endpoint the client dials.
 //
-// A bad value panics rather than falling back to the in-process store. Falling
-// back is the failure nobody sees: the application boots, every replica caches
-// into memory of its own, and the first person to notice is the one served a
-// value another replica already forgot.
-func parseCacheURL(raw string) cacheEndpoint {
+// A bad value is returned to the boot boundary rather than falling back to the
+// in-process store. Falling back would let every replica cache into memory of
+// its own while reporting a successful boot.
+func parseCacheURL(raw string) (cacheEndpoint, error) {
 	raw = strings.TrimSpace(raw)
 
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme == "" {
-		panic(fmt.Sprintf(`REDIS_URL is not a URL: %q
-
-    REDIS_URL=redis://127.0.0.1:6379
-    REDIS_URL=redis://:password@cache.example.com:6379/1`, raw))
+		return cacheEndpoint{}, fmt.Errorf("REDIS_URL has invalid URL value %q", raw)
 	}
 
 	// rediss is the encrypted connection and redis is the one in the clear, the
@@ -170,12 +173,12 @@ func parseCacheURL(raw string) cacheEndpoint {
 	// switch beside it that say different things.
 	encrypted := strings.EqualFold(u.Scheme, "rediss")
 	if !encrypted && !strings.EqualFold(u.Scheme, "redis") {
-		panic(fmt.Sprintf("REDIS_URL uses the scheme %q, and this application speaks redis and rediss: %q", u.Scheme, raw))
+		return cacheEndpoint{}, fmt.Errorf("REDIS_URL uses unsupported scheme %q; this application supports redis and rediss", u.Scheme)
 	}
 
 	host := u.Hostname()
 	if host == "" {
-		panic(fmt.Sprintf("REDIS_URL names no host: %q\n\n    REDIS_URL=redis://127.0.0.1:6379", raw))
+		return cacheEndpoint{}, fmt.Errorf("REDIS_URL names no host")
 	}
 	port := u.Port()
 	if port == "" {
@@ -191,19 +194,17 @@ func parseCacheURL(raw string) cacheEndpoint {
 		// somebody the connection cannot become -- which is a permission denied
 		// on the first command rather than at boot.
 		if name := u.User.Username(); name != "" && name != "default" {
-			panic(fmt.Sprintf(`REDIS_URL names the user %q, and this application connects as the default one: %q
-
-    REDIS_URL=redis://:password@cache.example.com:6379`, name, raw))
+			return cacheEndpoint{}, fmt.Errorf("REDIS_URL names unsupported user %q; expected the default user", name)
 		}
 	}
 
 	if name := strings.TrimPrefix(u.Path, "/"); name != "" {
 		number, err := strconv.Atoi(name)
 		if err != nil || number < 0 {
-			panic(fmt.Sprintf("REDIS_URL ends in %q, and the path of a RESP URL is the numbered database: %q", u.Path, raw))
+			return cacheEndpoint{}, fmt.Errorf("REDIS_URL has invalid database path %q; expected a non-negative integer", u.Path)
 		}
 		out.Database = number
 	}
 
-	return out
+	return out, nil
 }

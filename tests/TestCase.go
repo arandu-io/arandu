@@ -79,7 +79,11 @@ func Kernel(t *testing.T, env config.Env) *kernel.Kernel {
 	}
 	t.Cleanup(func() { _ = sqldb.Close() })
 
-	app, err := bootstrap.Build(appconfig.From(cfg), data.Wrap(sqldb, cfg.Database.Connection))
+	appCfg, err := appconfig.From(cfg)
+	if err != nil {
+		t.Fatalf("loading the application configuration: %v", err)
+	}
+	app, err := bootstrap.Build(appCfg, data.Wrap(sqldb, cfg.Database.Connection))
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}

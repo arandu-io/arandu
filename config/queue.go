@@ -37,12 +37,24 @@ type Queue struct {
 	MaxAttempts int
 }
 
-func loadQueue() Queue {
+func loadQueue() (Queue, error) {
+	workers, err := envInt("QUEUE_WORKERS", 4)
+	if err != nil {
+		return Queue{}, err
+	}
+	retryAfter, err := envSeconds("QUEUE_RETRY_AFTER", 90*time.Second)
+	if err != nil {
+		return Queue{}, err
+	}
+	maxAttempts, err := envInt("QUEUE_MAX_ATTEMPTS", 5)
+	if err != nil {
+		return Queue{}, err
+	}
 	return Queue{
 		Connection:  QueueConnection(env("QUEUE_CONNECTION", string(QueueDatabase))),
 		Default:     env("QUEUE_DEFAULT", "default"),
-		Workers:     envInt("QUEUE_WORKERS", 4),
-		RetryAfter:  envSeconds("QUEUE_RETRY_AFTER", 90*time.Second),
-		MaxAttempts: envInt("QUEUE_MAX_ATTEMPTS", 5),
-	}
+		Workers:     workers,
+		RetryAfter:  retryAfter,
+		MaxAttempts: maxAttempts,
+	}, nil
 }
