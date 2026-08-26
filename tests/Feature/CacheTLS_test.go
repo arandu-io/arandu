@@ -191,12 +191,19 @@ func firstByteOnTheWire(t *testing.T, scheme string) byte {
 	}()
 
 	sqliteEnv(t)
+
+	// The schema is built before the store is pointed at the listener, and not
+	// by a command run against it: every migration command takes a lock through
+	// the cache, and this listener reads one byte and stops answering. A command
+	// that waited on it would wait out its timeout and report a failure, which
+	// is correct of it and not what is being measured here.
+	migrateWithoutTheStore(t)
+
 	t.Setenv("CACHE_STORE", "redis")
 	t.Setenv("REDIS_URL", scheme+"://"+listener.Addr().String())
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	// Building the application is what opens the connection, and opening it is
+	// what puts the first byte on the wire.
 	cfg, db, _ := openForTest(t)
 	app, err := bootstrap.Build(cfg, db)
 	if err != nil {

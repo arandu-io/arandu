@@ -4,30 +4,34 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sort"
-	"strconv"
-	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/hesape/cache"
+	"github.com/arandu-io/hesape/console"
 	"github.com/arandu-io/hesape/database"
+	dbmigrations "github.com/arandu-io/hesape/database/console/migrations"
 	"github.com/arandu-io/hesape/database/migrations"
+	"github.com/arandu-io/hesape/database/schema"
 	hredis "github.com/arandu-io/hesape/redis"
 	"github.com/arandu-io/hesape/redis/connections"
 
 	appconfig "github.com/arandu-io/arandu/config"
+	"github.com/arandu-io/arandu/database/seeders"
 )
 
-// The migration commands are the conventional ones, because the steps of a
-// deploy should be the ones a developer already knows: migrate,
-// migrate:rollback, migrate:status, migrate:fresh.
+// The migration commands are the component's, not this file's.
 //
-// None of them runs at boot, and none of them is reachable from the start-up
-// path. `aru migrate` is a step of the deployment pipeline: with N replicas
-// rolling, a migrator called from main means N of them racing over one table.
+// They used to be four functions here -- migrate, rollback, status, fresh --
+// reimplementing what database/console/migrations already exports as eight, and
+// the four were the four somebody had needed so far. migrate:install,
+// migrate:reset, migrate:refresh and make:migration did not exist in this
+// application because nobody had written them a second time.
+//
+// None of them runs at boot, and none is reachable from the start-up path.
+// `aru migrate` is a step of the deployment pipeline: with N replicas rolling, a
+// migrator called from main means N of them racing over one table.
 
 // migrationConnection is the name this application's single connection is
 // registered under.
@@ -57,7 +61,24 @@ const migrationTable = "arandu_migrations"
 // halves stay tellable apart in a listing.
 const modulePath = "modules"
 
-// newMigrator wires the migrator the four migration commands run.
+// migrationDirectory is where make:migration writes a new file.
+//
+// It is a directory and not a group, which is the distinction Deps keeps in two
+// fields: the application's own migrations register under the default group, so
+// the group the commands read is nil and this is where the file goes.
+const migrationDirectory = "database/migrations"
+
+// isolationLockTTL is how long an isolated command may hold the lock.
+//
+// It is the deadlock protection and nothing else: a process that dies partway
+// through holds the lock until it expires, and every later run waits it out. So
+// it is sized above the longest migration there is rather than against the
+// usual one, and an hour of refused runs after a crash is the price of a lock
+// that cannot expire under a migrator still using it. The other failure is the
+// one that cannot be undone -- two migrators altering one table.
+const isolationLockTTL = time.Hour
+
+// newMigrator wires the migrator the migration commands run.
 //
 // The migrations component reaches a connection through a resolver rather than
 // being handed one, because a migration may name the connection it runs on.
@@ -82,17 +103,7 @@ func newMigrator(db *data.DB, moduleMigrations []kernel.Migration) *migrations.M
 		migrations.Register(migration, modulePath)
 	}
 
-	connection := database.NewConnection(db.Unwrap(), "", "", map[string]any{
-		"driver": string(db.Dialect()),
-		"name":   migrationConnection,
-	})
-
-	inner := database.NewConnectionResolver(map[string]database.ConnectionInterface{
-		migrationConnection: connection,
-	})
-	inner.SetDefaultConnection(migrationConnection)
-
-	resolver := database.MigrationResolver{Resolver: inner}
+	resolver := database.MigrationResolver{Resolver: newConnectionResolver(db)}
 	repository := migrations.NewDatabaseMigrationRepository(resolver, migrationTable)
 
 	migrator := migrations.NewMigrator(repository, resolver, nil)
@@ -100,248 +111,130 @@ func newMigrator(db *data.DB, moduleMigrations []kernel.Migration) *migrations.M
 	return migrator.SetOutput(os.Stdout)
 }
 
-// migrateFlags is what the migration commands read off the command line.
-//
-// It carries the migrator's own options and the one flag that is not one:
-// --isolated does not change what a run does, it changes who is allowed to
-// start it, so it belongs to this file and never travels to the migrator.
-type migrateFlags struct {
-	migrations.Options
-
-	// Isolated says one process migrates and the rest carry on.
-	Isolated bool
-}
-
-// migrateOptions reads the flags the migration commands take.
-//
-// --pretend prints the statements a run would send and sends none of them.
-// --step gives every migration its own batch on the way up, so each can be
-// undone on its own; --step=N on the way down is how many to undo.
-//
-// --isolated takes a lock every replica can see, so that a release command run
-// by each container of a rollout migrates once. It belongs to migrate: there is
-// no isolated rollback, and a flag parsed and then ignored is worse than one
-// that is refused.
-func migrateOptions(args []string) (migrateFlags, error) {
-	var flags migrateFlags
-
-	for _, arg := range args {
-		switch {
-		case arg == "--pretend":
-			flags.Pretend = true
-
-		case arg == "--step":
-			flags.Step = true
-
-		case arg == "--isolated":
-			flags.Isolated = true
-
-		case strings.HasPrefix(arg, "--step="):
-			count := strings.TrimPrefix(arg, "--step=")
-			steps, err := strconv.Atoi(count)
-			if err != nil || steps < 1 {
-				return flags, fmt.Errorf("--step= takes the number of migrations to roll back, and %q is not one", count)
-			}
-			flags.Steps = steps
-
-		default:
-			return flags, fmt.Errorf("unknown flag: %s (expected --pretend, --step, --step=N or --isolated)", arg)
-		}
-	}
-
-	return flags, nil
-}
-
-// refuseIsolation is what the commands that cannot isolate answer.
-//
-// They cannot because there is nothing to isolate them with: the migrator locks
-// a run forward and offers no locked rollback or reset. Accepting the flag and
-// doing nothing with it would be a command that reports itself as isolated
-// while N replicas roll back over each other.
-func refuseIsolation(command string, flags migrateFlags) error {
-	if !flags.Isolated {
-		return nil
-	}
-	return fmt.Errorf("--isolated is a flag of migrate, and %s does not take it: "+
-		"only the forward run can be locked, and undoing a schema on one replica while another undoes it too "+
-		"is not something a lock here would prevent", command)
-}
-
-// prepareRepository creates the tracking table if it is not there yet.
-//
-// It is skipped while pretending, and the run is refused instead when the
-// table is missing: a command that promises to send no statement and creates a
-// table anyway is a command nobody can trust the second time.
-func prepareRepository(ctx context.Context, migrator *migrations.Migrator, pretend bool) error {
-	if !pretend {
-		return migrator.GetRepository().CreateRepository(ctx)
-	}
-	if !migrator.RepositoryExists(ctx) {
-		return fmt.Errorf("--pretend reads the %s table to know what is pending, and it does not exist yet: run migrate once without it", migrationTable)
-	}
-	return nil
-}
-
-// isolationLockTTL is how long an isolated run may hold the lock.
-//
-// It is the deadlock protection and nothing else: a process that dies partway
-// through holds the lock until it expires, and every later run waits it out. So
-// it is sized above the longest migration there is rather than against the
-// usual one, and an hour of refused runs after a crash is the price of a lock
-// that cannot expire under a migrator still using it. The other failure is the
-// one that cannot be undone -- two migrators altering one table.
-const isolationLockTTL = time.Hour
-
-// migrate applies everything that has not been applied yet.
-//
-// Without --isolated it is the plain run, which is correct because `aru migrate`
-// is a step of the pipeline and a pipeline step happens once. --isolated is for
-// the deployment that calls it from the release command of every container
-// instead: one of them takes the lock and migrates, and the rest apply nothing
-// and carry on.
-//
-// The store is the one the cache configuration named, and a nil one is refused
-// rather than worked around. A lock inside this process would satisfy every
-// type here and isolate nothing.
-func migrate(ctx context.Context, db *data.DB, moduleMigrations []kernel.Migration, flags migrateFlags, store *connections.Connection) error {
-	// Refused before the tracking table is created, and before anything else
-	// touches the database: a command that cannot do what it was asked should
-	// leave nothing behind that says it tried.
-	if flags.Isolated && store == nil {
-		return fmt.Errorf("--isolated needs a store every replica can see, and CACHE_STORE names the in-process one: " +
-			"a lock held inside this process is invisible to the replica beside it, so the run would report itself " +
-			"isolated while N of them migrated at once. Set CACHE_STORE=redis and REDIS_URL")
-	}
-
-	migrator := newMigrator(db, moduleMigrations)
-
-	if err := prepareRepository(ctx, migrator, flags.Pretend); err != nil {
-		return err
-	}
-
-	if !flags.Isolated {
-		_, err := migrator.Run(ctx, nil, flags.Options)
-		return err
-	}
-
-	locks := cache.NewLocks(hredis.NewRedisStore(store))
-	migrator.IsolateWith(func(name string) migrations.IsolationLock {
-		return locks.Lock(name, isolationLockTTL)
+// newConnectionResolver holds this application's one connection under the one
+// name the migrations know it by.
+func newConnectionResolver(db *data.DB) *database.ConnectionResolver {
+	connection := database.NewConnection(db.Unwrap(), "", "", map[string]any{
+		"driver": string(db.Dialect()),
+		"name":   migrationConnection,
 	})
 
-	// The answer to branch on is whether the run took the lock, and it is never
-	// the error. A replica that did not take it applied nothing, and that is
-	// success: the schema is being changed by whichever replica got there
-	// first, and this one's job is to carry on and let the application start.
-	// Reporting it as a failure would fail every deployment that rolls more
-	// than one replica, which is the deployment the flag exists for. The
-	// migrator has already said so on stdout.
-	_, _, err := migrator.RunIsolated(ctx, nil, flags.Options)
-	return err
+	resolver := database.NewConnectionResolver(map[string]database.ConnectionInterface{
+		migrationConnection: connection,
+	})
+	resolver.SetDefaultConnection(migrationConnection)
+	return resolver
 }
 
-// rollback undoes the last batch, or as many migrations as --step=N names.
+// migrationCommands are the eight the component exports, wired to this
+// application's migrator, seeders and schema.
 //
-// A migration that declares no Down is not reversed, and that is not an error:
-// the migrator asks for the reverse half by type assertion, so a Down with the
-// wrong signature fails the build rather than rolling nothing back at run time.
-func rollback(ctx context.Context, db *data.DB, moduleMigrations []kernel.Migration, flags migrateFlags) error {
-	if err := refuseIsolation("migrate:rollback", flags); err != nil {
-		return err
-	}
-
-	migrator := newMigrator(db, moduleMigrations)
-
-	if err := prepareRepository(ctx, migrator, flags.Pretend); err != nil {
-		return err
-	}
-
-	_, err := migrator.Rollback(ctx, nil, flags.Options)
-	return err
+// The lock is the cache the configuration named, and every command that must
+// not overlap another declares the same one -- see console.Command.Isolated.
+// A store this process holds by itself would satisfy the types and isolate
+// nothing, so a binary configured with the in-process cache gets no lock issuer
+// and the isolated commands say so rather than reporting themselves isolated.
+func migrationCommands(cfg appconfig.Config, db *data.DB, app App) []console.Command {
+	return dbmigrations.Commands(dbmigrations.Deps{
+		Migrator:      newMigrator(db, app.Kernel.Migrations()),
+		Creator:       migrations.NewMigrationCreator(""),
+		MigrationPath: migrationDirectory,
+		// Nil, not the directory: this application registers its own
+		// migrations in the default group, so every group is the right answer
+		// and naming one would read a key that does not exist.
+		MigrationGroups: nil,
+		Seed:            seedFor(cfg, app),
+		Wipe:            wipeFor(cfg, db),
+	})
 }
 
-// migrateStatus prints every migration with the batch it ran in.
+// seedFor is what --seed reaches, and it is the same entry point db:seed uses.
 //
-// The recorded names and the registered ones are printed together rather than
-// one of them: a migration whose file is gone still holds a row, and a run that
-// hid it would report a schema nobody can rebuild.
-func migrateStatus(ctx context.Context, db *data.DB, moduleMigrations []kernel.Migration) error {
-	migrator := newMigrator(db, moduleMigrations)
+// The seeder name arrives as the component's --seeder value, and an empty one
+// means the root seeder, which is what seeders.Run answers to no arguments.
+func seedFor(cfg appconfig.Config, app App) func(context.Context, string) error {
+	return func(ctx context.Context, name string) error {
+		var args []string
+		if name != "" {
+			args = []string{name}
+		}
+		return seeders.Run(ctx, seeders.Deps{Auth: app.Auth, Tenant: cfg.Auth.Tenant}, args)
+	}
+}
 
-	// A database nothing has run against yet has no tracking table, and that is
-	// not an error here: every migration is pending, which is exactly what
-	// somebody asking for the status before the first deploy wants to read.
-	batches := map[string]int{}
-	if migrator.RepositoryExists(ctx) {
-		recorded, err := migrator.GetRepository().GetMigrationBatches(ctx)
+// wipeFor is what migrate:fresh drops the schema with.
+//
+// It is handed over as a function because "drop every table" is not a
+// capability a framework should assume it has -- see dbmigrations.Deps.Wipe.
+// The refusal outside development is in refuseCommand, which runs before the
+// command does: a command that cannot do what it was asked should leave nothing
+// behind that says it tried.
+func wipeFor(_ appconfig.Config, db *data.DB) func(context.Context, string) error {
+	return func(ctx context.Context, connection string) error {
+		resolver := newConnectionResolver(db)
+		name := connection
+		if name == "" {
+			name = migrationConnection
+		}
+		conn, err := resolver.Connection(name)
 		if err != nil {
 			return err
 		}
-		batches = recorded
-	}
-
-	registered := migrator.GetMigrationFiles(nil)
-
-	names := make([]string, 0, len(registered)+len(batches))
-	seen := make(map[string]bool, len(registered)+len(batches))
-	for name := range batches {
-		seen[name] = true
-		names = append(names, name)
-	}
-	for name := range registered {
-		if !seen[name] {
-			seen[name] = true
-			names = append(names, name)
+		concrete, ok := conn.(*database.Connection)
+		if !ok {
+			return fmt.Errorf("migrate:fresh needs the concrete connection to reach the schema builder, and %s resolved to %T", name, conn)
 		}
+		return schema.NewBuilder(database.ForSchema(concrete)).DropAllTables(ctx)
 	}
-	// The name carries the order, here as everywhere else.
-	sort.Strings(names)
-
-	if len(names) == 0 {
-		fmt.Println("no migrations are registered")
-		return nil
-	}
-
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "MIGRATION\tBATCH\tSTATUS")
-	for _, name := range names {
-		batch, ran := batches[name]
-		switch {
-		case !ran:
-			fmt.Fprintf(w, "%s\t-\tpending\n", name)
-		case registered[name] == nil:
-			fmt.Fprintf(w, "%s\t%d\tran, no longer registered\n", name, batch)
-		default:
-			fmt.Fprintf(w, "%s\t%d\tran\n", name, batch)
-		}
-	}
-	return w.Flush()
 }
 
-// fresh rolls everything back and applies it again.
+// migrationLocks is the lock issuer the isolated commands take their lock from.
 //
-// It refuses to run outside development. The usual guard for a command like this is a
-// confirmation prompt in production; a framework whose thesis is that the
-// compiler enforces the rules should not rely on someone reading a prompt at
-// 3am, so this one simply does not run there.
-func fresh(ctx context.Context, cfg appconfig.Config, db *data.DB, moduleMigrations []kernel.Migration, flags migrateFlags) error {
-	if !cfg.App.IsDev() {
-		return fmt.Errorf("migrate:fresh drops every table and only runs with APP_ENV=dev (this is %s)", cfg.App.Env)
+// Every migration command names the "migrate" lock, so one is always wired and
+// the width of the lock is the width of the cache. With a shared store it is
+// every replica; with the in-process one it is this process, which is honest
+// for `aru migrate` on SQLite and useless for a rollout.
+//
+// That is why it is refused outside development in migrationLocksFor: a lock
+// held inside this process is invisible to the replica beside it, so the run
+// would report itself isolated while N of them migrated at once. The old
+// spelling of this was an --isolated flag that refused the same case, and it
+// refused only when somebody remembered to pass it.
+func migrationLocks(store *connections.Connection) *cache.Locks {
+	if store == nil {
+		return cache.NewLocks(cache.NewArrayStore())
 	}
-	if err := refuseIsolation("migrate:fresh", flags); err != nil {
-		return err
+	return cache.NewLocks(hredis.NewRedisStore(store))
+}
+
+// devOnly are the commands this application refuses to run outside development.
+//
+// migrate:fresh drops every table. The usual guard for a command like this is a
+// confirmation prompt in production, and a framework whose thesis is that the
+// compiler enforces the rules should not rely on somebody reading a prompt at
+// 3am. This one simply does not run there.
+//
+// It is checked before the lock, because it is the narrower answer: a person
+// who typed migrate:fresh against production wants to be told that, not to be
+// told about the cache.
+var devOnly = map[string]bool{"migrate:fresh": true}
+
+// refuseCommand answers why this command may not run, or nil.
+//
+// The two refusals are ordered narrowest first, and both are this application's
+// policy rather than the component's -- the component runs the command it is
+// given, with the lock it was handed.
+func refuseCommand(cfg appconfig.Config, c console.Command, store *connections.Connection) error {
+	if devOnly[c.Name] && !cfg.App.IsDev() {
+		return fmt.Errorf("%s drops every table and only runs with APP_ENV=dev (this is %s)", c.Name, cfg.App.Env)
 	}
 
-	migrator := newMigrator(db, moduleMigrations)
-
-	if err := prepareRepository(ctx, migrator, flags.Pretend); err != nil {
-		return err
+	// Only the isolated commands need a lock, so only they are refused for the
+	// want of one. migrate:status reads, and make:migration writes a file.
+	if c.Isolated != "" && store == nil && !cfg.App.IsDev() {
+		return fmt.Errorf("%s takes a lock every replica can see, and CACHE_STORE names the in-process one: "+
+			"a lock held inside this process is invisible to the replica beside it, so a rollout would run it "+
+			"N times at once (this is APP_ENV=%s). Set CACHE_STORE=redis and REDIS_URL", c.Name, cfg.App.Env)
 	}
-
-	if _, err := migrator.Reset(ctx, nil, flags.Pretend); err != nil {
-		return err
-	}
-
-	_, err := migrator.Run(ctx, nil, flags.Options)
-	return err
+	return nil
 }

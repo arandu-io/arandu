@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -23,9 +24,7 @@ import (
 func probeHealth(t *testing.T) *httptest.ResponseRecorder {
 	t.Helper()
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	migrateWithoutTheStore(t)
 
 	cfg, db, _ := openForTest(t)
 	app, err := bootstrap.Build(cfg, db)
@@ -40,6 +39,28 @@ func probeHealth(t *testing.T) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	app.Kernel.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_arandu/health", nil))
 	return rec
+}
+
+// migrateWithoutTheStore builds the schema before the store is pointed at
+// something that does not answer.
+//
+// Every migration command takes a lock, and the lock lives in the cache, so a
+// migrate against a dead store is correctly refused -- see
+// MigrateIsolated_test.go. What these tests are about is the health probe, and
+// they need a migrated database to boot against rather than a migration.
+func migrateWithoutTheStore(t *testing.T) {
+	t.Helper()
+
+	store, url := os.Getenv("CACHE_STORE"), os.Getenv("REDIS_URL")
+	t.Setenv("CACHE_STORE", "memory")
+	t.Setenv("REDIS_URL", "")
+
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	t.Setenv("CACHE_STORE", store)
+	t.Setenv("REDIS_URL", url)
 }
 
 // TestTheSharedStoreIsOnTheHealthCheck.
