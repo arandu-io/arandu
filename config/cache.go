@@ -109,11 +109,14 @@ type Cache struct {
 func loadCache(base bootstrap.Configuration) (Cache, error) {
 	store := CacheStore(env("CACHE_STORE", string(CacheMemory)))
 	raw := env("REDIS_URL", "")
-	if store == CacheRedis && raw == "" {
-		// Falling back rather than failing: a cache that silently answers nothing
-		// is worse than one that says which variable is missing, and the kernel
-		// reports the store it ended up with at boot.
-		store = CacheMemory
+	switch store {
+	case CacheMemory:
+	case CacheRedis:
+		if raw == "" {
+			return Cache{}, fmt.Errorf("CACHE_STORE %q requires REDIS_URL", store)
+		}
+	default:
+		return Cache{}, fmt.Errorf("CACHE_STORE has unsupported value %q; expected memory or redis", store)
 	}
 
 	ttl, err := envSeconds("CACHE_TTL", 10*time.Minute)
@@ -207,4 +210,11 @@ func parseCacheURL(raw string) (cacheEndpoint, error) {
 	}
 
 	return out, nil
+}
+
+// validateRedisURL applies the connection constraints shared by every feature
+// that selects the RESP endpoint without needing its parsed cache fields.
+func validateRedisURL(raw string) error {
+	_, err := parseCacheURL(raw)
+	return err
 }

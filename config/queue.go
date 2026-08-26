@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // QueueConnection is where queued work is stored.
 type QueueConnection string
@@ -38,6 +41,20 @@ type Queue struct {
 }
 
 func loadQueue() (Queue, error) {
+	connection := QueueConnection(env("QUEUE_CONNECTION", string(QueueDatabase)))
+	switch connection {
+	case QueueDatabase:
+	case QueueRedis:
+		raw := env("REDIS_URL", "")
+		if raw == "" {
+			return Queue{}, fmt.Errorf("QUEUE_CONNECTION %q requires REDIS_URL", connection)
+		}
+		if err := validateRedisURL(raw); err != nil {
+			return Queue{}, err
+		}
+	default:
+		return Queue{}, fmt.Errorf("QUEUE_CONNECTION has unsupported value %q; expected database or redis", connection)
+	}
 	workers, err := envInt("QUEUE_WORKERS", 4)
 	if err != nil {
 		return Queue{}, err
@@ -51,7 +68,7 @@ func loadQueue() (Queue, error) {
 		return Queue{}, err
 	}
 	return Queue{
-		Connection:  QueueConnection(env("QUEUE_CONNECTION", string(QueueDatabase))),
+		Connection:  connection,
 		Default:     env("QUEUE_DEFAULT", "default"),
 		Workers:     workers,
 		RetryAfter:  retryAfter,

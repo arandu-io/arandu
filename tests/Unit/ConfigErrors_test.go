@@ -126,3 +126,151 @@ func TestLoadPreservesTheFrameworkBootstrapError(t *testing.T) {
 		t.Errorf("error = %q, and the later application error masked the bootstrap error", err)
 	}
 }
+
+func TestClosedConfigurationDiscriminatorsFailAtBoot(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		want []string
+	}{
+		{
+			name: "cache Redis without its URL",
+			env:  map[string]string{"CACHE_STORE": "redis"},
+			want: []string{"CACHE_STORE", `"redis"`, "REDIS_URL"},
+		},
+		{
+			name: "KV session without its URL",
+			env:  map[string]string{"SESSION_DRIVER": "kv"},
+			want: []string{"SESSION_DRIVER", `"kv"`, "REDIS_URL"},
+		},
+		{
+			name: "Redis queue without its URL",
+			env:  map[string]string{"QUEUE_CONNECTION": "redis"},
+			want: []string{"QUEUE_CONNECTION", `"redis"`, "REDIS_URL"},
+		},
+		{
+			name: "KV session with an unknown URL scheme",
+			env: map[string]string{
+				"SESSION_DRIVER": "kv",
+				"REDIS_URL":      "memcached://cache.example.test:11211",
+			},
+			want: []string{"REDIS_URL", `"memcached"`, "redis and rediss"},
+		},
+		{
+			name: "Redis queue with an unknown URL scheme",
+			env: map[string]string{
+				"QUEUE_CONNECTION": "redis",
+				"REDIS_URL":        "memcached://cache.example.test:11211",
+			},
+			want: []string{"REDIS_URL", `"memcached"`, "redis and rediss"},
+		},
+		{
+			name: "unknown cache store",
+			env:  map[string]string{"CACHE_STORE": "memcached"},
+			want: []string{"CACHE_STORE", `"memcached"`, "memory", "redis"},
+		},
+		{
+			name: "unknown session driver",
+			env:  map[string]string{"SESSION_DRIVER": "database"},
+			want: []string{"SESSION_DRIVER", `"database"`, "memory", "kv"},
+		},
+		{
+			name: "unknown queue connection",
+			env:  map[string]string{"QUEUE_CONNECTION": "sqs"},
+			want: []string{"QUEUE_CONNECTION", `"sqs"`, "database", "redis"},
+		},
+		{
+			name: "unknown filesystem disk",
+			env:  map[string]string{"FILESYSTEM_DISK": "gcs"},
+			want: []string{"FILESYSTEM_DISK", `"gcs"`, "local", "r2", "s3"},
+		},
+		{
+			name: "unknown log format",
+			env:  map[string]string{"LOG_FORMAT": "yaml"},
+			want: []string{"LOG_FORMAT", `"yaml"`, "json", "text"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := loadConfigurationWith(t, test.env)
+			if err == nil {
+				t.Fatal("Load accepted an invalid discriminator")
+			}
+			for _, want := range test.want {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error = %q, want it to contain %q", err, want)
+				}
+			}
+		})
+	}
+}
+
+func TestClosedConfigurationDiscriminatorsAcceptDocumentedValues(t *testing.T) {
+	t.Run("explicitly empty values keep the development defaults", func(t *testing.T) {
+		cfg, err := loadConfigurationWith(t, nil)
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Cache.Store != appconfig.CacheMemory || cfg.Session.Driver != appconfig.SessionMemory ||
+			cfg.Queue.Connection != appconfig.QueueDatabase || cfg.Filesystems.Default != appconfig.DiskLocal ||
+			cfg.Logging.Format != "text" {
+			t.Fatalf("defaults = cache %q, session %q, queue %q, disk %q, log %q",
+				cfg.Cache.Store, cfg.Session.Driver, cfg.Queue.Connection, cfg.Filesystems.Default, cfg.Logging.Format)
+		}
+	})
+
+	t.Run("shared drivers and the R2 disk are accepted", func(t *testing.T) {
+		cfg, err := loadConfigurationWith(t, map[string]string{
+			"CACHE_STORE":      "redis",
+			"SESSION_DRIVER":   "kv",
+			"QUEUE_CONNECTION": "redis",
+			"FILESYSTEM_DISK":  "r2",
+			"LOG_FORMAT":       "json",
+			"REDIS_URL":        "rediss://cache.example.test:6380",
+		})
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Cache.Store != appconfig.CacheRedis || cfg.Session.Driver != appconfig.SessionKV ||
+			cfg.Queue.Connection != appconfig.QueueRedis || cfg.Filesystems.Default != appconfig.DiskR2 ||
+			cfg.Logging.Format != "json" {
+			t.Fatalf("configured = cache %q, session %q, queue %q, disk %q, log %q",
+				cfg.Cache.Store, cfg.Session.Driver, cfg.Queue.Connection, cfg.Filesystems.Default, cfg.Logging.Format)
+		}
+	})
+
+	t.Run("the S3 disk remains supported", func(t *testing.T) {
+		cfg, err := loadConfigurationWith(t, map[string]string{"FILESYSTEM_DISK": "s3"})
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Filesystems.Default != appconfig.DiskS3 {
+			t.Fatalf("Filesystems.Default = %q, want s3", cfg.Filesystems.Default)
+		}
+	})
+}
+
+func loadConfigurationWith(t *testing.T, values map[string]string) (appconfig.Config, error) {
+	t.Helper()
+	t.Chdir(t.TempDir())
+	t.Setenv("APP_ENV", "dev")
+	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
+	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
+	for _, key := range []string{
+		"CACHE_STORE", "SESSION_DRIVER", "QUEUE_CONNECTION", "FILESYSTEM_DISK",
+		"LOG_FORMAT", "REDIS_URL",
+		"SESSION_SECURE", "SESSION_TTL", "CSRF_TTL",
+		"DB_MAX_OPEN_CONNS", "DB_MAX_IDLE_CONNS", "DB_CONN_MAX_LIFETIME",
+		"CACHE_TTL", "QUEUE_WORKERS", "QUEUE_RETRY_AFTER", "QUEUE_MAX_ATTEMPTS",
+		"AUTH_PASSWORD_MIN_LENGTH", "AUTH_PASSWORD_RESET_TTL",
+		"MAIL_URL", "MAIL_MAILER", "MAIL_HOST", "MAIL_PORT", "MAIL_USERNAME",
+		"MAIL_PASSWORD", "MAIL_ENCRYPTION", "MAIL_KEY",
+	} {
+		t.Setenv(key, "")
+	}
+	for key, value := range values {
+		t.Setenv(key, value)
+	}
+	return appconfig.Load()
+}

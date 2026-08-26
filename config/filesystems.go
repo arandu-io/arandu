@@ -1,5 +1,7 @@
 package config
 
+import "fmt"
+
 // Disk is where uploaded files live.
 type Disk string
 
@@ -40,14 +42,20 @@ type Filesystems struct {
 	SecretAccessKey string
 }
 
-func loadFilesystems() Filesystems {
+func loadFilesystems() (Filesystems, error) {
+	disk := Disk(env("FILESYSTEM_DISK", string(DiskLocal)))
+	switch disk {
+	case DiskLocal, DiskR2, DiskS3:
+	default:
+		return Filesystems{}, fmt.Errorf("FILESYSTEM_DISK has unsupported value %q; expected local, r2 or s3", disk)
+	}
 	return Filesystems{
-		Default:         Disk(env("FILESYSTEM_DISK", string(DiskLocal))),
+		Default:         disk,
 		Root:            env("FILESYSTEM_ROOT", "storage/app/private"),
 		Bucket:          env("FILESYSTEM_BUCKET", ""),
 		Endpoint:        env("FILESYSTEM_ENDPOINT", ""),
 		Region:          env("FILESYSTEM_REGION", "auto"),
 		AccessKeyID:     env("FILESYSTEM_ACCESS_KEY_ID", ""),
 		SecretAccessKey: env("FILESYSTEM_SECRET_ACCESS_KEY", ""),
-	}
+	}, nil
 }

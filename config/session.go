@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -59,8 +60,17 @@ type Session struct {
 func loadSession(base bootstrap.Configuration) (Session, error) {
 	driver := SessionDriver(env("SESSION_DRIVER", string(SessionMemory)))
 	url := env("REDIS_URL", "")
-	if driver == SessionKV && url == "" {
-		driver = SessionMemory
+	switch driver {
+	case SessionMemory:
+	case SessionKV:
+		if url == "" {
+			return Session{}, fmt.Errorf("SESSION_DRIVER %q requires REDIS_URL", driver)
+		}
+		if err := validateRedisURL(url); err != nil {
+			return Session{}, err
+		}
+	default:
+		return Session{}, fmt.Errorf("SESSION_DRIVER has unsupported value %q; expected memory or kv", driver)
 	}
 	secure, err := envBool("SESSION_SECURE", !base.App.Env.Is(hconfig.EnvDev))
 	if err != nil {

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/arandu-io/framework/foundation/bootstrap"
@@ -32,6 +33,11 @@ func loadLogging(base bootstrap.Configuration) (Logging, error) {
 	format := env("LOG_FORMAT", "json")
 	if base.App.Env.Is(hconfig.EnvDev) {
 		format = env("LOG_FORMAT", "text")
+	}
+	switch format {
+	case "json", "text":
+	default:
+		return Logging{}, fmt.Errorf("LOG_FORMAT has unsupported value %q; expected json or text", format)
 	}
 	sampling, err := envInt("LOG_SAMPLING", 0)
 	if err != nil {

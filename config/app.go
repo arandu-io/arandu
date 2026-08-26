@@ -96,6 +96,10 @@ func From(base bootstrap.Configuration) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	filesystems, err := loadFilesystems()
+	if err != nil {
+		return Config{}, err
+	}
 	logging, err := loadLogging(base)
 	if err != nil {
 		return Config{}, err
@@ -119,7 +123,7 @@ func From(base bootstrap.Configuration) (Config, error) {
 		Auth:        auth,
 		Cache:       cache,
 		Database:    database,
-		Filesystems: loadFilesystems(),
+		Filesystems: filesystems,
 		Logging:     logging,
 		Mail:        mail,
 		Queue:       queue,
