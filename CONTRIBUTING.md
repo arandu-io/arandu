@@ -20,10 +20,17 @@ before their first patch.
 ## Before you open a pull request
 
 ```
+aru view:build
 gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
 go vet ./...
 go test -race ./...
 ```
+
+The first line is not optional in a clone. The controllers import
+`storage/framework/views`, which is compiled from `resources/views` and is
+gitignored, so `go vet` and `go test` both fail before it has run. Go suggests
+`go get` for the missing package; that is the wrong remedy and there is no such
+module.
 
 The first line prints nothing when the tree is formatted. The filter is not
 optional and it is what CI runs: `gofmt -l .` skips nothing, and the views in

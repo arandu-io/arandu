@@ -16,9 +16,16 @@ import (
 
 // stylesheet is the compiled output of resources/css/app.css.
 //
-// It is committed rather than gitignored, for the same reason a Go project
-// commits generated code: `go build` has to work on a fresh clone, before any
-// tool has run. `aru view:build` overwrites it.
+// It is committed rather than gitignored so that this embed resolves without
+// the stylesheet compiler having run: a missing file here is a build error in
+// a package every other one imports, and the compiler is fetched over the
+// network the first time it is needed.
+//
+// That is the whole of what committing it buys, and it is worth saying what it
+// does not buy. A fresh clone still does not build: the controllers import
+// storage/framework/views, which is generated from resources/views and is
+// gitignored. `aru view:build` writes it, and is the first command to run in a
+// clone. `aru view:build` overwrites this file too.
 //
 //go:embed app.css
 var stylesheet []byte
