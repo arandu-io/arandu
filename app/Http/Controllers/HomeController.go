@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/modules/auth"
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/framework/view"
 
+	services "github.com/arandu-io/arandu/app/Services"
 	"github.com/arandu-io/arandu/storage/framework/views"
 )
 
@@ -29,26 +29,24 @@ type HomeController struct {
 	sessions *security.SessionStore
 	csrf     *security.CSRF
 
-	// people and tenant are how the id in a session becomes a name to greet. A
+	// people is how the id in a session becomes a name to greet. A
 	// session carries an id and not a name on purpose: a name kept in one stays
-	// wrong after somebody changes theirs. The tenant is whose rows are read, and
-	// it comes from the configuration and never from the request.
-	people *auth.Service
-	tenant string
+	// wrong after somebody changes theirs. The service authorizes the read and
+	// takes its tenant from the resulting Grant.
+	people *services.UserService
 }
 
 // NewHomeController returns the controller. `bootstrap` builds it and hands it
 // to the routes.
 //
-// The parameter list is the one `go run github.com/arandu-io/ui@latest auth`
-// publishes, and it has to stay that way. That command replaces this file with
-// no flag at all -- the layout and the pages that extend it are one unit -- and
-// a constructor it emits that bootstrap/app.go does not call is a project that
-// stops compiling on a command whose whole promise is that it can be run again.
-func NewHomeController(appName string, sessions *security.SessionStore, csrf *security.CSRF, people *auth.Service, tenant string) *HomeController {
+// The starter kit replaces this file together with the layout and the pages
+// that extend it. Its publisher must keep this constructor aligned with
+// bootstrap/app.go, or regenerating authentication leaves the project unable to
+// compile.
+func NewHomeController(appName string, sessions *security.SessionStore, csrf *security.CSRF, people *services.UserService) *HomeController {
 	return &HomeController{
 		appName: appName, sessions: sessions, csrf: csrf,
-		people: people, tenant: tenant,
+		people: people,
 	}
 }
 
@@ -88,8 +86,8 @@ func (c *HomeController) Index(ctx *http.Context) error {
 	// is not worth a 500, and a guest never reaches the lookup at all.
 	name := subject.ID
 	if signedIn && c.people != nil {
-		if names, err := c.people.Names(ctx.Ctx(), c.tenant, []string{subject.ID}); err == nil && names[subject.ID] != "" {
-			name = names[subject.ID]
+		if displayName, err := c.people.DisplayName(ctx.Ctx(), subject); err == nil && displayName != "" {
+			name = displayName
 		}
 	}
 

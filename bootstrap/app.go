@@ -39,6 +39,7 @@ import (
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	providers "github.com/arandu-io/arandu/app/Providers"
+	services "github.com/arandu-io/arandu/app/Services"
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/routes"
 
@@ -179,12 +180,14 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 		Name:  cfg.Mail.FromName,
 	})
 
-	authService := auth.NewService(auth.NewUserRepo(db), sessions, csrf)
+	userRepository := auth.NewUserRepo(db)
+	authService := auth.NewService(userRepository, sessions, csrf)
+	userService := services.NewUserService(userRepository)
 
 	// The controllers, built here and handed to the routes. A controller that
 	// constructed its own collaborators would be a controller no test can pin.
 	deps := routes.Deps{
-		Home: controllers.NewHomeController(cfg.App.Name, sessions, csrf, authService, cfg.Auth.Tenant),
+		Home: controllers.NewHomeController(cfg.App.Name, sessions, csrf, userService),
 		// What the route guards read. The same store the pipeline and the
 		// controllers were given, and it has to be: two stores over one key
 		// would agree about the signature and disagree about which sessions
