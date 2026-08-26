@@ -11,14 +11,27 @@
 //	}
 //
 //	func (CreateInvoicesTable) Up(ctx context.Context, conn migrations.Connection) error {
-//		_, err := conn.Statement(ctx, `CREATE TABLE invoices (...)`, nil)
-//		return err
+//		return conn.Schema().Create(ctx, "invoices", func(table *schema.Blueprint) {
+//			table.String("id").Primary()
+//			table.String("number").Unique()
+//			table.BigInteger("total")
+//			table.Timestamps()
+//		})
 //	}
 //
 //	func (CreateInvoicesTable) Down(ctx context.Context, conn migrations.Connection) error {
-//		_, err := conn.Statement(ctx, `DROP TABLE invoices`, nil)
-//		return err
+//		return conn.Schema().DropIfExists(ctx, "invoices")
 //	}
+//
+// conn.Schema() is the standard path, and the column types are the Blueprint's
+// to spell -- one per engine, which is what keeps a single schema working on
+// SQLite, PostgreSQL and MySQL without anybody remembering that MySQL refuses
+// TEXT in a key without a prefix length.
+//
+// conn.Statement and conn.Select are the escape, and they are for what no
+// Blueprint reaches: an extension, a CREATE INDEX CONCURRENTLY, a backfill that
+// reads before it writes. They are not a second kind of migration -- Up has one
+// signature.
 //
 //	func init() { migrations.Register(CreateInvoicesTable{}) }
 //

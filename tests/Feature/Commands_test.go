@@ -51,6 +51,51 @@ func TestMigrateAndRollbackOnSQLite(t *testing.T) {
 	}
 }
 
+// TestTheSkeletonExposesTheCompleteMigrationCommandSurface keeps the
+// application's command catalog aligned with the migration component. These
+// are behavior checks rather than a source import check: a command only exists
+// when Dispatch can run it against the database the application wired.
+func TestTheSkeletonExposesTheCompleteMigrationCommandSurface(t *testing.T) {
+	t.Run("install creates the migration repository", func(t *testing.T) {
+		sqliteEnv(t)
+
+		if err := bootstrap.Dispatch("migrate:install", nil); err != nil {
+			t.Fatalf("migrate:install: %v", err)
+		}
+		if !tableExists(t, "arandu_migrations") {
+			t.Error("migrate:install did not create the migration repository")
+		}
+	})
+
+	t.Run("reset rolls every migration back", func(t *testing.T) {
+		sqliteEnv(t)
+
+		if err := bootstrap.Dispatch("migrate", nil); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		if err := bootstrap.Dispatch("migrate:reset", nil); err != nil {
+			t.Fatalf("migrate:reset: %v", err)
+		}
+		if tableExists(t, "users") {
+			t.Error("migrate:reset left an application table behind")
+		}
+	})
+
+	t.Run("refresh rolls back and re-runs every migration", func(t *testing.T) {
+		sqliteEnv(t)
+
+		if err := bootstrap.Dispatch("migrate", nil); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		if err := bootstrap.Dispatch("migrate:refresh", nil); err != nil {
+			t.Fatalf("migrate:refresh: %v", err)
+		}
+		if !tableExists(t, "users") {
+			t.Error("migrate:refresh did not rebuild the application schema")
+		}
+	})
+}
+
 // TestLoginOnSQLite is the phase 1 promise end to end, on a database that needs
 // no installation: migrate, seed the administrator, and sign in.
 func TestLoginOnSQLite(t *testing.T) {
