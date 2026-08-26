@@ -90,7 +90,8 @@ func TestEveryDirectoryThatMustExistIsKept(t *testing.T) {
 	// A source directory that starts empty keeps a .gitkeep. Nothing is produced
 	// in these, so ignoring their contents would ignore the code.
 	for _, d := range []string{
-		"app/Enums", "app/Events", "app/Jobs", "app/Listeners", "app/Mail", "app/Http/Middleware",
+		"app/Enums", "app/Events", "app/Jobs", "app/Listeners", "app/Mail",
+		"app/Http/Middleware", "app/Http/Requests", "app/Services",
 	} {
 		full := filepath.Join(root, d)
 		entries, err := os.ReadDir(full)
@@ -104,6 +105,140 @@ func TestEveryDirectoryThatMustExistIsKept(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(full, ".gitkeep")); err != nil {
 			t.Errorf("%s is empty and has no .gitkeep: it will not be in a clone", d)
 		}
+	}
+}
+
+// TestTheApplicationTreeHasOneOwnerPerResponsibility freezes the part of the
+// skeleton a fresh clone is allowed to teach. Required paths are the places a
+// developer must know; optional paths may appear when their first source file
+// does; refused paths would introduce a second owner or a Node build.
+func TestTheApplicationTreeHasOneOwnerPerResponsibility(t *testing.T) {
+	root := tests.Root(t)
+
+	requiredDirectories := []string{
+		"app",
+		"app/Http/Controllers",
+		"app/Http/Middleware",
+		"app/Http/Requests",
+		"app/Models",
+		"app/Policies",
+		"app/Providers",
+		"app/Services",
+		"assets",
+		"bootstrap",
+		"config",
+		"database/factories",
+		"database/migrations",
+		"database/seeders",
+		"public",
+		"resources/css",
+		"resources/views",
+		"routes",
+		"storage/app/private",
+		"storage/app/public",
+		"storage/framework/cache",
+		"storage/framework/sessions",
+		"tests/Feature",
+		"tests/Unit",
+	}
+	for _, path := range requiredDirectories {
+		info, err := os.Stat(filepath.Join(root, path))
+		switch {
+		case err != nil:
+			t.Errorf("required directory %s is missing: %v", path, err)
+		case !info.IsDir():
+			t.Errorf("required directory %s is not a directory", path)
+		}
+	}
+
+	requiredFiles := []string{
+		"go.mod",
+		"main.go",
+		"arandu.toml",
+		"app/Providers/AppServiceProvider.go",
+		"assets/assets.go",
+		"bootstrap/app.go",
+		"bootstrap/console.go",
+		"config/app.go",
+		"database/migrations/migrations.go",
+		"public/public.go",
+		"routes/console.go",
+		"routes/web.go",
+		"tests/TestCase.go",
+	}
+	for _, path := range requiredFiles {
+		info, err := os.Stat(filepath.Join(root, path))
+		switch {
+		case err != nil:
+			t.Errorf("required file %s is missing: %v", path, err)
+		case info.IsDir():
+			t.Errorf("required file %s is a directory", path)
+		}
+	}
+
+	// Repositories is an escape for specialized queries, and Commands appears
+	// with the first structured command. Either may be absent without changing
+	// the canonical tree; if present, it must still be a directory.
+	for _, path := range []string{"app/Repositories", "app/Console/Commands"} {
+		info, err := os.Stat(filepath.Join(root, path))
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			t.Errorf("reading optional directory %s: %v", path, err)
+			continue
+		}
+		if !info.IsDir() {
+			t.Errorf("optional path %s is not a directory", path)
+		}
+	}
+
+	forbiddenPaths := []string{
+		"app/Actions",
+		"app/Data",
+		"app/Rules",
+		"app/Support",
+		"bootstrap/providers.go",
+		"bootstrap/cache",
+		"routes/api.go",
+		"routes/channels.go",
+		"resources/js",
+		"public/assets/manifest.json",
+		"storage/logs",
+	}
+	for _, path := range forbiddenPaths {
+		if _, err := os.Lstat(filepath.Join(root, path)); err == nil {
+			t.Errorf("refused path %s exists in the application skeleton", path)
+		} else if !os.IsNotExist(err) {
+			t.Errorf("checking refused path %s: %v", path, err)
+		}
+	}
+
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && d.Name() == ".git" {
+			return filepath.SkipDir
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		rel = filepath.ToSlash(rel)
+		switch {
+		case d.Name() == "node_modules":
+			t.Errorf("refused Node directory %s exists in the application skeleton", rel)
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+		case !d.IsDir() && d.Name() == "package.json":
+			t.Errorf("refused Node manifest %s exists in the application skeleton", rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
