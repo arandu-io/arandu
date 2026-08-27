@@ -38,15 +38,26 @@ import (
 // pipeline and every route can be exercised without a server running -- which is
 // what makes this a useful smoke test to keep in a project skeleton.
 //
+// The extra modules are registered before boot, which is the only moment a
+// module can be added. They are for a test that needs a route the application
+// does not have -- one that fails on purpose, to see what the pipeline answers.
+// Registering nothing is the ordinary call and is what most of the suite makes.
+//
 // Exported because both suites use it, which is the whole reason this package
 // exists.
-func Kernel(t *testing.T, env config.Env) *kernel.Kernel {
+func Kernel(t *testing.T, env config.Env, extra ...kernel.Module) *kernel.Kernel {
 	t.Helper()
 
 	cfg := fwbootstrap.Configuration{
 		App: config.App{
-			Name:     "test",
-			Env:      env,
+			Name: "test",
+			Env:  env,
+			// What a real boot answers for this environment: config.Load defaults
+			// Debug to "the environment is development", and it is what decides
+			// whether the debug page may exist. Left at the zero value, a kernel
+			// built here for development would be one no boot produces -- a dev
+			// application answering a panic with the production page.
+			Debug:    env.Is(config.EnvDev),
 			URL:      &url.URL{Scheme: "http", Host: "localhost"},
 			HTTPAddr: ":0",
 			Timezone: time.UTC,
@@ -88,6 +99,7 @@ func Kernel(t *testing.T, env config.Env) *kernel.Kernel {
 		t.Fatalf("Build: %v", err)
 	}
 	k := app.Kernel
+	k.Register(extra...)
 	if err := k.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}

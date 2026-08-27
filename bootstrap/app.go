@@ -23,16 +23,17 @@ import (
 
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/events"
+	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
 	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/framework/jobs"
 	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/framework/mail"
 	"github.com/arandu-io/framework/modules/auth"
-	"github.com/arandu-io/framework/observability/errorpage"
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/framework/view"
 	cache2 "github.com/arandu-io/hesape/cache"
+	"github.com/arandu-io/hesape/exception"
 	"github.com/arandu-io/hesape/queue"
 	hredis "github.com/arandu-io/hesape/redis"
 	"github.com/arandu-io/hesape/redis/connections"
@@ -249,19 +250,30 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 
 	k := kernel.New(fw)
 
+	// The one handler that answers a failed request, built by the bootstrapper
+	// from the configuration the kernel was given: whether the debug page may
+	// exist, which editor a stack frame links to, and which frames are this
+	// application's -- the module path is passed in because a constant could only
+	// be right for the project it was written in.
+	//
+	// Diagnose is what the registered modules know about the state of the system
+	// right now -- the outbox falling behind, and whatever the next module
+	// reports. It shows up next to the failure somebody is already looking at.
+	//
+	// Keeping the value is the point of the bootstrapper returning it. It is
+	// where this application registers its own answers, and every one of them is
+	// read on each request afterwards:
+	//
+	//	exceptions.DontReport(ErrExpiredLink)      never written to the log
+	//	exceptions.Renderable(func(...) { ... })   drawn this application's way
+	//	exceptions.ShouldRenderJSONWhen(...)       answered as a document
+	exceptions := fwbootstrap.HandleExceptions(fw, AppModule, k.Diagnose)
+
 	k.
 		// The pipeline order is the order of execution. Recover comes FIRST, or
 		// a panic in any middleware below it escapes without a page.
 		Use(
-			middleware.Recover(cfg.App.IsDev(), errorpage.Options{
-				Editor:    fw.Observability.Editor,
-				AppModule: AppModule,
-				// What the registered modules know about the state of the
-				// system right now -- the outbox falling behind, and whatever
-				// the next module reports. It shows up next to the failure
-				// somebody is already looking at.
-				Diagnose: k.Diagnose,
-			}),
+			exception.Recover(exceptions),
 			// k.Recorder() is the buffer behind /_arandu/debug. It is nil
 			// outside development, and passing nil records nothing -- which is
 			// what production does.
