@@ -30,20 +30,83 @@ func TestInvalidBooleanConfigurationIsReportedAtBoot(t *testing.T) {
 	}
 }
 
-func TestInvalidIntegerConfigurationIsReportedAtBoot(t *testing.T) {
-	t.Setenv("APP_ENV", "dev")
-	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
-	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
-	t.Setenv("DB_MAX_OPEN_CONNS", "plenty")
-
-	_, err := appconfig.Load()
-	if err == nil {
-		t.Fatal("Load accepted an invalid DB_MAX_OPEN_CONNS value")
+// TestAPoolSettingThatCannotBeUsedIsReportedAtBoot.
+//
+// The three pool variables are parsed by the framework now, and the refusal
+// travelled with them: a value that is present and cannot be used stops the
+// boot naming the variable and quoting what it was given. That is checked from
+// here because this is the application that boots, and a refusal nobody
+// exercises is a refusal that goes quiet without anybody noticing.
+//
+// Zero and a negative are refused with the unparseable one, and that is the half
+// worth having a case for. Zero has two plausible readings -- "give me the
+// default" and "take the bound off" -- and there is no unbounded pool to ask
+// for, so reading it as either would answer one person's question with the
+// other's. Leaving the variable out is how the default is asked for, which the
+// case below its own asserts.
+//
+// The assertions are substrings and not the whole sentence: a check against the
+// full message fails on a rewording that changed nothing and passes over a
+// message that stopped naming the variable, which is the wrong answer both ways
+// round.
+func TestAPoolSettingThatCannotBeUsedIsReportedAtBoot(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		value string
+		want  []string
+	}{
+		{
+			name:  "a value that is not a number",
+			value: "plenty",
+			// "whole number of connections" rather than "integer": it says what
+			// the number counts, which is what an operator reading it needs.
+			want: []string{"DB_MAX_OPEN_CONNS", `"plenty"`, "whole number of connections"},
+		},
+		{
+			name:  "zero, which is not how the default is asked for",
+			value: "0",
+			want:  []string{"DB_MAX_OPEN_CONNS", `"0"`, "greater than zero", "Leave it unset"},
+		},
+		{
+			name:  "a negative pool",
+			value: "-1",
+			want:  []string{"DB_MAX_OPEN_CONNS", `"-1"`, "greater than zero"},
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := loadConfigurationWith(t, map[string]string{"DB_MAX_OPEN_CONNS": c.value})
+			if err == nil {
+				t.Fatalf("Load accepted DB_MAX_OPEN_CONNS=%q", c.value)
+			}
+			for _, want := range c.want {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error = %q, want it to contain %q", err, want)
+				}
+			}
+			// The message must not hand back a number that looks like the answer.
+			// The defaults belong to the package that applies them, and an error
+			// printing one invites it to be read as the value to write down --
+			// which is how a default comes to be pinned in every .env there is.
+			if strings.Contains(err.Error(), "25") {
+				t.Errorf("the message prints the default, which invites pinning it: %q", err)
+			}
+		})
 	}
-	for _, want := range []string{"DB_MAX_OPEN_CONNS", `"plenty"`, "integer"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error = %q, want it to contain %q", err, want)
-		}
+}
+
+// TestThePoolIsLeftToTheAdapterWhenNothingAsks is the other half of the refusal
+// above: absent is zero, and zero is how the adapter is asked for its own
+// answer. Without this, "leave it unset" is advice nothing checks.
+func TestThePoolIsLeftToTheAdapterWhenNothingAsks(t *testing.T) {
+	cfg, err := loadConfigurationWith(t, nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	conn := cfg.Database.Connection
+	if conn.MaxOpenConns != 0 || conn.MaxIdleConns != 0 || conn.ConnMaxLifetime != 0 {
+		t.Errorf("an unset pool arrived as %d/%d/%s, want zeroes: a number written here is one "+
+			"the adapter no longer decides", conn.MaxOpenConns, conn.MaxIdleConns, conn.ConnMaxLifetime)
 	}
 }
 

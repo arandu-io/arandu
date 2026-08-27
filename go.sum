@@ -1,5 +1,7 @@
 github.com/arandu-io/framework v0.38.1 h1:LHZwR6GHmKosM26+OgTkQjqu1iNQjB7dbv3HgM0CB7M=
 github.com/arandu-io/framework v0.38.1/go.mod h1:QDThgPEoFbmBYJgaciuIXdHfdVpmpZwY27zL59Ok2f0=
+github.com/arandu-io/framework v0.39.0 h1:dmYfIKFr9zNyJx/v+Fc/MwsLG0UxwM4svqDOGC6Blok=
+github.com/arandu-io/framework v0.39.0/go.mod h1:wzXOz9zHkcEGNhcndY4d+C689RubABY/rw1Xafwgz9U=
 github.com/arandu-io/hesape v0.16.0 h1:NwrH6KWUuAyZnhgTyYWpP70NCmJO83/Fp5HCY7OQing=
 github.com/arandu-io/hesape v0.16.0/go.mod h1:Ew9p9zbEV1DLvuBQ0lhxHjqxFuKDWbdBBWdWPFUBB2g=
 github.com/arandu-io/hesape/database/connectors/pgx v0.7.0 h1:7FMyHK8YrDQp3dsB+S9xCLOhXHbb5+fYqejXlvXtRlc=

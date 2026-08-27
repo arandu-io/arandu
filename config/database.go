@@ -1,69 +1,38 @@
 package config
 
 import (
-	"time"
-
 	"github.com/arandu-io/framework/foundation/bootstrap"
 	"github.com/arandu-io/hesape/database"
 )
 
 // Database is the connection this application opens, and the pool it keeps.
 //
-// The connection itself is not re-read here. The framework already parsed
-// DATABASE_URL -- one variable, which is the whole of where the database is --
-// validated it and built the DSN, and a second parse in the application would be
-// a second answer to the same question. This struct carries that value and
-// completes it with what only the application decides: how big the pool is and
-// how long a connection lives.
+// Nothing here is read from the environment. The framework parses the whole of
+// it -- DATABASE_URL for where the database is, and the three pool settings for
+// how many connections to hold and how long one lives -- validates it and builds
+// the DSN. This struct is a view of that value under this package's names, the
+// way App is a view of what the framework parsed for the application itself.
 //
-// Those three are fields of the connection rather than of this struct. They were
-// both for a while, and only one of the two copies was ever handed to the
-// adapter -- so DB_MAX_OPEN_CONNS, DB_MAX_IDLE_CONNS and DB_CONN_MAX_LIFETIME
-// were read, validated and dropped, and every pool ran on the defaults. One home
-// for a value is what keeps that from being possible again.
+// It carried its own readers for the three pool settings until the framework
+// grew them, and for a while it was the only reader there was. Two readers of
+// one variable is two answers the day one of them grows a rule the other has
+// not, so when the second appeared the first went rather than both staying.
 type Database struct {
-	// Connection is the engine, its credentials and its pool: what the framework
-	// parsed, completed by loadDatabase. Hand it to the adapter; never build a
-	// DSN by hand.
+	// Connection is the engine, its credentials and its pool, as the framework
+	// parsed them. Hand it to the adapter; never build a DSN by hand.
+	//
+	// The pool fields on it read zero as the adapter's own default, which is
+	// what an unset variable leaves behind. There is no way to ask for an
+	// unbounded pool, and a variable that is present and cannot be used --
+	// unparseable, zero or negative -- refuses the boot naming itself.
 	Connection database.Config
 }
 
-// loadDatabase completes the parsed connection with the pool this application
-// asks for.
+// loadDatabase presents what the framework already parsed.
 //
-// What each of the three does is documented on the fields they are written to,
-// and two of them are worth repeating here because they are what somebody
-// setting the variables expects to be otherwise:
-//
-//   - there is no way to ask for an unbounded pool. Zero on any of the three
-//     means the adapter's own default, never database/sql's meaning for zero,
-//     and the defaults below are that same number written where .env.example can
-//     point at it.
-//   - SQLite gets a single writer whatever DB_MAX_OPEN_CONNS says. It serializes
-//     writes anyway, so a larger pool would turn the wait into "database is
-//     locked" rather than into throughput.
-func loadDatabase(base bootstrap.Configuration) (Database, error) {
-	maxOpenConns, err := envInt("DB_MAX_OPEN_CONNS", 25)
-	if err != nil {
-		return Database{}, err
-	}
-	maxIdleConns, err := envInt("DB_MAX_IDLE_CONNS", 5)
-	if err != nil {
-		return Database{}, err
-	}
-	connMaxLifetime, err := envSeconds("DB_CONN_MAX_LIFETIME", time.Hour)
-	if err != nil {
-		return Database{}, err
-	}
-
-	// Completed, never re-parsed: DATABASE_URL is read once, where everything
-	// else is, and the three fields written here are the ones ParseURL never
-	// touches -- how many connections to hold is not part of where the database
-	// is.
-	connection := base.Database
-	connection.MaxOpenConns = maxOpenConns
-	connection.MaxIdleConns = maxIdleConns
-	connection.ConnMaxLifetime = connMaxLifetime
-
-	return Database{Connection: connection}, nil
+// It returns no error because it reads nothing that could be wrong: every
+// refusal for this domain happens where the parsing does, at
+// bootstrap.LoadConfiguration, before this package is reached.
+func loadDatabase(base bootstrap.Configuration) Database {
+	return Database{Connection: base.Database}
 }
