@@ -17,14 +17,19 @@ import (
 
 // The three pool variables, from .env to the pool database/sql actually keeps.
 //
-// They were read and validated by config/database.go and then dropped: the
-// connection handed to the adapter carried the URL and nothing else, so every
-// project ran on the adapter's defaults and no setting of DB_MAX_OPEN_CONNS
-// changed anything. Nothing failed, which is why it lasted -- a pool that is the
-// wrong size is a pool that works until the traffic that needed the number
+// They were read and validated once and then dropped: the connection handed to
+// the adapter carried the URL and nothing else, so no setting of
+// DB_MAX_OPEN_CONNS changed anything and every pool ran on whatever the adapter
+// decides on its own. Nothing failed, which is why it lasted -- a pool that is
+// the wrong size is a pool that works until the traffic that needed the number
 // arrives.
 //
-// The assertions below are made on the pool rather than on the struct wherever
+// This is where that is checked from, and it stays here whichever package does
+// the reading. Where the variables are parsed has already moved once; what has
+// to keep being true is that a number written in .env is the number the driver
+// ends up with, and no assertion below names the package that parsed it.
+//
+// The assertions are made on the pool rather than on the struct wherever
 // database/sql will answer, because the struct is exactly what was right the
 // whole time.
 
@@ -92,9 +97,11 @@ func TestThePoolSettingsReachTheDriver(t *testing.T) {
 	t.Setenv("ARANDU_TENANT_ID", "11111111-1111-4111-8111-111111111111")
 	t.Setenv("DATABASE_URL", "mysql://arandu:arandu@127.0.0.1:3306/arandu")
 
-	// None of the three is a default -- those are 25, 5 and one hour -- so a
-	// value that never left config/ arrives here as the adapter's own number and
-	// is told apart from a value that travelled.
+	// Three numbers small enough that nothing would choose them for a pool, so a
+	// value that failed to travel arrives as something else and is told apart
+	// from one that did. The defaults they have to differ from are the adapter's
+	// and are not written here: a test that restated them would be one more copy
+	// to update, and the one nobody runs daily is the copy that goes stale.
 	t.Setenv("DB_MAX_OPEN_CONNS", "7")
 	t.Setenv("DB_MAX_IDLE_CONNS", "3")
 	t.Setenv("DB_CONN_MAX_LIFETIME", "1")
@@ -131,9 +138,10 @@ func TestThePoolSettingsReachTheDriver(t *testing.T) {
 	}
 
 	// And the lifetime, which database/sql reports as a count rather than as a
-	// duration: a connection retired for age is one MaxLifetimeClosed. At the
-	// default of one hour this never moves, which is what makes it an assertion
-	// about the second that was configured rather than about the pool existing.
+	// duration: a connection retired for age is one MaxLifetimeClosed. The
+	// default is long enough that this never moves inside a test, which is what
+	// makes it an assertion about the second that was configured rather than
+	// about the pool existing.
 	//
 	// Polled rather than slept through once: the connection opened by Open's own
 	// ping is retired either by the cleaner or by the next request for it, and

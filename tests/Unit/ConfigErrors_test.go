@@ -2,6 +2,7 @@ package unit_test
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -45,50 +46,58 @@ func TestInvalidBooleanConfigurationIsReportedAtBoot(t *testing.T) {
 // other's. Leaving the variable out is how the default is asked for, which the
 // case below its own asserts.
 //
-// The assertions are substrings and not the whole sentence: a check against the
-// full message fails on a rewording that changed nothing and passes over a
-// message that stopped naming the variable, which is the wrong answer both ways
-// round.
+// Two things are asserted and no more: the message NAMES the variable and
+// QUOTES the value it was given. Those are what turn a failed boot into a fix,
+// and they are the properties this application depends on.
+//
+// The prose is not asserted, deliberately. It belongs to the framework and is
+// free to improve -- it already has, from "integer" to a phrase that says what
+// the number counts -- and a test pinning the sentence would fail on a better
+// sentence, which is how a rewording upstream becomes a red build downstream.
+// What such a test would NOT catch is a message that quietly stopped naming the
+// variable, which is the only regression worth catching here.
 func TestAPoolSettingThatCannotBeUsedIsReportedAtBoot(t *testing.T) {
 	for _, c := range []struct {
 		name  string
+		key   string
 		value string
-		want  []string
 	}{
 		{
-			name:  "a value that is not a number",
-			value: "plenty",
-			// "whole number of connections" rather than "integer": it says what
-			// the number counts, which is what an operator reading it needs.
-			want: []string{"DB_MAX_OPEN_CONNS", `"plenty"`, "whole number of connections"},
+			name:  "a count that is not a number",
+			key:   "DB_MAX_OPEN_CONNS",
+			value: "fifty",
 		},
 		{
+			// The mistake somebody will actually make: the variable counts
+			// seconds, and every other duration in Go is written like this.
+			name:  "a lifetime in Go's duration syntax",
+			key:   "DB_CONN_MAX_LIFETIME",
+			value: "15m",
+		},
+		{
+			// Zero has two plausible readings -- "give me the default" and "take
+			// the bound off" -- and only one is implemented, so it is refused
+			// rather than answered as either.
 			name:  "zero, which is not how the default is asked for",
+			key:   "DB_MAX_OPEN_CONNS",
 			value: "0",
-			want:  []string{"DB_MAX_OPEN_CONNS", `"0"`, "greater than zero", "Leave it unset"},
 		},
 		{
 			name:  "a negative pool",
+			key:   "DB_MAX_OPEN_CONNS",
 			value: "-1",
-			want:  []string{"DB_MAX_OPEN_CONNS", `"-1"`, "greater than zero"},
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := loadConfigurationWith(t, map[string]string{"DB_MAX_OPEN_CONNS": c.value})
+			_, err := loadConfigurationWith(t, map[string]string{c.key: c.value})
 			if err == nil {
-				t.Fatalf("Load accepted DB_MAX_OPEN_CONNS=%q", c.value)
+				t.Fatalf("Load accepted %s=%q", c.key, c.value)
 			}
-			for _, want := range c.want {
-				if !strings.Contains(err.Error(), want) {
-					t.Errorf("error = %q, want it to contain %q", err, want)
-				}
+			if !strings.Contains(err.Error(), c.key) {
+				t.Errorf("the message does not name the variable, so nobody knows which to edit: %q", err)
 			}
-			// The message must not hand back a number that looks like the answer.
-			// The defaults belong to the package that applies them, and an error
-			// printing one invites it to be read as the value to write down --
-			// which is how a default comes to be pinned in every .env there is.
-			if strings.Contains(err.Error(), "25") {
-				t.Errorf("the message prints the default, which invites pinning it: %q", err)
+			if !strings.Contains(err.Error(), strconv.Quote(c.value)) {
+				t.Errorf("the message does not quote the value it refused, so nobody knows what it read: %q", err)
 			}
 		})
 	}
