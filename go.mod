@@ -6,9 +6,9 @@ require github.com/arandu-io/framework v0.38.0
 
 require (
 	github.com/arandu-io/hesape v0.15.0
-	github.com/arandu-io/hesape/database/connectors/pgx v0.5.0
-	github.com/arandu-io/hesape/database/connectors/sqlite v0.5.0
-	github.com/arandu-io/hesape/redis v0.5.0
+	github.com/arandu-io/hesape/database/connectors/pgx v0.6.0
+	github.com/arandu-io/hesape/database/connectors/sqlite v0.6.0
+	github.com/arandu-io/hesape/redis v0.6.0
 )
 
 require (
