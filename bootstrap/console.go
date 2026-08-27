@@ -103,7 +103,7 @@ func Dispatch(command string, args []string) error {
 		// They are built here rather than above the switch because building them
 		// wires a migrator, and `aru serve` has no reason to pay for one.
 		// The migration commands and the seed commands, both the component's.
-		migrationCommands := append(migrationCommands(cfg, db, app), seedCommands(cfg, app)...)
+		migrationCommands := append(append(migrationCommands(cfg, db, app), seedCommands(cfg, app)...), databaseCommands(cfg, db)...)
 		for _, c := range migrationCommands {
 			if c.Name != command {
 				continue

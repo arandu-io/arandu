@@ -12,6 +12,7 @@ import (
 	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/console"
 	"github.com/arandu-io/hesape/database"
+	dbconsole "github.com/arandu-io/hesape/database/console"
 	dbmigrations "github.com/arandu-io/hesape/database/console/migrations"
 	"github.com/arandu-io/hesape/database/console/seeds"
 	"github.com/arandu-io/hesape/database/migrations"
@@ -145,6 +146,66 @@ func seedCommands(cfg appconfig.Config, app App) []console.Command {
 		Environment: string(cfg.App.Env),
 		SeederPath:  filepath.Join("database", "seeders"),
 	})
+}
+
+// databaseCommands are the six the component exports for looking at the
+// database rather than changing its shape: db, db:show, db:table, db:monitor,
+// db:wipe and model:prune.
+//
+// Tables is a function rather than a schema builder because the catalogue query
+// is the schema package's business and the console package does not depend on
+// it. Events is nil and Prunables is empty: this application dispatches no
+// DatabaseBusy and has nothing to prune, and both degrade to a command that says
+// so rather than one that is missing.
+func databaseCommands(cfg appconfig.Config, db *data.DB) []console.Command {
+	return dbconsole.Commands(dbconsole.Deps{
+		Connections: newConnectionResolver(db),
+		Wipe:        wipeFor(cfg, db),
+		Tables:      tablesFor(db),
+		Environment: string(cfg.App.Env),
+	})
+}
+
+// tablesFor answers the tables of a connection with their row counts.
+//
+// It reads the catalogue through the schema builder, which is the same door
+// every migration writes DDL through -- so what db:show lists and what a
+// migration created cannot describe different tables.
+func tablesFor(db *data.DB) func(context.Context, string) ([]dbconsole.TableInfo, error) {
+	return func(ctx context.Context, connection string) ([]dbconsole.TableInfo, error) {
+		name := connection
+		if name == "" {
+			name = migrationConnection
+		}
+		conn, err := newConnectionResolver(db).Connection(name)
+		if err != nil {
+			return nil, err
+		}
+		concrete, ok := conn.(*database.Connection)
+		if !ok {
+			return nil, fmt.Errorf("listing the tables needs the concrete connection, and %s resolved to %T", name, conn)
+		}
+
+		tables, err := schema.NewBuilder(database.ForSchema(concrete)).GetTables(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		out := make([]dbconsole.TableInfo, 0, len(tables))
+		for _, table := range tables {
+			out = append(out, dbconsole.TableInfo{
+				Schema: table.Schema,
+				Name:   table.Name,
+				// The catalogue does not carry a row count, and -1 is what the
+				// listing prints as unknown. Counting every table would be a
+				// full scan per table on the command that is supposed to be the
+				// cheap look.
+				Rows: -1,
+				Size: table.Size,
+			})
+		}
+		return out, nil
+	}
 }
 
 // migrationCommands are the eight the component exports, wired to this
