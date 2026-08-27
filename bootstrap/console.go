@@ -167,12 +167,15 @@ func unknownCommand(command string, migrationCommands []console.Command) error {
 	return err
 }
 
-// open connects using whatever the scheme of DATABASE_URL says.
-//
-// The pool policy, the SQLite directory and the message for a driver that is
-// configured but not linked all live in the adapter, so every project gets the
-// same ones rather than a slightly different copy.
 // Open connects, using the configuration this application was given.
+//
+// The scheme of DATABASE_URL is what says which engine. Applying the pool,
+// creating the SQLite directory and explaining a driver that is configured but
+// not linked all live in the adapter, so every project gets the same ones rather
+// than a slightly different copy. The pool it applies is the one the connection
+// carries, which is where DB_MAX_OPEN_CONNS, DB_MAX_IDLE_CONNS and
+// DB_CONN_MAX_LIFETIME were written: the whole configuration goes through, never
+// the URL fields alone.
 //
 // Exported because the feature tests open the same database the commands do:
 // two ways to connect is two places for a DSN to be built differently, and the
