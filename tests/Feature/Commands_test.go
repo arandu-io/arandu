@@ -96,6 +96,93 @@ func TestTheSkeletonExposesTheCompleteMigrationCommandSurface(t *testing.T) {
 	})
 }
 
+// TestTheSkeletonExposesTheCompleteQueueCommandSurface is the same check for the
+// queue, and it exists because that surface was the half nobody ran.
+//
+// The CLI forwards fourteen queue commands to this binary. Thirteen of them
+// reached no case and came back as unknown, and nothing said so: the CLI's list
+// and this binary's switch are in two repositories, and neither could see the
+// other disagree.
+//
+// The names are written out here rather than derived, and that is the honest
+// shape of it: what a person types is a protocol between two repositories, and
+// this one cannot import the other to ask. So this asserts that every name this
+// application promised to answer is answered -- and it does NOT notice a
+// fifteenth command added over there, which is the half it cannot reach.
+//
+// What each command answers is not asserted. Several of them fail on purpose
+// here: there is no failed job with that id, no such batch, and no shared cache
+// to record a pause in. Failing is fine and unknown is not -- the regression
+// worth catching is a command that stopped being dispatched at all.
+func TestTheSkeletonExposesTheCompleteQueueCommandSurface(t *testing.T) {
+	sqliteEnv(t)
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	// The two tables those commands read, which no module declares: the jobs
+	// table arrives with the queue module and these arrive with the provider and
+	// the repository this application wires by hand. Without them the commands
+	// are dispatched and answer that there is no such table, which is a command
+	// that still cannot run.
+	for _, table := range []string{"failed_jobs", "job_batches"} {
+		if !tableExists(t, table) {
+			t.Errorf("migrate did not create %s, so the queue commands that read it cannot run", table)
+		}
+	}
+
+	for _, c := range []struct {
+		name string
+		args []string
+	}{
+		{name: "queue:restart"},
+		{name: "queue:pause", args: []string{"database:default"}},
+		{name: "queue:resume", args: []string{"database:default"}},
+		{name: "queue:clear", args: []string{"--force"}},
+		{name: "queue:monitor", args: []string{"database:default"}},
+		{name: "queue:failed", args: []string{"--tenant=acme"}},
+		{name: "queue:retry", args: []string{"--tenant=acme", "--queue=default"}},
+		{name: "queue:forget", args: []string{"--tenant=acme", "no-such-job"}},
+		{name: "queue:flush", args: []string{"--tenant=acme"}},
+		{name: "queue:prune-failed", args: []string{"--tenant=acme"}},
+		{name: "queue:retry-batch", args: []string{"--tenant=acme", "no-such-batch"}},
+		{name: "queue:prune-batches", args: []string{"--tenant=acme"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			err := bootstrap.Dispatch(c.name, c.args)
+			if err != nil && strings.Contains(err.Error(), "unknown command") {
+				t.Fatalf("%s is forwarded by the CLI and answered by nothing: %v", c.name, err)
+			}
+		})
+	}
+
+	// queue:listen is the fourteenth and is not run here: it starts a child
+	// worker and restarts it whenever it exits, so dispatching it in a test is a
+	// process that does not end. It is registered beside the twelve above.
+
+	t.Run("there is one worker, and queue:work is not a second one", func(t *testing.T) {
+		// `aru queue:work` hands this binary the argument `work`, which the
+		// switch answers with the worker in background.go. The component ships a
+		// queue:work of its own, and registering it here would put a second
+		// worker in this binary -- its own flags, its own idea of which handlers
+		// exist, and two ways to start one.
+		//
+		// So the name is refused, and the refusal has to name the one that
+		// works: somebody who typed it is one word away and should be told which.
+		err := bootstrap.Dispatch("queue:work", nil)
+
+		if err == nil {
+			t.Fatal("queue:work ran, so this binary holds a second worker beside `work`")
+		}
+		if !strings.Contains(err.Error(), "unknown command") {
+			t.Fatalf("queue:work did something other than refuse: %v", err)
+		}
+		if !strings.Contains(err.Error(), "work") {
+			t.Errorf("the refusal does not name the command that drains the queue: %v", err)
+		}
+	})
+}
+
 // TestLoginOnSQLite is the phase 1 promise end to end, on a database that needs
 // no installation: migrate, seed the administrator, and sign in.
 func TestLoginOnSQLite(t *testing.T) {

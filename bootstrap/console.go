@@ -103,12 +103,19 @@ func Dispatch(command string, args []string) error {
 		// They are built here rather than above the switch because building them
 		// wires a migrator, and `aru serve` has no reason to pay for one.
 		// The migration commands and the seed commands, both the component's.
-		migrationCommands := append(append(migrationCommands(cfg, db, app), seedCommands(cfg, app)...), databaseCommands(cfg, db)...)
-		for _, c := range migrationCommands {
+		//
+		// The queue's thirteen join them, so a command that exists is dispatched
+		// and listed from one slice: what `aru` forwards and what this binary
+		// answers were two lists, and thirteen names were in the first and in
+		// neither the switch above nor anything below.
+		queue := newQueueDeps(app, db)
+		componentCommands := append(append(migrationCommands(cfg, db, app), seedCommands(cfg, app)...), databaseCommands(cfg, db)...)
+		componentCommands = append(componentCommands, queue.commands()...)
+		for _, c := range componentCommands {
 			if c.Name != command {
 				continue
 			}
-			return runMigrationCommand(ctx, cfg, c, args, app.Cache)
+			return runComponentCommand(ctx, cfg, c, args, app.Cache)
 		}
 
 		// What routes/console.go declares comes last, so an application cannot
@@ -120,11 +127,17 @@ func Dispatch(command string, args []string) error {
 			defer func() { _ = k.Shutdown() }()
 			return cmd.Run(ctx, args)
 		}
-		return unknownCommand(command, migrationCommands)
+		return unknownCommand(command, componentCommands)
 	}
 }
 
-// runMigrationCommand runs one of the component's commands.
+// runComponentCommand runs one of the component's commands.
+//
+// It is every command this application dispatches but does not implement: the
+// migration, seed and database ones, and the queue's. They take one path
+// because they need the same two things -- the IO and the lock -- and a second
+// runner for the queue would be a second place for either to be built
+// differently.
 //
 // The IO is built here rather than by a console.Application because this
 // application dispatches with a switch: what an Application would add over this
@@ -136,7 +149,7 @@ func Dispatch(command string, args []string) error {
 // even when it is nil: nil is the answer that makes an isolated command say the
 // cache cannot isolate it, and a lock held inside this process would satisfy
 // every type here and isolate nothing.
-func runMigrationCommand(ctx context.Context, cfg appconfig.Config, c console.Command, args []string, store *connections.Connection) error {
+func runComponentCommand(ctx context.Context, cfg appconfig.Config, c console.Command, args []string, store *connections.Connection) error {
 	if err := refuseCommand(cfg, c, store); err != nil {
 		return err
 	}
@@ -149,13 +162,15 @@ func runMigrationCommand(ctx context.Context, cfg appconfig.Config, c console.Co
 // unknownCommand lists what was available instead. An error that only says the
 // command is unknown costs a search; this one ends it.
 //
-// The migration commands are listed from the same slice the dispatch reads, so
-// a command that exists is named and one that does not cannot be: the listing
-// and the lookup cannot disagree, which is how migrate:install, migrate:reset
-// and migrate:refresh went unmentioned for as long as they went unwired.
-func unknownCommand(command string, migrationCommands []console.Command) error {
-	names := make([]string, 0, len(migrationCommands))
-	for _, c := range migrationCommands {
+// The component's commands are listed from the same slice the dispatch reads,
+// so a command that exists is named and one that does not cannot be: the
+// listing and the lookup cannot disagree, which is how migrate:install,
+// migrate:reset and migrate:refresh went unmentioned for as long as they went
+// unwired -- and how the queue's thirteen were unmentioned for as long as they
+// were.
+func unknownCommand(command string, available []console.Command) error {
+	names := make([]string, 0, len(available))
+	for _, c := range available {
 		names = append(names, c.Name)
 	}
 

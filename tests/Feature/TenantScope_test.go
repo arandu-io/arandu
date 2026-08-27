@@ -46,6 +46,17 @@ var scopedByTenant = map[string]string{
 	"users":  "the auth module's, and every read of it goes through a policy",
 	"outbox": "the domain events, sealed with the Grant that produced them",
 	"jobs":   "the queue, whose rows carry the tenant they were enqueued for",
+	// Read before the claim was written, which is what the claim is for. Every
+	// method of the provider that runs a statement takes a Grant and resolves
+	// the tenant from it first, and every statement carries WHERE tenant_id:
+	// the list, the lookup, the two deletes and the count. The commands that
+	// reach them demand --tenant and have no default, so there is no read of
+	// this table that answers without one being named.
+	"failed_jobs": "the dead letter list, and every read of it takes the tenant its command demands",
+	// The same read: every exported method takes a Grant, and the select, the
+	// updates and the deletes all carry tenant_id beside the batch id -- so a
+	// batch id guessed from another tenant matches no row rather than one.
+	"job_batches": "the batch list, and a batch id from another tenant matches nothing",
 }
 
 func TestEveryTableWithATenantColumnIsOneThatFiltersByTenant(t *testing.T) {

@@ -217,8 +217,15 @@ func tablesFor(db *data.DB) func(context.Context, string) ([]dbconsole.TableInfo
 // nothing, so a binary configured with the in-process cache gets no lock issuer
 // and the isolated commands say so rather than reporting themselves isolated.
 func migrationCommands(cfg appconfig.Config, db *data.DB, app App) []console.Command {
+	// The queue's two tables are added to what the modules declared, because
+	// nothing declares them: the jobs table arrives with the queue module,
+	// which asks its driver, and the failed jobs and batches tables belong to a
+	// provider and a repository this application wires by hand. Without them
+	// `aru queue:failed` is dispatched and answers that there is no such table.
+	moduleMigrations := append(app.Kernel.Migrations(), newQueueDeps(app, db).migrations()...)
+
 	return dbmigrations.Commands(dbmigrations.Deps{
-		Migrator:      newMigrator(db, app.Kernel.Migrations()),
+		Migrator:      newMigrator(db, moduleMigrations),
 		Creator:       migrations.NewMigrationCreator(""),
 		MigrationPath: migrationDirectory,
 		// Nil, not the directory: this application registers its own
@@ -273,10 +280,11 @@ func wipeFor(_ appconfig.Config, db *data.DB) func(context.Context, string) erro
 
 // migrationLocks is the lock issuer the isolated commands take their lock from.
 //
-// Every migration command names the "migrate" lock, so one is always wired and
-// the width of the lock is the width of the cache. With a shared store it is
-// every replica; with the in-process one it is this process, which is honest
-// for `aru migrate` on SQLite and useless for a rollout.
+// The migration commands name the "migrate" lock and the queue's two prunes
+// name their own, so one issuer is always wired and the width of the lock is
+// the width of the cache. With a shared store it is every replica; with the
+// in-process one it is this process, which is honest for `aru migrate` on
+// SQLite and useless for a rollout.
 //
 // That is why it is refused outside development in migrationLocksFor: a lock
 // held inside this process is invisible to the replica beside it, so the run
