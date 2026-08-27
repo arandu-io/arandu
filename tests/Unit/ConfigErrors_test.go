@@ -171,6 +171,47 @@ func TestRetiredMailVariableIsReportedAtBoot(t *testing.T) {
 	}
 }
 
+// TestRetiredDatabaseVariablesAreReportedAtBoot.
+//
+// The six variables that used to carry the connection are refused rather than
+// ignored, and the refusal is checked from here because this is the application
+// that boots. Ignoring them is the quiet failure worth a case: an .env spelling
+// the connection out in parts, an application connected somewhere else, and
+// every value in the file individually correct.
+//
+// Each case runs with a working DATABASE_URL already set, which is the half that
+// makes the test worth having. A refusal that only fires when there is no URL to
+// fall back on would let the exact file this exists for boot -- the retired block
+// present, overridden, and never mentioned.
+//
+// Three things are asserted and no more: the message NAMES the variable, QUOTES
+// the value it was given, and points at the variable to use instead. Those are
+// what turn a failed boot into a fix. The prose belongs to the framework and is
+// free to improve, and a test pinning the sentence would fail on a better one.
+func TestRetiredDatabaseVariablesAreReportedAtBoot(t *testing.T) {
+	for _, key := range []string{
+		"DB_CONNECTION", "DB_HOST", "DB_PORT", "DB_USERNAME", "DB_PASSWORD", "DB_DATABASE",
+	} {
+		t.Run(key, func(t *testing.T) {
+			const value = "written-by-hand"
+
+			_, err := loadConfigurationWith(t, map[string]string{key: value})
+			if err == nil {
+				t.Fatalf("Load accepted the retired %s, with a DATABASE_URL to override it", key)
+			}
+			if !strings.Contains(err.Error(), key) {
+				t.Errorf("the message does not name the variable, so nobody knows which to remove: %q", err)
+			}
+			if !strings.Contains(err.Error(), strconv.Quote(value)) {
+				t.Errorf("the message does not quote the value it refused, so nobody knows what it read: %q", err)
+			}
+			if !strings.Contains(err.Error(), "DATABASE_URL") {
+				t.Errorf("the message does not name what to use instead: %q", err)
+			}
+		})
+	}
+}
+
 func TestFromRejectsInvalidFrameworkConfigurationWithoutPanicking(t *testing.T) {
 	_, err := appconfig.From(bootstrap.Configuration{})
 	if err == nil {
@@ -334,6 +375,10 @@ func loadConfigurationWith(t *testing.T, values map[string]string) (appconfig.Co
 		"LOG_FORMAT", "REDIS_URL",
 		"SESSION_SECURE", "SESSION_TTL", "CSRF_TTL",
 		"DB_MAX_OPEN_CONNS", "DB_MAX_IDLE_CONNS", "DB_CONN_MAX_LIFETIME",
+		// The retired block, cleared for the same reason as the rest: one of
+		// these exported in a shell refuses every case below, and the message
+		// would be about a variable no case here sets.
+		"DB_CONNECTION", "DB_HOST", "DB_PORT", "DB_USERNAME", "DB_PASSWORD", "DB_DATABASE",
 		"CACHE_TTL", "QUEUE_WORKERS", "QUEUE_RETRY_AFTER", "QUEUE_MAX_ATTEMPTS",
 		"AUTH_PASSWORD_MIN_LENGTH", "AUTH_PASSWORD_RESET_TTL",
 		"MAIL_URL", "MAIL_MAILER", "MAIL_HOST", "MAIL_PORT", "MAIL_USERNAME",
