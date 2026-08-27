@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"github.com/arandu-io/framework/http"
+	"github.com/arandu-io/framework/modules/auth"
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/framework/view"
 
-	services "github.com/arandu-io/arandu/app/Services"
 	"github.com/arandu-io/arandu/storage/framework/views"
 )
 
@@ -29,11 +29,22 @@ type HomeController struct {
 	sessions *security.SessionStore
 	csrf     *security.CSRF
 
-	// people is how the id in a session becomes a name to greet. A
+	// people and tenant are how the id in a session becomes a name to greet. A
 	// session carries an id and not a name on purpose: a name kept in one stays
-	// wrong after somebody changes theirs. The service authorizes the read and
-	// takes its tenant from the resulting Grant.
-	people *services.UserService
+	// wrong after somebody changes theirs.
+	//
+	// The tenant is whose rows are read. It comes from the configuration,
+	// through bootstrap/app.go, and never from the request.
+	//
+	// These two are the auth module's own service and not a wrapper around it,
+	// and that is what keeps the starter kit publishable: the kit replaces this
+	// file with a version that takes exactly these, so a constructor here that
+	// took anything else would leave bootstrap/app.go calling something that no
+	// longer exists -- with no flag having been passed. ui's
+	// TestTheProjectsInThisTreeCompileTheConstructorTheKitPublishes is what
+	// found that, after it had been true for a while.
+	people *auth.Service
+	tenant string
 }
 
 // NewHomeController returns the controller. `bootstrap` builds it and hands it
@@ -43,10 +54,10 @@ type HomeController struct {
 // that extend it. Its publisher must keep this constructor aligned with
 // bootstrap/app.go, or regenerating authentication leaves the project unable to
 // compile.
-func NewHomeController(appName string, sessions *security.SessionStore, csrf *security.CSRF, people *services.UserService) *HomeController {
+func NewHomeController(appName string, sessions *security.SessionStore, csrf *security.CSRF, people *auth.Service, tenant string) *HomeController {
 	return &HomeController{
 		appName: appName, sessions: sessions, csrf: csrf,
-		people: people,
+		people: people, tenant: tenant,
 	}
 }
 
@@ -86,8 +97,11 @@ func (c *HomeController) Index(ctx *http.Context) error {
 	// is not worth a 500, and a guest never reaches the lookup at all.
 	name := subject.ID
 	if signedIn && c.people != nil {
-		if displayName, err := c.people.DisplayName(ctx.Ctx(), subject); err == nil && displayName != "" {
-			name = displayName
+		// PublicNames authorizes against the reader rather than taking a tenant
+		// string, so the policy sees who is asking.
+		reader := security.Subject{ID: subject.ID, Tenant: c.tenant}
+		if names, err := c.people.PublicNames(ctx.Ctx(), reader, []string{subject.ID}); err == nil && names[subject.ID] != "" {
+			name = names[subject.ID]
 		}
 	}
 
