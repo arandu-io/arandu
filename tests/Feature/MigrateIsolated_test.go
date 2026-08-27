@@ -134,6 +134,15 @@ func TestTheInProcessStoreIsEnoughInDevelopment(t *testing.T) {
 // undoing it over each other is the same failure migrate was locked against.
 // The old --isolated was refused on all four, which named the limitation and
 // called it a design.
+//
+// Three of the five are refused for what they do before they are refused for
+// the lock, and that is the narrower answer -- a person who typed migrate:reset
+// against production wants to be told that, not to be told about the cache. So
+// this test no longer reaches the lock on those three, and it does not need to:
+// the lock refusal exists to stop an unisolated run in production, and a command
+// that does not run in production at all cannot have one. In development the
+// in-process lock is accepted on purpose, which is what makes `aru migrate` work
+// on a fresh clone with no Redis.
 func TestEveryMigrationCommandIsIsolated(t *testing.T) {
 	for _, command := range []string{"migrate", "migrate:rollback", "migrate:reset", "migrate:refresh", "migrate:fresh"} {
 		t.Run(command, func(t *testing.T) {
@@ -145,11 +154,9 @@ func TestEveryMigrationCommandIsIsolated(t *testing.T) {
 			if err == nil {
 				t.Fatalf("%s ran in production with a lock nobody else can see", command)
 			}
-			// migrate:fresh is refused for dropping every table before it is
-			// refused for the lock, and that is the narrower answer.
-			if command == "migrate:fresh" {
+			if emptiesTheSchema[command] {
 				if !strings.Contains(err.Error(), "APP_ENV=dev") {
-					t.Errorf("migrate:fresh was not refused for what it does: %v", err)
+					t.Errorf("%s was not refused for what it does: %v", command, err)
 				}
 				return
 			}
@@ -157,6 +164,75 @@ func TestEveryMigrationCommandIsIsolated(t *testing.T) {
 				t.Errorf("%s is not isolated: %v", command, err)
 			}
 		})
+	}
+}
+
+// emptiesTheSchema is the set bootstrap keeps out of production, restated here
+// because the map over there is unexported and a test that imported it would be
+// asserting that a map equals itself.
+var emptiesTheSchema = map[string]bool{
+	"migrate:fresh":   true,
+	"migrate:reset":   true,
+	"migrate:refresh": true,
+}
+
+// TestTheCommandsThatEmptyTheSchemaDoNotRunInProduction.
+//
+// Rolling a binary back is routine and reversible; rolling a schema back is
+// often neither, and the three below do not roll one back -- they take all of
+// it. Only migrate:fresh was refused, for the reason "it drops every table",
+// which was already true of the other two: migrate:reset runs every Down, and
+// every Down here is a DROP TABLE, and migrate:refresh runs that and then
+// rebuilds an empty schema over it.
+//
+// Each one is asserted twice: refused, and having left nothing behind. A command
+// that refused after taking the first step would satisfy the first half.
+func TestTheCommandsThatEmptyTheSchemaDoNotRunInProduction(t *testing.T) {
+	for command := range emptiesTheSchema {
+		t.Run(command, func(t *testing.T) {
+			sqliteEnv(t)
+			if err := bootstrap.Dispatch("migrate", nil); err != nil {
+				t.Fatalf("migrate: %v", err)
+			}
+			t.Setenv("APP_ENV", "prod")
+
+			err := bootstrap.Dispatch(command, nil)
+			if err == nil {
+				t.Fatalf("%s emptied a production schema", command)
+			}
+			if !strings.Contains(err.Error(), "APP_ENV=dev") {
+				t.Errorf("the refusal does not say where the command does run: %v", err)
+			}
+			// The way out has to be in the refusal. Somebody undoing a bad
+			// release needs the command that undoes one batch, and an error that
+			// only forbids sends them to the source of the CLI to find it.
+			if !strings.Contains(err.Error(), "migrate:rollback") {
+				t.Errorf("the refusal does not name the command that undoes a release: %v", err)
+			}
+			if !tableExists(t, "users") {
+				t.Error("the refusal came after the schema was already gone")
+			}
+		})
+	}
+}
+
+// TestRollbackStillRunsInProduction is the other side of the refusal above, and
+// the reason it is not simply "no schema-down in production".
+//
+// Undoing the batch a bad release applied is a real deployment operation, and a
+// guard that took it away would refuse the safe rollback in order to prevent the
+// unsafe one. It stays, scoped to one batch, and isolated.
+func TestRollbackStillRunsInProduction(t *testing.T) {
+	sqliteEnv(t)
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	t.Setenv("APP_ENV", "prod")
+	useStore(t, startStore(t, lockFree))
+
+	if err := bootstrap.Dispatch("migrate:rollback", nil); err != nil {
+		t.Fatalf("migrate:rollback was refused in production: %v", err)
 	}
 }
 

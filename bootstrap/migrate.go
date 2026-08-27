@@ -300,15 +300,39 @@ func migrationLocks(store *connections.Connection) *cache.Locks {
 
 // devOnly are the commands this application refuses to run outside development.
 //
-// migrate:fresh drops every table. The usual guard for a command like this is a
+// Three commands, and one property: each of them empties the whole schema, and
+// no argument narrows it. The usual guard for a command like this is a
 // confirmation prompt in production, and a framework whose thesis is that the
 // compiler enforces the rules should not rely on somebody reading a prompt at
-// 3am. This one simply does not run there.
+// 3am. These simply do not run there.
 //
-// It is checked before the lock, because it is the narrower answer: a person
-// who typed migrate:fresh against production wants to be told that, not to be
-// told about the cache.
-var devOnly = map[string]bool{"migrate:fresh": true}
+//	migrate:fresh     drops every table and migrates from nothing
+//	migrate:reset     runs every Down, and the Downs here are DROP TABLE
+//	migrate:refresh   resets and then re-runs, so the schema comes back and
+//	                  the rows do not
+//
+// The list held only migrate:fresh, and the reason it gave -- that the command
+// drops every table -- was already true of the other two. That is the shape of
+// the mistake worth naming, because it is what makes rolling a binary back and
+// rolling a schema back look like one operation: a binary rollback is routine
+// and reversible, and every command above is neither, so a guard that stops one
+// door and leaves two open is a guard nobody can reason about at the moment
+// they need to.
+//
+// # What this does not reach
+//
+// migrate:rollback stays available in production, and it has to: undoing the
+// batch a bad release applied is the one schema-down operation a deployment
+// legitimately runs. It is scoped -- one batch, or the --step or --batch a
+// person names -- so it is a decision somebody takes rather than a command that
+// takes everything. `migrate:rollback --step=99` reaches the same end state as
+// migrate:reset, and this list does not stop it. A guard that claimed otherwise
+// would be worse than this one.
+var devOnly = map[string]bool{
+	"migrate:fresh":   true,
+	"migrate:reset":   true,
+	"migrate:refresh": true,
+}
 
 // refuseCommand answers why this command may not run, or nil.
 //
@@ -317,7 +341,12 @@ var devOnly = map[string]bool{"migrate:fresh": true}
 // given, with the lock it was handed.
 func refuseCommand(cfg appconfig.Config, c console.Command, store *connections.Connection) error {
 	if devOnly[c.Name] && !cfg.App.IsDev() {
-		return fmt.Errorf("%s drops every table and only runs with APP_ENV=dev (this is %s)", c.Name, cfg.App.Env)
+		// It names migrate:rollback, because somebody typing one of these
+		// against production is usually undoing a release rather than emptying a
+		// database, and that is the command for it.
+		return fmt.Errorf("%s empties the whole schema and only runs with APP_ENV=dev (this is %s): "+
+			"to undo the migrations a release applied, run migrate:rollback, which takes one batch",
+			c.Name, cfg.App.Env)
 	}
 
 	// Only the isolated commands need a lock, so only they are refused for the
