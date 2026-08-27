@@ -38,6 +38,7 @@ import (
 	"github.com/arandu-io/hesape/redis/connections"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
+	listeners "github.com/arandu-io/arandu/app/Listeners"
 	providers "github.com/arandu-io/arandu/app/Providers"
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/routes"
@@ -101,6 +102,11 @@ type App struct {
 	Auth *auth.Service
 	// Scheduler runs what the modules declared. `aru schedule:list` reads it.
 	Scheduler *scheduler.Module
+	// Relay is what empties the outbox. It is returned as well as registered for
+	// the reason Auth is, sharpened by what it guards: a test that built a relay
+	// of its own would pass over an application that wires none, and an
+	// application that wires none writes rows nothing ever reads.
+	Relay *events.Relay
 	// Queue is the job store `aru work` drains.
 	Queue *queue.DatabaseQueue
 	// Mail is what sends. It is returned as well as used, because a job that
@@ -140,6 +146,22 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 		return App{}, err
 	}
 
+	// The lock two things below take: the relay and the scheduler. One value
+	// wires into both, which is why it is built here rather than beside either
+	// of them -- two lockers over one store would agree about nothing.
+	//
+	// It is nil with the in-process cache, which is the single-replica
+	// deployment, and nil is a claim rather than an omission: what it costs the
+	// relay behind two replicas is a duplicate delivery and never a lost event,
+	// and what it costs the scheduler is every replica running every task.
+	//
+	// The interface is left nil rather than filled with a nil pointer: an
+	// interface holding a typed nil is not nil, and both would call through it.
+	var locker kernel.Locker
+	if cache != nil {
+		locker = kernel.NewLocker(cache2.NewLocks(hredis.NewRedisStore(cache)))
+	}
+
 	// The core ships the in-memory session backend, which is right for one
 	// instance and wrong for two: behind a load balancer, half the requests land
 	// on the replica that never saw the login. Behind more than one pod, swap
@@ -158,6 +180,38 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// beyond a table, github.com/arandu-io/hesape/queue/connectors/redis is the
 	// same contract over RESP -- same Worker, same handlers, one line here.
 	queueStore := queue.NewDatabaseQueue(db)
+
+	// The relay that empties the outbox, and the listener it hands events to.
+	//
+	// events.NewModule() brings the table and publishes nothing, which is a
+	// coherent state -- storing is what cannot be recovered later, publishing can
+	// start the day there is somewhere to publish to. It stops being coherent the
+	// moment something stores: the auth module writes a row for every
+	// registration, every confirmed address and every reset password, and without
+	// this line they accumulate in a table no process reads.
+	//
+	// # It runs in `aru serve`, and in no other command
+	//
+	// That is not decided here. The module's loop is a kernel.Background one, and
+	// Start is called by Kernel.Run and never by Kernel.Boot -- so `aru work`,
+	// `aru routes` and every migration command build this same application and
+	// start no relay.
+	//
+	// It is also the right place rather than the convenient one. `aru work`
+	// scales with the depth of the job queue, so a relay there is one publisher
+	// per worker replica and the count is whatever the queue happened to need. A
+	// relay in a command of its own would be a second deployable to build,
+	// monitor, page on and forget to restart, for one loop that already has a
+	// process to live in. The scheduler is here for that same reason and is the
+	// precedent.
+	//
+	// The Locker is the one built above: one pass reads every unpublished row and
+	// marks what it delivered, so N replicas are N publishers of the same row
+	// unless something stops them. It is nil for the in-process cache, and a
+	// publisher has to tolerate the repeat regardless -- delivery is at-least-once
+	// by design, so a mark that fails after a successful publish sends the event
+	// again.
+	relay := events.NewRelay(events.NewOutbox(db), listeners.NewEventLog(), events.RelayOptions{Locker: locker})
 
 	// A module that calls another service takes observability.Client, not one of
 	// its own:
@@ -226,10 +280,17 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// application swaps this for a resolver that reads the host name --
 			// same code path, same queries, one line different.
 			auth.New(authService, auth.FixedTenant(cfg.Auth.Tenant)),
-			// The outbox table. A module that records domain events stores them
-			// in the same transaction as the write, and this is what brings the
-			// table those rows land in -- see doc 27.
-			events.NewModule(),
+			// The outbox table, and the relay built above that empties it. A
+			// module that records domain events stores them in the same
+			// transaction as the write, and this is what brings the table those
+			// rows land in -- see doc 27.
+			//
+			// WithRelay rather than NewModule, and the difference is visible from
+			// outside the process: the module is what runs the loop, what reports
+			// the backlog on /_arandu/health and what puts a stuck outbox on the
+			// error page. A relay built beside it and not handed to it publishes
+			// nothing and reports itself healthy.
+			events.WithRelay(relay),
 			// The jobs table. Work that happens after the response, drained by
 			// `aru work` -- the same image with another argument, which is what
 			// keeps the deploy at one artifact.
@@ -257,29 +318,19 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// declared. A module never starts its own goroutine; it declares work, and
 	// this is what runs it.
 	//
-	// The Locker is what keeps a Singleton task on one replica. It is nil with
-	// the in-process store, which is the single-replica deployment; with a
-	// shared one it is the connection built above, and without it every replica
-	// runs every task.
+	// The Locker is what keeps a Singleton task on one replica, and it is the
+	// one built above, beside the cache it comes from.
 	//
-	// Tenants is nil too: a PerTenant task needs to know which tenants exist,
-	// and only the application knows where that list lives. Wire it and the
+	// Tenants is nil: a PerTenant task needs to know which tenants exist, and
+	// only the application knows where that list lives. Wire it and the
 	// scheduler expands the task to each of them, with its own Grant.
 	// Recorder for the same reason as the worker: a scheduled task is
 	// investigated on the same page as a request, and costs nothing when
 	// nothing is recording.
-	//
-	// The interface is left nil rather than filled with a nil pointer: an
-	// interface holding a typed nil is not nil, and the scheduler would call
-	// through it.
-	var locker kernel.Locker
-	if cache != nil {
-		locker = kernel.NewLocker(cache2.NewLocks(hredis.NewRedisStore(cache)))
-	}
 	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{Recorder: k.Recorder(), Locker: locker})
 	k.Register(sched)
 
-	return App{Kernel: k, Auth: authService, Scheduler: sched, Queue: queueStore, Mail: mailer, Cache: cache}, nil
+	return App{Kernel: k, Auth: authService, Scheduler: sched, Relay: relay, Queue: queueStore, Mail: mailer, Cache: cache}, nil
 }
 
 // cacheClient opens the key-value connection the configuration asked for, and

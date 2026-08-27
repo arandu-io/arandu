@@ -19,7 +19,14 @@ import (
 // that drove the console directly would prove the console and not the wiring,
 // and the wiring is where a Collector goes missing.
 
-func bootedApp(t *testing.T) (http.Handler, *data.DB) {
+// bootedApp boots the whole application over a migrated database and hands back
+// what the wiring produced.
+//
+// The App and not only its handler, because two of the things this application
+// wires are reachable from no route: the relay that empties the outbox is one,
+// and a test that built one of its own would pass over an application that wires
+// none.
+func bootedApp(t *testing.T) (bootstrap.App, *data.DB) {
 	t.Helper()
 	sqliteEnv(t)
 
@@ -36,13 +43,14 @@ func bootedApp(t *testing.T) (http.Handler, *data.DB) {
 		t.Fatalf("boot: %v", err)
 	}
 	t.Cleanup(func() { _ = k.Shutdown() })
-	return k.Handler(), db
+	return app, db
 }
 
 // TestTheConsoleRecordsARealRequest is the shape of a debugging session: make a
 // request, open the console, find it.
 func TestTheConsoleRecordsARealRequest(t *testing.T) {
-	handler, _ := bootedApp(t)
+	app, _ := bootedApp(t)
+	handler := app.Kernel.Handler()
 
 	first := httptest.NewRecorder()
 	handler.ServeHTTP(first, httptest.NewRequest(http.MethodGet, "/auth/login", nil))
@@ -77,7 +85,8 @@ func TestTheConsoleRecordsARealRequest(t *testing.T) {
 // breaks the console shows a request with no queries -- which reads like the
 // application not touching the database.
 func TestTheConsoleSeesTheQueriesOfTheRequest(t *testing.T) {
-	handler, _ := bootedApp(t)
+	app, _ := bootedApp(t)
+	handler := app.Kernel.Handler()
 
 	// A request that queries: the login form issues none, so this drives one
 	// through a route that does.
