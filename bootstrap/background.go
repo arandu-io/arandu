@@ -14,7 +14,8 @@ import (
 	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/hesape/queue"
-	"github.com/arandu-io/hesape/queue/jobs"
+
+	appconfig "github.com/arandu-io/arandu/config"
 )
 
 // The background commands: what runs outside a request.
@@ -91,12 +92,48 @@ func scheduleRun(ctx context.Context, sched *scheduler.Module, args []string) er
 	return s.RunNow(ctx, id, *tenant)
 }
 
-// work drains a job queue until interrupted.
-func work(ctx context.Context, k *kernel.Kernel, store queue.Queue, args []string) error {
+// WorkerOptions is what `aru work` runs its worker with: the four queue
+// settings, and the flags that override them for one invocation.
+//
+// It is exported for the reason Open is. What has to be checkable is whether a
+// number written in the environment is the number the worker is given, and the
+// worker itself does not return until it is interrupted -- so the only way to
+// ask is to read the settings it was built from.
+//
+// The flags default to what the configuration states rather than to numbers of
+// their own. A flag carrying its own default would be a second answer to a
+// question that already has one, reachable by leaving the flag out -- and the
+// four settings were read, validated and then dropped for exactly as long as
+// this function did not exist.
+//
+// Nothing is defaulted here. An unset variable arrives as a zero, and the queue
+// component reads a zero on any of these as the value it keeps by default, so a
+// number written here would be a second copy of one this package does not own.
+func WorkerOptions(cfg appconfig.Queue, args []string) (queue.WorkerOptions, error) {
 	flags := flag.NewFlagSet("work", flag.ContinueOnError)
-	name := flags.String("queue", jobs.DefaultQueue, "which queue to drain")
-	workers := flags.Int("workers", 4, "how many jobs to run at once")
+	name := flags.String("queue", cfg.Default, "which queue to drain")
+	workers := flags.Int("workers", cfg.Workers, "how many jobs to run at once")
 	if err := flags.Parse(args); err != nil {
+		return queue.WorkerOptions{}, err
+	}
+
+	return queue.WorkerOptions{
+		Queue:       *name,
+		Concurrency: *workers,
+		// The lease and the attempt count have no flag, because neither is a
+		// property of one invocation: a lease shorter than the longest handler
+		// hands running work to a second worker, and that is true of every
+		// worker draining the queue rather than of the one somebody just
+		// started.
+		Lease:    cfg.RetryAfter,
+		MaxTries: cfg.MaxAttempts,
+	}, nil
+}
+
+// work drains a job queue until interrupted.
+func work(ctx context.Context, k *kernel.Kernel, store queue.Queue, cfg appconfig.Queue, args []string) error {
+	opts, err := WorkerOptions(cfg, args)
+	if err != nil {
 		return err
 	}
 
@@ -108,15 +145,17 @@ func work(ctx context.Context, k *kernel.Kernel, store queue.Queue, args []strin
 	}
 	defer func() { _ = k.Shutdown() }()
 
-	w := queue.NewWorker(store, queue.WorkerOptions{
-		Queue:       *name,
-		Concurrency: *workers,
-		// A finished job lands on /_arandu/debug with its queries and its
-		// timeline, exactly like a request -- and only when something is
-		// recording. In production without a tracing secret this is nil, so the
-		// worker builds no Collector at all.
-		Recorder: k.Recorder(),
-	})
+	// A finished job lands on /_arandu/debug with its queries and its timeline,
+	// exactly like a request -- and only when something is recording. In
+	// production without a tracing secret this is nil, so the worker builds no
+	// Collector at all.
+	//
+	// It is set here rather than in WorkerOptions because it is not a setting:
+	// it comes from the assembled application, and what that function answers
+	// has to be answerable from the configuration alone.
+	opts.Recorder = k.Recorder()
+
+	w := queue.NewWorker(store, opts)
 	registerHandlers(w)
 
 	if len(w.Names()) == 0 {
@@ -135,7 +174,7 @@ func work(ctx context.Context, k *kernel.Kernel, store queue.Queue, args []strin
 	// put one. Nothing is lost by it: the status is anything other than zero
 	// only when a memory limit stops the worker, and this one sets none, so the
 	// interrupt above is the only way the loop ends.
-	_, err := w.Daemon(ctx)
+	_, err = w.Daemon(ctx)
 	return err
 }
 
