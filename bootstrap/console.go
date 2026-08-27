@@ -21,7 +21,6 @@ import (
 	"github.com/arandu-io/hesape/redis/connections"
 
 	appconfig "github.com/arandu-io/arandu/config"
-	"github.com/arandu-io/arandu/database/seeders"
 	"github.com/arandu-io/arandu/routes"
 )
 
@@ -75,9 +74,6 @@ func Dispatch(command string, args []string) error {
 		fmt.Print(kernel.FormatRoutes(k.Routes()))
 		return nil
 
-	case "db:seed":
-		return seeders.Run(ctx, seeders.Deps{Auth: app.Auth, Tenant: cfg.Auth.Tenant}, args)
-
 	case "schedule:list":
 		if err := k.Boot(ctx); err != nil {
 			return err
@@ -106,7 +102,8 @@ func Dispatch(command string, args []string) error {
 		//
 		// They are built here rather than above the switch because building them
 		// wires a migrator, and `aru serve` has no reason to pay for one.
-		migrationCommands := migrationCommands(cfg, db, app)
+		// The migration commands and the seed commands, both the component's.
+		migrationCommands := append(migrationCommands(cfg, db, app), seedCommands(cfg, app)...)
 		for _, c := range migrationCommands {
 			if c.Name != command {
 				continue
@@ -162,7 +159,7 @@ func unknownCommand(command string, migrationCommands []console.Command) error {
 		names = append(names, c.Name)
 	}
 
-	err := fmt.Errorf("unknown command: %s (expected serve, routes, db:seed, schedule:list, "+
+	err := fmt.Errorf("unknown command: %s (expected serve, routes, schedule:list, "+
 		"schedule:run, work, Version or one of %s)", command, strings.Join(names, ", "))
 	if help := routes.Help(); help != "" {
 		return fmt.Errorf("%w\n\n%s", err, help)

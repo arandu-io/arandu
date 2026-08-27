@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/arandu-io/framework/data"
@@ -12,6 +13,7 @@ import (
 	"github.com/arandu-io/hesape/console"
 	"github.com/arandu-io/hesape/database"
 	dbmigrations "github.com/arandu-io/hesape/database/console/migrations"
+	"github.com/arandu-io/hesape/database/console/seeds"
 	"github.com/arandu-io/hesape/database/migrations"
 	"github.com/arandu-io/hesape/database/schema"
 	hredis "github.com/arandu-io/hesape/redis"
@@ -126,6 +128,25 @@ func newConnectionResolver(db *data.DB) *database.ConnectionResolver {
 	return resolver
 }
 
+// seedCommands are the two the component exports: db:seed, which runs a seeder,
+// and make:seeder, which prints the shape of a new one.
+//
+// The confirmation in production is the component's, and so is the refusal of
+// --class=. What this application answers is which seeders exist and what one is
+// allowed to touch -- see database/seeders.
+func seedCommands(cfg appconfig.Config, app App) []console.Command {
+	return seeds.Commands(seeds.Deps{
+		Seed: func(ctx context.Context, name string, args []string) (string, error) {
+			if name != "" {
+				args = append([]string{name}, args...)
+			}
+			return seeders.Run(ctx, seeders.Deps{Auth: app.Auth, Tenant: cfg.Auth.Tenant}, args)
+		},
+		Environment: string(cfg.App.Env),
+		SeederPath:  filepath.Join("database", "seeders"),
+	})
+}
+
 // migrationCommands are the eight the component exports, wired to this
 // application's migrator, seeders and schema.
 //
@@ -158,7 +179,8 @@ func seedFor(cfg appconfig.Config, app App) func(context.Context, string) error 
 		if name != "" {
 			args = []string{name}
 		}
-		return seeders.Run(ctx, seeders.Deps{Auth: app.Auth, Tenant: cfg.Auth.Tenant}, args)
+		_, err := seeders.Run(ctx, seeders.Deps{Auth: app.Auth, Tenant: cfg.Auth.Tenant}, args)
+		return err
 	}
 }
 
