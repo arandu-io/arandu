@@ -90,7 +90,13 @@ func TestEveryTableWithATenantColumnIsOneThatFiltersByTenant(t *testing.T) {
 			t.Errorf("%s has a %s and nothing says it is filtered by one.\n"+
 				"        Every read of it -- List, Find, a read model, a report, an export -- has to take "+
 				"data.Tenant(g) before the name goes in scopedByTenant. A tenant column nobody filters on "+
-				"is one tenant reading another's rows.", table.Name, tenantColumn)
+				"is one tenant reading another's rows.\n"+
+				"        Once every read does take it, the line to add is:\n"+
+				"            %q: \"why every read of it is scoped\",\n"+
+				"        A generated module lands here the first time it is generated, and it is meant to: "+
+				"the generator writes the table and the person writes the claim, because the claim is the "+
+				"step where somebody reads the queries.",
+				table.Name, tenantColumn, table.Name)
 
 		case !carries && claimed:
 			t.Errorf("scopedByTenant names %s and the table has no %s.\n"+
