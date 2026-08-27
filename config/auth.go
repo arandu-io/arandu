@@ -16,6 +16,12 @@ const DefaultTenant = "00000000-0000-4000-8000-000000000001"
 // What it deliberately does not hold is a list of guards and providers. There is
 // one way to authenticate -- the auth module, over the users table -- and a
 // second configurable path would be a second way to do one thing.
+//
+// It does not hold the session lifetime either, and that is a removal rather
+// than an omission. SESSION_TTL was read here as well as in Session, into a
+// field nothing ever asked for: the store is built from Session.TTL, so the
+// copy here answered no question and would have answered a different one the
+// day either read grew a rule the other had not. One variable, one reader.
 type Auth struct {
 	// Tenant is the tenant every login belongs to. A multi-tenant deployment
 	// resolves it from the host name instead; see auth.TenantResolver.
@@ -26,10 +32,6 @@ type Auth struct {
 
 	// PasswordResetTTL is how long a reset link stays valid.
 	PasswordResetTTL time.Duration
-
-	// SessionTTL is how long a signed-in session lasts. It is SESSION_TTL, the
-	// same value the session store is built with.
-	SessionTTL time.Duration
 }
 
 // Tenant is the tenant this deployment logs into.
@@ -48,14 +50,9 @@ func loadAuth() (Auth, error) {
 	if err != nil {
 		return Auth{}, err
 	}
-	sessionTTL, err := envSeconds("SESSION_TTL", 12*time.Hour)
-	if err != nil {
-		return Auth{}, err
-	}
 	return Auth{
 		Tenant:            Tenant(),
 		PasswordMinLength: passwordMinLength,
 		PasswordResetTTL:  passwordResetTTL,
-		SessionTTL:        sessionTTL,
 	}, nil
 }
