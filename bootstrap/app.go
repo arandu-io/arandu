@@ -19,11 +19,11 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/events"
 	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
+	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/framework/jobs"
 	"github.com/arandu-io/framework/kernel"
@@ -37,6 +37,7 @@ import (
 	"github.com/arandu-io/hesape/queue"
 	hredis "github.com/arandu-io/hesape/redis"
 	"github.com/arandu-io/hesape/redis/connections"
+	hmiddleware "github.com/arandu-io/hesape/routing/middleware"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	listeners "github.com/arandu-io/arandu/app/Listeners"
@@ -158,7 +159,19 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	}
 	sessions := security.NewSessionStore(fw.App.Key, cfg.Session.TTL, cfg.Session.Secure, backend)
 
-	limiter := middleware.NewMemoryLimiter()
+	// The rate limit counts in a store rather than in this process, which is the
+	// difference between one budget and one budget per replica -- on the
+	// endpoints a limit is put there for.
+	//
+	// It counts in the store CACHE_STORE named, and the in-process one is the
+	// honest answer for a single instance: what it must not be is a shared store
+	// that everybody assumed was there. Which store it is says which, and the
+	// health check says whether it answers.
+	limitStore, err := stores.Default()
+	if err != nil {
+		return App{}, err
+	}
+	limiter := cache2.NewRateLimiter(limitStore.GetStore())
 
 	// The queue over the application's own database, which is what makes a job
 	// commitable by the same transaction as the row it is about. For volume
@@ -263,7 +276,17 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// what production does.
 			middleware.Observe(cfg.App.IsDev(), fw.Observability.TracingSecret, k.Recorder()),
 			middleware.SecurityHeaders(cfg.App.IsDev()),
-			middleware.RateLimit(limiter, 300, time.Minute, middleware.KeyBySession(sessions.IDFromRequest)),
+			// The budget and the window are one value, which is what a named
+			// limiter resolves to. The refusal is passed rather than assumed:
+			// how a 4xx is written belongs to the request layer, and this one
+			// adds HX-Refresh, without which somebody over the limit presses the
+			// button and the screen does not change.
+			//
+			// The key is unchanged, and it has to be: a counter in a shared
+			// store is keyed by the string KeyBySession returns, so a different
+			// one would hand every caller a fresh budget on deploy.
+			hmiddleware.Throttle(limiter, cache2.PerMinute(300),
+				middleware.KeyBySession(sessions.IDFromRequest), fhttp.Refuse),
 			middleware.CSRFProtect(csrf, sessions.IDFromRequest),
 		).
 		Register(
