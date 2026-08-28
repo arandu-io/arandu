@@ -173,32 +173,45 @@ func signIn(t *testing.T, handler http.Handler, email, password string) []*http.
 	return cookies
 }
 
-// landingPage asks one instance for the front page, as the holder of these
-// cookies.
-func landingPage(t *testing.T, handler http.Handler, cookies []*http.Cookie) string {
+// signInPage asks one instance for the sign-in page, as the holder of these
+// cookies, and answers the status code.
+//
+// The sign-in page is what this proof reads rather than the front page, and the
+// reason is which half of the application owns each answer. The front page is
+// the application's: it draws a sign-in link or a sign-out button because the
+// layout this project happens to ship draws them, and a project that keeps a
+// different layout -- or none -- answers the same bytes to both. The sign-in
+// page is the guard's: the auth module redirects whoever already has a session
+// away from it, so 200 and 303 mean "no session was read" and "a session was
+// read" in any application that registers the module, whatever its views say.
+//
+// A test that reads the layout proves the layout. This one has to prove the
+// session, and it is copied into every project generated from this skeleton --
+// where the layout is the first thing somebody replaces.
+func signInPage(t *testing.T, handler http.Handler, cookies []*http.Cookie) int {
 	t.Helper()
 
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r := httptest.NewRequest(http.MethodGet, "/auth/login", nil)
 	for _, c := range cookies {
 		r.AddCookie(c)
 	}
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, r)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET / = %d, want 200. Body:\n%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK && (rec.Code < 300 || rec.Code > 399) {
+		t.Fatalf("GET /auth/login = %d, want 200 for a guest or a redirect for somebody signed in. Body:\n%s",
+			rec.Code, rec.Body.String())
 	}
-	return rec.Body.String()
+	return rec.Code
 }
 
 // TestASessionWrittenByOneInstanceIsReadByTheOther.
 //
 // The proof the whole wiring exists for, and the only one that could not pass
 // while the defect was there: two applications, one store, a sign-in on the
-// first and the front page drawn for that person by the second. With the
-// session backend built in the process, the second instance draws the guest
-// navigation, which is exactly what half the requests behind a load balancer
-// used to get.
+// first, and the second one recognising that person. With the session backend
+// built in the process, the second instance sees a stranger -- which is exactly
+// what half the requests behind a load balancer used to get.
 func TestASessionWrittenByOneInstanceIsReadByTheOther(t *testing.T) {
 	address := respServer(t)
 	sharedSessionEnv(t, address)
@@ -224,20 +237,17 @@ func TestASessionWrittenByOneInstanceIsReadByTheOther(t *testing.T) {
 	}
 
 	// The assertion can tell the two states apart. Without this the test would
-	// pass just as well against a page that always drew the signed-in half.
-	if guest := landingPage(t, second.Kernel.Handler(), nil); !strings.Contains(guest, "Sign in") {
-		t.Fatalf("the anonymous front page does not draw the guest navigation, so nothing below distinguishes anything:\n%s", guest)
+	// pass just as well against a guard that redirected everybody, or nobody.
+	if guest := signInPage(t, second.Kernel.Handler(), nil); guest != http.StatusOK {
+		t.Fatalf("the second instance answered %d to a guest asking for the sign-in page, want 200: "+
+			"nothing below distinguishes anything", guest)
 	}
 
 	cookies := signIn(t, first.Kernel.Handler(), email, password)
-	page := landingPage(t, second.Kernel.Handler(), cookies)
 
-	if !strings.Contains(page, "Sign out") {
-		t.Fatalf("the second instance drew the guest navigation for a person the first one signed in: " +
+	if held := signInPage(t, second.Kernel.Handler(), cookies); held == http.StatusOK {
+		t.Fatalf("the second instance offered the sign-in page to a person the first one signed in: " +
 			"the session did not reach a store both of them read")
-	}
-	if !strings.Contains(page, "Ana") {
-		t.Errorf("the second instance read a session and not the subject in it:\n%s", page)
 	}
 }
 
