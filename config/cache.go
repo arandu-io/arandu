@@ -42,8 +42,18 @@ const defaultCachePort = "6379"
 type Cache struct {
 	Store CacheStore
 
-	// Address is host:port, parsed out of the URL. It is empty for CacheMemory,
-	// which dials nothing.
+	// Address is host:port, parsed out of the URL. It is empty when REDIS_URL
+	// names no endpoint, and only then.
+	//
+	// It is parsed whether or not Store is the RESP one, because the cache is
+	// not the only thing that names that store: a deployment whose sessions are
+	// shared and whose cache stays in the process is a coherent one, and a
+	// store that existed only while the cache happened to default to it could
+	// not be named by anything else.
+	//
+	// One reader, here. Every feature that needs the endpoint reads this field
+	// rather than REDIS_URL, because two parsers of one variable are two
+	// answers the day one of them grows a default the other has not.
 	Address string
 
 	// Password authenticates the connection, and it is the password half of the
@@ -132,7 +142,11 @@ func loadCache(base bootstrap.Configuration) (Cache, error) {
 		TLSKeyFile:    env("REDIS_KEY_FILE", ""),
 		TLSServerName: env("REDIS_TLS_SERVER_NAME", ""),
 	}
-	if store == CacheRedis {
+	// Parsed whenever it is set, and not only when the cache uses it. A URL that
+	// is set and cannot be read is a configuration error wherever it was meant
+	// to be used, and the store it defines is named by more than the cache --
+	// see Address.
+	if raw != "" {
 		endpoint, err := parseCacheURL(raw)
 		if err != nil {
 			return Cache{}, err

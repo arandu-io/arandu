@@ -139,19 +139,26 @@ func TestTheCertificatesAreFilePathsTheConfigurationCarries(t *testing.T) {
 	}
 }
 
-// TestTheInProcessStoreDialsNothing.
+// TestTheRESPStoreIsDefinedWhoeverNamesIt.
 //
-// REDIS_URL is read by the session configuration too, so it is set in
-// deployments whose cache is the in-process one. Parsing it into an endpoint
-// anyway would be an address nothing asked for.
-func TestTheInProcessStoreDialsNothing(t *testing.T) {
+// The endpoint is parsed whether or not the cache defaults to it, because the
+// cache is not the only thing that names that store: SESSION_DRIVER=kv beside
+// CACHE_STORE=memory is a deployment that shares its sessions and caches inside
+// each process, and a store that existed only while the cache happened to
+// default to it could not be named by anything else.
+//
+// Defining a store is not dialling one. Nothing here opens a connection, and
+// what does open one is the wiring, when something resolves the store -- see
+// TestTheInProcessStoreOpensNoConnection in tests/Feature/Cache_test.go, where
+// this same pair of settings produces no connection at all.
+func TestTheRESPStoreIsDefinedWhoeverNamesIt(t *testing.T) {
 	cfg := loadCacheConfig(t, "memory", "redis://cache.example.test:6380")
 
 	if cfg.Store != appconfig.CacheMemory {
 		t.Fatalf("Store = %q, want memory", cfg.Store)
 	}
-	if cfg.Address != "" {
-		t.Errorf("Address = %q, and the in-process store dials nothing", cfg.Address)
+	if cfg.Address != "cache.example.test:6380" {
+		t.Errorf("Address = %q, and a session that names this store would have nothing to dial", cfg.Address)
 	}
 }
 

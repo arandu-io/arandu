@@ -151,16 +151,12 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 		return App{}, err
 	}
 
-	// The core ships the in-memory session backend, which is right for one
-	// instance and wrong for two: behind a load balancer, half the requests land
-	// on the replica that never saw the login. Behind more than one pod, swap
-	// the backend for one over the shared store:
-	//
-	//	security.NewSessionBackend(hredis.NewCacheBasedSessionHandler[security.Subject](cache))
-	//
-	// SESSION_DRIVER is what says which one is expected; the same applies to the
-	// limiter below.
-	sessions := security.NewSessionStore(fw.App.Key, cfg.Session.TTL, cfg.Session.Secure, security.NewMemoryBackend())
+	// The session, over the store SESSION_DRIVER named.
+	backend, err := sessionBackend(cfg.Session, stores)
+	if err != nil {
+		return App{}, err
+	}
+	sessions := security.NewSessionStore(fw.App.Key, cfg.Session.TTL, cfg.Session.Secure, backend)
 
 	limiter := middleware.NewMemoryLimiter()
 
@@ -501,6 +497,49 @@ func (c *cacheStores) connect() (*connections.Connection, error) {
 		TLS:      encryption,
 	})
 	return c.conn, nil
+}
+
+// sessionBackend builds the session backend SESSION_DRIVER named.
+//
+// The driver names a store, and not the cache's default one. SESSION_DRIVER=kv
+// with the in-process cache is a deployment that keeps its sessions where every
+// replica can read them and caches inside each process, and refusing it would
+// be refusing a combination that is right for anybody whose cache is cheap to
+// lose and whose sign-ins are not.
+//
+// A driver that names a store no other replica can see is refused here, at the
+// boot, naming what was asked for. The alternative is the failure this wiring
+// exists to end: a process that starts, reports itself healthy, and signs half
+// its visitors out on every request because the replica beside it never saw the
+// login.
+//
+// The handler is built over the connection and not over the store's repository,
+// which is what keeps the session from changing the prefix or the connection
+// the cache is using: there is nothing shared between them to change. The keys
+// it writes are its own -- session and session-index -- so the two occupy one
+// server without meeting.
+func sessionBackend(cfg appconfig.Session, stores *cacheStores) (security.SessionBackend, error) {
+	switch cfg.Driver {
+	case appconfig.SessionMemory:
+		// Right for one instance and wrong for two, and it is what
+		// SESSION_DRIVER=memory asks for.
+		return security.NewMemoryBackend(), nil
+
+	case appconfig.SessionKV:
+		conn, err := stores.Shared(respStore)
+		if err != nil {
+			return nil, fmt.Errorf("SESSION_DRIVER %q names the cache store %q: %w", cfg.Driver, respStore, err)
+		}
+		return security.NewSessionBackend(hredis.NewCacheBasedSessionHandler[security.Subject](conn)), nil
+
+	default:
+		// Unreachable through Load, which refuses the value first. It is here
+		// because a configuration built in Go skips that check, and a driver
+		// nobody recognises must not fall through to the in-process store: the
+		// sessions would be kept where nothing asked for them.
+		return nil, fmt.Errorf("SESSION_DRIVER has unsupported value %q; expected %s or %s",
+			cfg.Driver, appconfig.SessionMemory, appconfig.SessionKV)
+	}
 }
 
 // cacheLocker builds the lock the relay and the scheduler take, over the store

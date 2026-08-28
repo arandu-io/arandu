@@ -108,7 +108,8 @@ func From(base bootstrap.Configuration) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	session, err := loadSession(base)
+	// After the cache, because the session names one of its stores.
+	session, err := loadSession(base, cache)
 	if err != nil {
 		return Config{}, err
 	}

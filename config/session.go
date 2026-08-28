@@ -9,7 +9,12 @@ import (
 	hconfig "github.com/arandu-io/hesape/config"
 )
 
-// SessionDriver is where session state is kept.
+// SessionDriver is the cache store session state is kept in.
+//
+// It names a store rather than inheriting the cache's, so a deployment can
+// share its sessions while caching inside each process. The two settings are
+// independent on purpose: what the cache loses to a restart is work, and what
+// the sessions lose is everybody who was signed in.
 type SessionDriver string
 
 // The supported drivers. Same contract, same code path: swapping them is one
@@ -19,7 +24,9 @@ const (
 	// wrong for two: behind a load balancer, half the requests land on the
 	// replica that never saw the login.
 	SessionMemory SessionDriver = "memory"
-	// SessionKV keeps them over RESP, shared by every replica.
+	// SessionKV keeps them over RESP, shared by every replica. It is the store
+	// CACHE_STORE spells redis; these two words name one store, and the
+	// bootstrap is where that is written down once.
 	SessionKV SessionDriver = "kv"
 )
 
@@ -27,9 +34,6 @@ const (
 // that carries its id is scoped.
 type Session struct {
 	Driver SessionDriver
-
-	// URL is the RESP endpoint, used only by SessionKV.
-	URL string
 
 	// TTL is how long a session survives without activity.
 	TTL time.Duration
@@ -57,17 +61,20 @@ type Session struct {
 	SameSite http.SameSite
 }
 
-func loadSession(base bootstrap.Configuration) (Session, error) {
+// loadSession reads the session settings, against the cache stores that are
+// already defined.
+//
+// It takes the cache rather than reading REDIS_URL a second time. The endpoint
+// has one reader -- loadCache -- and a driver that names a store the cache
+// configuration did not define is refused here, at the boot, rather than at the
+// first request that finds no session where one was written.
+func loadSession(base bootstrap.Configuration, cache Cache) (Session, error) {
 	driver := SessionDriver(env("SESSION_DRIVER", string(SessionMemory)))
-	url := env("REDIS_URL", "")
 	switch driver {
 	case SessionMemory:
 	case SessionKV:
-		if url == "" {
+		if cache.Address == "" {
 			return Session{}, fmt.Errorf("SESSION_DRIVER %q requires REDIS_URL", driver)
-		}
-		if err := validateRedisURL(url); err != nil {
-			return Session{}, err
 		}
 	default:
 		return Session{}, fmt.Errorf("SESSION_DRIVER has unsupported value %q; expected memory or kv", driver)
@@ -86,7 +93,6 @@ func loadSession(base bootstrap.Configuration) (Session, error) {
 	}
 	return Session{
 		Driver: driver,
-		URL:    url,
 		// The two lifetimes are read here, and here only. The session store and
 		// the CSRF issuer are built in bootstrap/app.go, from this struct, and
 		// they take a duration rather than reading one -- so whoever assembles
