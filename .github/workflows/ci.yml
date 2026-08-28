@@ -11,6 +11,25 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+
+    # The session and the rate limit are proved by running two instances over one
+    # store and showing they agree. That proof needs a real RESP server: a fake
+    # inside the process would demonstrate the opposite of what is being claimed.
+    #
+    # Without this block the tests that carry the proof call t.Skip, because
+    # ubuntu-latest ships no redis-server -- and a proof that skips is worse than
+    # one that fails, since the run stays green while proving nothing.
+    services:
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v7
 
@@ -75,8 +94,14 @@ jobs:
 
       # These tests need no database: database/sql connects lazily, so the wiring,
       # the pipeline and every route are exercised without a server.
+      #
+      # They do need the RESP server declared above, and only for the two tests
+      # that prove a session and a rate limit are shared across instances. Those
+      # skip without it rather than fail, so REDIS_ADDRESS is what makes them run.
       - name: test
         run: go test -race ./...
+        env:
+          REDIS_ADDRESS: 127.0.0.1:6379
 
       - name: build
         run: go build -o /tmp/app .
