@@ -10,15 +10,16 @@ package seeders
 import (
 	"context"
 
-	"github.com/arandu-io/framework/modules/auth"
 	"github.com/arandu-io/hesape/database"
+
+	"github.com/arandu-io/arandu/app/Services"
 )
 
 // Deps carries what seeders are allowed to touch. It is explicit for the same
 // reason the rest of the wiring is: a seeder that can reach anything is a seeder
 // nobody can review.
 type Deps struct {
-	Auth *auth.Service
+	Users *services.UserService
 	// Tenant is the tenant seeded rows belong to. It comes from the application,
 	// never from the seeder: a seeder that picks its own tenant seeds data nobody
 	// can reach.

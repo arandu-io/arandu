@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arandu-io/framework/modules/auth"
-
 	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
 )
@@ -227,12 +225,7 @@ func TestASessionWrittenByOneInstanceIsReadByTheOther(t *testing.T) {
 		email    = "ana@example.test"
 		password = "a-long-enough-password"
 	)
-	if _, err := first.Auth.Register(context.Background(), bootstrap.Tenant(), auth.RegisterRequest{
-		Name:                 "Ana",
-		Email:                email,
-		Password:             password,
-		PasswordConfirmation: password,
-	}); err != nil {
+	if _, err := first.Users.Register(context.Background(), bootstrap.Tenant(), "Ana", email, password); err != nil {
 		t.Fatalf("registering: %v", err)
 	}
 

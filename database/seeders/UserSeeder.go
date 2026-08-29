@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/arandu-io/framework/modules/auth"
+	"github.com/arandu-io/arandu/app/Services"
 )
 
 // UserSeeder creates or repairs one account, named on the command line.
@@ -44,8 +44,8 @@ func (UserSeeder) Name() string { return "UserSeeder" }
 
 // Run creates the account, or replaces its password when -upd is given.
 func (UserSeeder) Run(ctx context.Context, d Deps) error {
-	if d.Auth == nil {
-		return errors.New("the auth service is not wired")
+	if d.Users == nil {
+		return errors.New("the user service is not wired")
 	}
 	if d.Tenant == "" {
 		return errors.New("the tenant is not wired: seeding into an empty tenant would create a user nobody can log in as")
@@ -89,14 +89,14 @@ Add -r admin to give the account the administrator role.`)
 
 	// Asked before anything is written, so "created" and "already there" are two
 	// answers rather than one guess about a timestamp.
-	existing, err := d.Auth.Lookup(ctx, d.Tenant, email)
+	existing, err := d.Users.Lookup(ctx, d.Tenant, email)
 	switch {
-	case errors.Is(err, auth.ErrUserNotFound):
+	case errors.Is(err, services.ErrUserNotFound):
 		// Created verified. Nobody is going to click a link in the inbox of an
 		// account made from a terminal to unlock a deployment, and an
 		// administrator who cannot moderate because of it is a first run that
 		// ends at the sign-in screen.
-		user, err := d.Auth.EnsureUser(ctx, d.Tenant, name, email, password, roles, true)
+		user, err := d.Users.EnsureUser(ctx, d.Tenant, name, email, password, roles, true)
 		if err != nil {
 			return err
 		}
@@ -115,7 +115,7 @@ Add -r admin to give the account the administrator role.`)
 		return nil
 	}
 
-	updated, err := d.Auth.SetPassword(ctx, d.Tenant, email, password)
+	updated, err := d.Users.SetPassword(ctx, d.Tenant, email, password)
 	if err != nil {
 		return fmt.Errorf("replacing the password: %w", err)
 	}

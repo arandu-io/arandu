@@ -12,10 +12,11 @@ import (
 
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/events"
-	"github.com/arandu-io/framework/modules/auth"
 	"github.com/arandu-io/framework/observability"
 	"github.com/arandu-io/framework/security"
 
+	appevents "github.com/arandu-io/arandu/app/Events"
+	"github.com/arandu-io/arandu/app/Policies"
 	"github.com/arandu-io/arandu/bootstrap"
 )
 
@@ -43,14 +44,9 @@ func TestTheApplicationWiresARelayAndItPublishesWhatAuthStored(t *testing.T) {
 	ctx := context.Background()
 
 	// A registration through the service the application wired, not a row this
-	// test wrote: auth.Service.Register stores the event inside the same
+	// test wrote: UserService.Register stores the event inside the same
 	// transaction as the user, which is the write the outbox exists for.
-	if _, err := app.Auth.Register(ctx, bootstrap.Tenant(), auth.RegisterRequest{
-		Name:                 "Ana",
-		Email:                "ana@example.test",
-		Password:             "a-long-enough-password",
-		PasswordConfirmation: "a-long-enough-password",
-	}); err != nil {
+	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), "Ana", "ana@example.test", "a-long-enough-password"); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 
@@ -79,8 +75,8 @@ func TestTheApplicationWiresARelayAndItPublishesWhatAuthStored(t *testing.T) {
 	}
 	e := published[0]
 
-	if e["event"] != auth.EventUserRegistered {
-		t.Errorf("the listener was handed %q, want %s", e["event"], auth.EventUserRegistered)
+	if e["event"] != appevents.UserRegistered {
+		t.Errorf("the listener was handed %q, want %s", e["event"], appevents.UserRegistered)
 	}
 	if e["id"] == "" {
 		t.Error("the event arrived with no id, which is what a consumer deduplicates on")
@@ -92,8 +88,8 @@ func TestTheApplicationWiresARelayAndItPublishesWhatAuthStored(t *testing.T) {
 	if e["tenant"] != bootstrap.Tenant() {
 		t.Errorf("the event arrived under tenant %q, want %q", e["tenant"], bootstrap.Tenant())
 	}
-	if e["action"] != string(auth.ActionUserCreate) {
-		t.Errorf("the event arrived with action %q, want %s", e["action"], auth.ActionUserCreate)
+	if e["action"] != string(policies.ActionUserCreate) {
+		t.Errorf("the event arrived with action %q, want %s", e["action"], policies.ActionUserCreate)
 	}
 	// Registering is authorized for a declared guest, which has no id. An event
 	// arriving with a subject here would mean the row carried somebody else's.

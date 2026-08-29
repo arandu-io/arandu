@@ -43,9 +43,11 @@ const tenantColumn = "tenant_id"
 // a name here is a statement that somebody looked at the queries, so it is meant
 // to be the step that makes a person look.
 var scopedByTenant = map[string]string{
-	"users":  "the auth module's, and every read of it goes through a policy",
-	"outbox": "the domain events, sealed with the Grant that produced them",
-	"jobs":   "the queue, whose rows carry the tenant they were enqueued for",
+	"users":               "the application UserService authorizes first and scopes every model query with its Grant",
+	"user_two_factor":     "the specialized application repository takes a Grant and pairs user_id with its tenant in every statement",
+	"user_recovery_codes": "the specialized application repository scopes every recovery-code read and conditional spend by tenant and user",
+	"outbox":              "the domain events, sealed with the Grant that produced them",
+	"jobs":                "the queue, whose rows carry the tenant they were enqueued for",
 	// Read before the claim was written, which is what the claim is for. Every
 	// method of the provider that runs a statement takes a Grant and resolves
 	// the tenant from it first, and every statement carries WHERE tenant_id:

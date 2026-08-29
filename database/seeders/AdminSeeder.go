@@ -29,8 +29,8 @@ func (AdminSeeder) Run(ctx context.Context, d Deps) error {
 	if email == "" || password == "" {
 		return errors.New("set ARANDU_ADMIN_EMAIL and ARANDU_ADMIN_PASSWORD before seeding the administrator")
 	}
-	if d.Auth == nil {
-		return errors.New("the auth service is not wired")
+	if d.Users == nil {
+		return errors.New("the user service is not wired")
 	}
 
 	tenant := d.Tenant
@@ -38,7 +38,7 @@ func (AdminSeeder) Run(ctx context.Context, d Deps) error {
 		return errors.New("the tenant is not wired: seeding into an empty tenant would create a user nobody can log in as")
 	}
 
-	user, err := d.Auth.EnsureAdmin(ctx, tenant, email, password)
+	user, err := d.Users.EnsureAdmin(ctx, tenant, email, password)
 	if err != nil {
 		return err
 	}
