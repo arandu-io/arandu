@@ -3,6 +3,7 @@ package nativeauth_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"sync"
@@ -21,6 +22,7 @@ import (
 	"github.com/arandu-io/hesape/hashing"
 	"github.com/arandu-io/hesape/otp"
 
+	appevents "github.com/arandu-io/arandu/app/Events"
 	"github.com/arandu-io/arandu/app/Models"
 	"github.com/arandu-io/arandu/app/Policies"
 	"github.com/arandu-io/arandu/app/Repositories"
@@ -50,6 +52,116 @@ func TestPolicyAndGrantRefusalsHappenBeforeTheFirstQuery(t *testing.T) {
 			t.Fatal("a management grant reached the second-factor read")
 		}
 	})
+}
+
+func TestRegistrationPersistsSQLNullUntilEmailIsVerified(t *testing.T) {
+	db := openNativeAuthDatabase(t)
+	service := services.NewUserService(db.app)
+
+	user, err := service.Register(context.Background(), "tenant-a", "Ana", "ana@example.test", "a-long-enough-password")
+	if err != nil {
+		t.Fatalf("registering an unverified user: %v", err)
+	}
+	if user.Verified() {
+		t.Fatal("a new registration is already verified")
+	}
+	assertUserVerificationContract(t, user, false)
+
+	var verifiedAt any
+	if err := db.sql.QueryRow(`SELECT verified_at FROM users WHERE id = ?`, user.ID).Scan(&verifiedAt); err != nil {
+		t.Fatalf("reading the stored verification state: %v", err)
+	}
+	if verifiedAt != nil {
+		t.Fatalf("a new registration stored verified_at = %v, want SQL NULL", verifiedAt)
+	}
+}
+
+func TestVerificationChangesANullRegistrationExactlyOnce(t *testing.T) {
+	db := openNativeAuthDatabase(t)
+	service := services.NewUserService(db.app)
+	ctx := context.Background()
+	registered, err := service.Register(ctx, "tenant-a", "Ana", "ana@example.test", "a-long-enough-password")
+	if err != nil {
+		t.Fatalf("registering an unverified user: %v", err)
+	}
+
+	const attempts = 8
+	start := make(chan struct{})
+	users := make([]models.User, attempts)
+	changed := make([]bool, attempts)
+	errs := make([]error, attempts)
+	var ready sync.WaitGroup
+	ready.Add(attempts)
+	var done sync.WaitGroup
+	done.Add(attempts)
+	for index := range attempts {
+		go func() {
+			defer done.Done()
+			ready.Done()
+			<-start
+			users[index], changed[index], errs[index] = service.MarkVerified(
+				ctx, registered.TenantID, registered.ID, registered.Email,
+			)
+		}()
+	}
+	ready.Wait()
+	close(start)
+	done.Wait()
+
+	winners := 0
+	for index, callErr := range errs {
+		if callErr != nil {
+			t.Errorf("verification attempt %d: %v", index, callErr)
+			continue
+		}
+		if changed[index] {
+			winners++
+		}
+		assertUserVerificationContract(t, users[index], true)
+	}
+	if winners != 1 {
+		t.Fatalf("verification produced %d state changes, want exactly one", winners)
+	}
+
+	pending, err := frameevents.NewOutbox(db.app).PendingAll(ctx, 20)
+	if err != nil {
+		t.Fatalf("reading verification events: %v", err)
+	}
+	verificationEvents := 0
+	for _, event := range pending {
+		if event.Name == appevents.EmailVerified && event.AggregateID == registered.ID {
+			verificationEvents++
+		}
+	}
+	if verificationEvents != 1 {
+		t.Fatalf("verification stored %d email-verified events, want exactly one", verificationEvents)
+	}
+
+	var verifiedAt sql.NullTime
+	if err := db.sql.QueryRow(`SELECT verified_at FROM users WHERE id = ?`, registered.ID).Scan(&verifiedAt); err != nil {
+		t.Fatalf("reading the verified account state: %v", err)
+	}
+	if !verifiedAt.Valid || verifiedAt.Time.IsZero() {
+		t.Fatalf("the winning verification stored verified_at = %+v, want a timestamp", verifiedAt)
+	}
+}
+
+func TestSeededVerifiedUserPreservesVerificationContracts(t *testing.T) {
+	db := openNativeAuthDatabase(t)
+	service := services.NewUserService(db.app)
+	ctx := context.Background()
+
+	seeded, err := service.EnsureUser(ctx, "tenant-a", "Admin", "admin@example.test", "a-long-enough-password", []string{models.RoleAdmin}, true)
+	if err != nil {
+		t.Fatalf("seeding a verified user: %v", err)
+	}
+	assertUserVerificationContract(t, seeded, true)
+
+	found, err := service.Lookup(ctx, "tenant-a", seeded.Email)
+	if err != nil {
+		t.Fatalf("reading the seeded user: %v", err)
+	}
+	assertUserVerificationContract(t, found, true)
 }
 
 func TestTwoFactorPolicyRejectsAnotherUsersLoadedEnrollment(t *testing.T) {
@@ -248,5 +360,40 @@ func assertOneWinner(t *testing.T, errs []error, loser error) {
 	}
 	if winners != 1 {
 		t.Fatalf("concurrent attempts produced %d winners, want exactly one", winners)
+	}
+}
+
+func assertUserVerificationContract(t *testing.T, user models.User, want bool) {
+	t.Helper()
+
+	if user.Verified() != want {
+		t.Errorf("User.Verified() = %v, want %v", user.Verified(), want)
+	}
+	if user.Subject().Verified != want {
+		t.Errorf("User.Subject().Verified = %v, want %v", user.Subject().Verified, want)
+	}
+
+	encoded, err := json.Marshal(user)
+	if err != nil {
+		t.Fatalf("marshalling the user: %v", err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		t.Fatalf("reading the user JSON: %v", err)
+	}
+	_, hasVerifiedAt := fields["verified_at"]
+	if hasVerifiedAt != want {
+		t.Errorf("user JSON has verified_at = %v, want %v: %s", hasVerifiedAt, want, encoded)
+	}
+	if want {
+		var verifiedAt time.Time
+		if err := json.Unmarshal(fields["verified_at"], &verifiedAt); err != nil {
+			t.Errorf("user JSON has an invalid verified_at: %v: %s", err, encoded)
+		} else if verifiedAt.IsZero() {
+			t.Errorf("user JSON has a zero verified_at: %s", encoded)
+		}
+	}
+	if _, exposed := fields["password"]; exposed {
+		t.Errorf("user JSON exposed password: %s", encoded)
 	}
 }

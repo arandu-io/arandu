@@ -26,8 +26,8 @@ type User struct {
 	Roles    []string `db:"-"`
 	RoleData string   `db:"roles"`
 
-	VerifiedAt time.Time `db:"verified_at"`
-	CreatedAt  time.Time `db:"created_at"`
+	VerifiedAt *time.Time `db:"verified_at"`
+	CreatedAt  time.Time  `db:"created_at"`
 }
 
 // The roles this application recognises. Strings, because that is what the
@@ -69,7 +69,7 @@ func (u User) EncodeRoles() (string, error) {
 }
 
 // Verified reports whether the address was confirmed.
-func (u User) Verified() bool { return !u.VerifiedAt.IsZero() }
+func (u User) Verified() bool { return u.VerifiedAt != nil && !u.VerifiedAt.IsZero() }
 
 // Subject returns the session subject derived only from stored account data.
 func (u User) Subject() security.Subject {
@@ -89,13 +89,13 @@ func (u User) PasswordFingerprint() string {
 // of responses and dumps.
 func (u User) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		ID         string    `json:"id"`
-		TenantID   string    `json:"tenant_id"`
-		Name       string    `json:"name"`
-		Email      string    `json:"email"`
-		Roles      []string  `json:"roles"`
-		VerifiedAt time.Time `json:"verified_at,omitempty"`
-		CreatedAt  time.Time `json:"created_at"`
+		ID         string     `json:"id"`
+		TenantID   string     `json:"tenant_id"`
+		Name       string     `json:"name"`
+		Email      string     `json:"email"`
+		Roles      []string   `json:"roles"`
+		VerifiedAt *time.Time `json:"verified_at,omitempty"`
+		CreatedAt  time.Time  `json:"created_at"`
 	}{
 		ID: u.ID, TenantID: u.TenantID, Name: u.Name, Email: u.Email,
 		Roles: append([]string(nil), u.Roles...), VerifiedAt: u.VerifiedAt, CreatedAt: u.CreatedAt,

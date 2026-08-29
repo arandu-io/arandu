@@ -247,7 +247,7 @@ func (s *UserService) MarkVerified(ctx context.Context, tenant, userID, captured
 		if err != nil || changed == 0 {
 			return err
 		}
-		user.VerifiedAt = at
+		user.VerifiedAt = &at
 		return s.record(ctx, grant, appevents.EmailVerified, user)
 	})
 	if err != nil {
@@ -322,7 +322,8 @@ func (s *UserService) EnsureUser(ctx context.Context, tenant, name, email, passw
 	}
 	user := models.User{TenantID: tenant, Name: name, Email: NormalizeEmail(email), Password: hash, Roles: roles}
 	if verified {
-		user.VerifiedAt = time.Now().UTC()
+		at := time.Now().UTC()
+		user.VerifiedAt = &at
 	}
 	//arandu:system-grant the seeder has no request subject; tenant-scoped lookup and explicit account fields bound idempotent creation
 	return s.create(ctx, security.SystemGrant(policies.ActionUserCreate, tenant), user)
@@ -433,8 +434,8 @@ func nullableString(value string) any {
 	return value
 }
 
-func nullableTime(value time.Time) any {
-	if value.IsZero() {
+func nullableTime(value *time.Time) any {
+	if value == nil || value.IsZero() {
 		return nil
 	}
 	return value.UTC()
