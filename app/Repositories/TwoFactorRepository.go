@@ -103,6 +103,9 @@ func (r *TwoFactorRepository) Confirm(ctx context.Context, grant security.Grant,
 
 // Required reports whether the account has a confirmed enrolment.
 func (r *TwoFactorRepository) Required(ctx context.Context, grant security.Grant, userID string) (bool, error) {
+	if err := grant.Check(policies.ActionTwoFactorRead); err != nil {
+		return false, err
+	}
 	factor, err := r.Find(ctx, grant, userID)
 	if errors.Is(err, ErrTwoFactorNotEnrolled) {
 		return false, nil

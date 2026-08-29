@@ -174,11 +174,13 @@ func (s *UserService) Register(ctx context.Context, tenant, name, email, passwor
 
 // FindForAuthentication reads an account during a pre-authentication flow.
 func (s *UserService) FindForAuthentication(ctx context.Context, tenant, userID string) (models.User, error) {
+	//arandu:system-grant credential-bound authentication and recovery reads have no Grant-bearing subject; tenant and user ID bind the row
 	return s.find(ctx, security.SystemGrant(policies.ActionUserView, tenant), policies.ActionUserView, userID)
 }
 
 // Lookup reads an account by normalized address for application-owned flows.
 func (s *UserService) Lookup(ctx context.Context, tenant, email string) (models.User, error) {
+	//arandu:system-grant pre-authentication and seeding lookups have no subject; tenant and normalized email bind this read
 	grant := security.SystemGrant(policies.ActionUserView, tenant)
 	if err := grant.Check(policies.ActionUserView); err != nil {
 		return models.User{}, err
@@ -231,6 +233,7 @@ func (s *UserService) MarkVerified(ctx context.Context, tenant, userID, captured
 		return user, false, nil
 	}
 
+	//arandu:system-grant a consumed verification code has no session subject; tenant, user ID, and captured email bind the conditional update
 	grant := security.SystemGrant(policies.ActionUserUpdate, tenant)
 	if err := grant.Check(policies.ActionUserUpdate); err != nil {
 		return models.User{}, false, err
@@ -321,6 +324,7 @@ func (s *UserService) EnsureUser(ctx context.Context, tenant, name, email, passw
 	if verified {
 		user.VerifiedAt = time.Now().UTC()
 	}
+	//arandu:system-grant the seeder has no request subject; tenant-scoped lookup and explicit account fields bound idempotent creation
 	return s.create(ctx, security.SystemGrant(policies.ActionUserCreate, tenant), user)
 }
 

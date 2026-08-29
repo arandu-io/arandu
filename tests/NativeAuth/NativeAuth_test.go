@@ -21,6 +21,7 @@ import (
 	"github.com/arandu-io/hesape/hashing"
 	"github.com/arandu-io/hesape/otp"
 
+	"github.com/arandu-io/arandu/app/Models"
 	"github.com/arandu-io/arandu/app/Policies"
 	"github.com/arandu-io/arandu/app/Repositories"
 	"github.com/arandu-io/arandu/app/Services"
@@ -41,6 +42,29 @@ func TestPolicyAndGrantRefusalsHappenBeforeTheFirstQuery(t *testing.T) {
 			t.Fatal("a read-only grant reached the replay update")
 		}
 	})
+
+	t.Run("two-factor requirement", func(t *testing.T) {
+		repository := repositories.NewTwoFactorRepository(nil)
+		grant := security.SystemGrant(policies.ActionTwoFactorManage, "tenant-a")
+		if _, err := repository.Required(context.Background(), grant, "user-a"); err == nil {
+			t.Fatal("a management grant reached the second-factor read")
+		}
+	})
+}
+
+func TestTwoFactorPolicyRejectsAnotherUsersLoadedEnrollment(t *testing.T) {
+	actor := security.Subject{ID: "user-a", Tenant: "tenant-a"}
+	other := models.TwoFactor{UserID: "user-b", TenantID: "tenant-a"}
+	for _, action := range []security.Action{
+		policies.ActionTwoFactorRead,
+		policies.ActionTwoFactorManage,
+	} {
+		t.Run(string(action), func(t *testing.T) {
+			if _, err := security.Authorize(context.Background(), policies.TwoFactorPolicy{}, actor, action, other); err == nil {
+				t.Fatalf("%s authorized another user's loaded enrollment", action)
+			}
+		})
+	}
 }
 
 func TestSecondFactorWritesCannotCrossTheGrantTenant(t *testing.T) {

@@ -52,6 +52,7 @@ func NewTwoFactorService(db *data.DB, appKey []byte) (*TwoFactorService, error) 
 
 // Required reports whether sign-in must finish a second factor.
 func (s *TwoFactorService) Required(ctx context.Context, tenant, userID string) (bool, error) {
+	//arandu:system-grant password verification established this pending identity before session creation; tenant and user ID bind the factor read
 	return s.repository.Required(ctx, security.SystemGrant(policies.ActionTwoFactorRead, tenant), userID)
 }
 
@@ -92,15 +93,18 @@ func (s *TwoFactorService) Confirm(ctx context.Context, actor security.Subject, 
 	if err != nil {
 		return nil, err
 	}
-	manage, err := security.Authorize(ctx, s.policy, actor, policies.ActionTwoFactorManage, factor)
-	if err != nil {
-		return nil, err
-	}
 	user, err := s.self(ctx, actor)
 	if err != nil {
 		return nil, err
 	}
 	enrolment, err := s.repository.Find(ctx, read, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := security.Authorize(ctx, s.policy, actor, policies.ActionTwoFactorRead, enrolment); err != nil {
+		return nil, err
+	}
+	manage, err := security.Authorize(ctx, s.policy, actor, policies.ActionTwoFactorManage, enrolment)
 	if err != nil {
 		return nil, err
 	}
@@ -165,15 +169,18 @@ func (s *TwoFactorService) RegenerateRecoveryCodes(ctx context.Context, actor se
 	if err != nil {
 		return nil, err
 	}
-	manage, err := security.Authorize(ctx, s.policy, actor, policies.ActionTwoFactorManage, factor)
-	if err != nil {
-		return nil, err
-	}
 	user, err := s.self(ctx, actor)
 	if err != nil {
 		return nil, err
 	}
 	enrolment, err := s.repository.Find(ctx, read, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := security.Authorize(ctx, s.policy, actor, policies.ActionTwoFactorRead, enrolment); err != nil {
+		return nil, err
+	}
+	manage, err := security.Authorize(ctx, s.policy, actor, policies.ActionTwoFactorManage, enrolment)
 	if err != nil {
 		return nil, err
 	}
@@ -195,6 +202,7 @@ func (s *TwoFactorService) RegenerateRecoveryCodes(ctx context.Context, actor se
 
 // VerifyAuthenticator checks and atomically spends a confirmed TOTP time step.
 func (s *TwoFactorService) VerifyAuthenticator(ctx context.Context, tenant, userID, code string) error {
+	//arandu:system-grant a signed pending sign-in has no session subject; its tenant and user ID bind this authenticator read
 	read := security.SystemGrant(policies.ActionTwoFactorRead, tenant)
 	enrolment, err := s.repository.Find(ctx, read, userID)
 	if err != nil {
@@ -207,6 +215,7 @@ func (s *TwoFactorService) VerifyAuthenticator(ctx context.Context, tenant, user
 	if err != nil {
 		return err
 	}
+	//arandu:system-grant a signed pending sign-in has no session subject; its tenant and user ID bind replay spending after code verification
 	manage := security.SystemGrant(policies.ActionTwoFactorManage, tenant)
 	return (twofactor.Authenticator{Guard: replayGuard{s.repository, manage}}).
 		Verify(ctx, userID, secret, code)
@@ -214,6 +223,7 @@ func (s *TwoFactorService) VerifyAuthenticator(ctx context.Context, tenant, user
 
 // ConsumeRecovery atomically spends one recovery code of a confirmed factor.
 func (s *TwoFactorService) ConsumeRecovery(ctx context.Context, tenant, userID, code string) error {
+	//arandu:system-grant a signed pending sign-in has no session subject; its tenant and user ID bind this recovery-factor read
 	read := security.SystemGrant(policies.ActionTwoFactorRead, tenant)
 	required, err := s.repository.Required(ctx, read, userID)
 	if err != nil {
@@ -222,10 +232,12 @@ func (s *TwoFactorService) ConsumeRecovery(ctx context.Context, tenant, userID, 
 	if !required {
 		return ErrTwoFactorNotEnrolled
 	}
+	//arandu:system-grant a signed pending sign-in has no session subject; its tenant and user ID bind the recovery audit identity
 	user, err := s.findUser(ctx, security.SystemGrant(policies.ActionUserView, tenant), userID)
 	if err != nil {
 		return err
 	}
+	//arandu:system-grant a signed pending sign-in has no session subject; its tenant and user ID bind one recovery-code spend
 	manage := security.SystemGrant(policies.ActionTwoFactorManage, tenant)
 	err = data.Transaction(ctx, s.db, func(ctx context.Context) error {
 		spent, err := (recoveryStore{s.repository, manage}).Consume(ctx, user.ID, code)

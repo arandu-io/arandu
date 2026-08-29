@@ -178,6 +178,73 @@ func TestSecondFactorPersistenceKeepsAtomicWritesTenantScoped(t *testing.T) {
 	}
 }
 
+func TestSecondFactorRequiredChecksTheReadGrantBeforeDelegating(t *testing.T) {
+	path := filepath.Join(projectRoot(t), "app", "Repositories", "TwoFactorRepository.go")
+	method := methodDeclaration(t, path, "Required")
+	if len(method.Body.List) == 0 {
+		t.Fatal("TwoFactorRepository.Required has no body")
+	}
+
+	checksGrant := false
+	checksReadAction := false
+	ast.Inspect(method.Body.List[0], func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok || expressionName(call.Fun) != "grant.Check" {
+			return true
+		}
+		checksGrant = true
+		if len(call.Args) == 1 && expressionName(call.Args[0]) == "policies.ActionTwoFactorRead" {
+			checksReadAction = true
+		}
+		return true
+	})
+	if !checksGrant || !checksReadAction {
+		t.Fatal("TwoFactorRepository.Required does not start by checking ActionTwoFactorRead")
+	}
+}
+
+func TestSecondFactorServicesReauthorizeTheLoadedEnrollment(t *testing.T) {
+	path := filepath.Join(projectRoot(t), "app", "Services", "TwoFactorService.go")
+	for _, methodName := range []string{"Confirm", "RegenerateRecoveryCodes"} {
+		t.Run(methodName, func(t *testing.T) {
+			method := methodDeclaration(t, path, methodName)
+			rowPosition := token.NoPos
+			authorized := map[string]bool{}
+			ast.Inspect(method.Body, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				switch expressionName(call.Fun) {
+				case "s.repository.Find":
+					rowPosition = call.Pos()
+				case "security.Authorize":
+					if rowPosition == token.NoPos || call.Pos() < rowPosition || len(call.Args) != 5 {
+						return true
+					}
+					if expressionName(call.Args[4]) != "enrolment" {
+						return true
+					}
+					authorized[expressionName(call.Args[3])] = true
+				}
+				return true
+			})
+
+			if rowPosition == token.NoPos {
+				t.Fatal("the service does not load the enrollment")
+			}
+			for _, action := range []string{
+				"policies.ActionTwoFactorRead",
+				"policies.ActionTwoFactorManage",
+			} {
+				if !authorized[action] {
+					t.Errorf("the loaded enrollment is not reauthorized for %s", action)
+				}
+			}
+		})
+	}
+}
+
 func projectRoot(t *testing.T) string {
 	t.Helper()
 	_, current, _, ok := runtime.Caller(0)
@@ -198,6 +265,26 @@ func relative(root, path string) string {
 func methodStringLiterals(t *testing.T, path, method string) string {
 	t.Helper()
 
+	function := methodDeclaration(t, path, method)
+	var literals []string
+	ast.Inspect(function.Body, func(node ast.Node) bool {
+		literal, ok := node.(*ast.BasicLit)
+		if !ok || literal.Kind != token.STRING {
+			return true
+		}
+		value, err := strconv.Unquote(literal.Value)
+		if err != nil {
+			t.Fatalf("unquoting a literal in %s: %v", method, err)
+		}
+		literals = append(literals, value)
+		return true
+	})
+	return strings.Join(strings.Fields(strings.Join(literals, " ")), " ")
+}
+
+func methodDeclaration(t *testing.T, path, method string) *ast.FuncDecl {
+	t.Helper()
+
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {
 		t.Fatalf("parsing %s: %v", relative(projectRoot(t), path), err)
@@ -207,21 +294,22 @@ func methodStringLiterals(t *testing.T, path, method string) string {
 		if !ok || function.Name.Name != method || function.Recv == nil {
 			continue
 		}
-		var literals []string
-		ast.Inspect(function.Body, func(node ast.Node) bool {
-			literal, ok := node.(*ast.BasicLit)
-			if !ok || literal.Kind != token.STRING {
-				return true
-			}
-			value, err := strconv.Unquote(literal.Value)
-			if err != nil {
-				t.Fatalf("unquoting a literal in %s: %v", method, err)
-			}
-			literals = append(literals, value)
-			return true
-		})
-		return strings.Join(strings.Fields(strings.Join(literals, " ")), " ")
+		return function
 	}
-	t.Fatalf("TwoFactorRepository has no %s method", method)
+	t.Fatalf("%s has no %s method", relative(projectRoot(t), path), method)
+	return nil
+}
+
+func expressionName(expression ast.Expr) string {
+	switch value := expression.(type) {
+	case *ast.Ident:
+		return value.Name
+	case *ast.SelectorExpr:
+		prefix := expressionName(value.X)
+		if prefix == "" {
+			return value.Sel.Name
+		}
+		return prefix + "." + value.Sel.Name
+	}
 	return ""
 }
