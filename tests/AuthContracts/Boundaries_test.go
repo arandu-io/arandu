@@ -43,6 +43,17 @@ func TestNativeAuthenticationDoesNotImportTheCommunityModule(t *testing.T) {
 	}
 }
 
+func TestAuthControllerPlaceholderUsesTheInstallerPackage(t *testing.T) {
+	path := filepath.Join(projectRoot(t), "app", "Http", "Controllers", "Auth", "doc.go")
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.PackageClauseOnly)
+	if err != nil {
+		t.Fatalf("parsing the auth controller placeholder: %v", err)
+	}
+	if file.Name.Name != "authui" {
+		t.Fatalf("the auth controller placeholder declares package %s, want authui", file.Name.Name)
+	}
+}
+
 func TestCredentialVerificationHasNoSessionMutationSurface(t *testing.T) {
 	root := projectRoot(t)
 	path := filepath.Join(root, "app", "Services", "UserService.go")
