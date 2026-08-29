@@ -1,12 +1,13 @@
 {
-  // The generated views are not here to hide any more: they are build output
-  // and .gitignore keeps them out of the tree (see resources/views there).
-  //
-  // A .kyse.go is Go with markup in it, and the Go extension would report the
-  // markup as a syntax error on every keystroke. The build tag already excludes
-  // it from the compiler; this excludes it from the language server.
-  "gopls": {
-    "build.buildFlags": []
+  // Kyse sources remain visible while the generated Go views stay out of search.
+  "files.associations": {
+    "*.kyse.go": "kyse"
+  },
+  "[kyse]": {
+    "editor.formatOnSave": false
+  },
+  "search.exclude": {
+    "storage/framework/views/**": true
   },
 
   // The compiled stylesheet is build output too. It is committed -- the assets
