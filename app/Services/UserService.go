@@ -338,6 +338,7 @@ func (s *UserService) replacePassword(ctx context.Context, user models.User, pla
 	if err != nil {
 		return models.User{}, fmt.Errorf("user: hashing password: %w", err)
 	}
+	//arandu:system-grant guest and operator password replacement has no session subject; tenant lookup plus ID/current-hash compare-and-swap bounds the write
 	grant := security.SystemGrant(policies.ActionUserUpdate, user.TenantID)
 	if err := grant.Check(policies.ActionUserUpdate); err != nil {
 		return models.User{}, err
