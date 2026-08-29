@@ -2,15 +2,13 @@ package feature_test
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/arandu-io/framework/data"
-	"github.com/arandu-io/framework/security"
+	nativeauth "github.com/arandu-io/hesape/auth"
 
 	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
@@ -183,9 +181,11 @@ func TestTheSkeletonExposesTheCompleteQueueCommandSurface(t *testing.T) {
 	})
 }
 
-// TestLoginOnSQLite is the phase 1 promise end to end, on a database that needs
-// no installation: migrate, seed the administrator, and sign in.
-func TestLoginOnSQLite(t *testing.T) {
+// TestSeededCredentialsOnSQLite proves the native login seam without depending
+// on UI that is published only into a generated application: migrate, seed the
+// administrator, then verify indistinguishable refusals and one successful
+// credential lookup through the application-owned service.
+func TestSeededCredentialsOnSQLite(t *testing.T) {
 	sqliteEnv(t)
 	t.Setenv("ARANDU_ADMIN_EMAIL", "admin@example.test")
 	t.Setenv("ARANDU_ADMIN_PASSWORD", "a-long-enough-password")
@@ -206,73 +206,35 @@ func TestLoginOnSQLite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	k := app.Kernel
-	if err := k.Boot(context.Background()); err != nil {
+	if err := app.Kernel.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
-	handler := k.Handler()
+	t.Cleanup(func() { _ = app.Kernel.Shutdown() })
 
-	// The login form issues the CSRF token the POST has to carry.
-	form := httptest.NewRecorder()
-	handler.ServeHTTP(form, httptest.NewRequest(http.MethodGet, "/auth/login", nil))
-	token := csrfToken(t, form.Body.String())
+	wrong := credentialError(t, app, "admin@example.test", "not-the-password")
+	unknown := credentialError(t, app, "nobody@example.test", "a-long-enough-password")
+	if wrong.Error() != unknown.Error() {
+		t.Fatalf("credential refusals differ: wrong password = %q, unknown user = %q", wrong, unknown)
+	}
 
-	t.Run("wrong password is refused", func(t *testing.T) {
-		rec := post(handler, token, "admin@example.test", "not-the-password")
-		if rec.Code != http.StatusUnauthorized {
-			t.Fatalf("status = %d, want 401", rec.Code)
-		}
-		if len(rec.Result().Cookies()) != 0 {
-			t.Error("a failed login must not set a session cookie")
-		}
-	})
+	user, err := app.Users.VerifyCredentials(
+		context.Background(), bootstrap.Tenant(), "ADMIN@example.test", "a-long-enough-password", "127.0.0.1",
+	)
+	if err != nil {
+		t.Fatalf("verifying the seeded administrator: %v", err)
+	}
+	if user.Email != "admin@example.test" || user.TenantID != bootstrap.Tenant() {
+		t.Fatalf("verified account = %s in %s, want normalized administrator in %s", user.Email, user.TenantID, bootstrap.Tenant())
+	}
+}
 
-	t.Run("unknown user is refused the same way", func(t *testing.T) {
-		rec := post(handler, token, "nobody@example.test", "a-long-enough-password")
-		if rec.Code != http.StatusUnauthorized {
-			t.Fatalf("status = %d, want 401", rec.Code)
-		}
-		// Same answer as a wrong password: otherwise the endpoint tells an
-		// attacker which addresses have accounts.
-		if strings.Contains(strings.ToLower(rec.Body.String()), "not found") {
-			t.Error("the response distinguishes an unknown user from a wrong password")
-		}
-	})
-
-	t.Run("correct password signs in", func(t *testing.T) {
-		rec := post(handler, token, "ADMIN@example.test", "a-long-enough-password")
-
-		// What matters is that the person is signed in and told where to go,
-		// and this asserts that rather than one shape of it.
-		//
-		// The shape depends on the client: an HTMX request gets 204 with
-		// HX-Redirect, a plain form post gets 303 with Location. It also
-		// depends on WHICH sign-in module is wired -- the framework ships a
-		// minimal one and the starter kit replaces it, at the same path.
-		// Demanding one status and one header would turn this suite red for
-		// anybody who installed the kit.
-		if rec.Code != http.StatusOK && rec.Code != http.StatusNoContent && rec.Code != http.StatusSeeOther {
-			t.Fatalf("status = %d, want 2xx or 303 (the email is matched case-insensitively)", rec.Code)
-		}
-		to := rec.Header().Get("HX-Redirect")
-		if to == "" {
-			to = rec.Header().Get("Location")
-		}
-		if to != "/" {
-			t.Errorf("the client was sent to %q, want /", to)
-		}
-
-		cookies := rec.Result().Cookies()
-		if len(cookies) != 1 || cookies[0].Name != security.SessionCookieName {
-			t.Fatalf("cookies = %+v, want one session cookie", cookies)
-		}
-		if !cookies[0].HttpOnly {
-			t.Error("the session cookie must be HttpOnly")
-		}
-		if strings.Contains(rec.Body.String(), "argon2") {
-			t.Error("the response leaks the password hash")
-		}
-	})
+func credentialError(t *testing.T, app bootstrap.App, email, password string) error {
+	t.Helper()
+	_, err := app.Users.VerifyCredentials(context.Background(), bootstrap.Tenant(), email, password, "127.0.0.1")
+	if !errors.Is(err, nativeauth.ErrInvalidCredentials) {
+		t.Fatalf("VerifyCredentials(%s) returned %v, want ErrInvalidCredentials", email, err)
+	}
+	return err
 }
 
 // TestSeedRefusesAnUnknownName covers the typo in the seeder name, which is the
@@ -330,35 +292,6 @@ func TestFreshRefusesOutsideDevelopment(t *testing.T) {
 	if !strings.Contains(err.Error(), "APP_ENV=dev") {
 		t.Errorf("error = %v", err)
 	}
-}
-
-func post(handler http.Handler, token, email, password string) *httptest.ResponseRecorder {
-	body := url.Values{
-		"_csrf":    {token},
-		"email":    {email},
-		"password": {password},
-	}
-	r := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(body.Encode()))
-	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, r)
-	return rec
-}
-
-func csrfToken(t *testing.T, html string) string {
-	t.Helper()
-	const marker = `name="_csrf" value="`
-	i := strings.Index(html, marker)
-	if i < 0 {
-		t.Fatalf("no CSRF field in the form:\n%s", html)
-	}
-	rest := html[i+len(marker):]
-	end := strings.IndexByte(rest, '"')
-	if end < 0 {
-		t.Fatal("the CSRF field is not terminated")
-	}
-	return rest[:end]
 }
 
 // openForTest builds the same configuration and handle the commands use, so the

@@ -93,13 +93,7 @@ func TestTheHomeRouteIsAddressableByName(t *testing.T) {
 // application boots, routes, and hands the browser a token bound to its session.
 func TestLoginFormIsServedWithACSRFToken(t *testing.T) {
 	k := tests.Kernel(t, config.EnvDev)
-
-	rec := httptest.NewRecorder()
-	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/auth/login", nil))
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
+	rec := publishedAuthLogin(t, k.Handler())
 	body := rec.Body.String()
 	if !strings.Contains(body, `name="_csrf"`) {
 		t.Error("the form carries no CSRF field")
@@ -115,6 +109,7 @@ func TestLoginFormIsServedWithACSRFToken(t *testing.T) {
 // pipeline, which a wiring file can silently get wrong.
 func TestWriteWithoutCSRFIsRejected(t *testing.T) {
 	k := tests.Kernel(t, config.EnvDev)
+	publishedAuthLogin(t, k.Handler())
 
 	rec := httptest.NewRecorder()
 	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/auth/login", nil))
@@ -135,8 +130,9 @@ func TestHealthFailsWithoutTheDatabase(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "auth") {
-		t.Errorf("the body must name the failing module, got %q", rec.Body.String())
+	body := rec.Body.String()
+	if !strings.Contains(body, "app") && !strings.Contains(body, "events") {
+		t.Errorf("the body must name a database-backed module, got %q", body)
 	}
 }
 
@@ -144,7 +140,7 @@ func TestSecurityHeadersAreApplied(t *testing.T) {
 	k := tests.Kernel(t, config.EnvProd)
 
 	rec := httptest.NewRecorder()
-	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/auth/login", nil))
+	k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 
 	if got := rec.Header().Get("Content-Security-Policy"); !strings.Contains(got, "default-src 'self'") {
 		t.Errorf("CSP = %q", got)
@@ -175,11 +171,24 @@ func TestRoutesAreListedByModule(t *testing.T) {
 
 	out := kernel.FormatRoutes(k.Routes())
 
-	for _, want := range []string{"auth", "/auth/login", "/_arandu/health"} {
+	for _, want := range []string{"app", "/{$}", "/_arandu/health"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the route table does not mention %q:\n%s", want, out)
 		}
 	}
+}
+
+func publishedAuthLogin(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/auth/login", nil))
+	if recorder.Code == http.StatusNotFound {
+		t.Skip("the authentication UI is published into generated applications")
+	}
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("GET /auth/login = %d, want 200", recorder.Code)
+	}
+	return recorder
 }
 
 func TestUnknownCommandIsRejected(t *testing.T) {

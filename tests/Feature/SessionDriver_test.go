@@ -2,14 +2,11 @@ package feature_test
 
 import (
 	"context"
-	"html"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -128,88 +125,13 @@ func bootedInstance(t *testing.T) bootstrap.App {
 	return app
 }
 
-// hiddenField reads one hidden input out of a rendered form.
-var hiddenField = regexp.MustCompile(`<input type="hidden" name="_csrf" value="([^"]*)"`)
-
-// signIn drives the sign-in form of one instance and returns the cookies a
-// browser would be holding afterwards.
-//
-// Through the form and not through the service, because the service
-// authenticates and writes no session at all: the handler is what rotates the
-// id and puts it in the store, which is the write this test is about.
-func signIn(t *testing.T, handler http.Handler, email, password string) []*http.Cookie {
-	t.Helper()
-
-	form := httptest.NewRecorder()
-	handler.ServeHTTP(form, httptest.NewRequest(http.MethodGet, "/auth/login", nil))
-	if form.Code != http.StatusOK {
-		t.Fatalf("GET /auth/login = %d, want 200. Body:\n%s", form.Code, form.Body.String())
-	}
-	token := hiddenField.FindStringSubmatch(form.Body.String())
-	if token == nil {
-		t.Fatalf("the sign-in form carries no _csrf field, so nothing below can post to it:\n%s", form.Body.String())
-	}
-
-	body := url.Values{
-		"email":    {email},
-		"password": {password},
-		"_csrf":    {html.UnescapeString(token[1])},
-	}
-	post := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(body.Encode()))
-	post.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, post)
-	if rec.Code < 300 || rec.Code > 399 {
-		t.Fatalf("POST /auth/login = %d, want a redirect. Body:\n%s", rec.Code, rec.Body.String())
-	}
-
-	cookies := rec.Result().Cookies()
-	if len(cookies) == 0 {
-		t.Fatal("the sign-in set no cookie, so there is no session for anything to read")
-	}
-	return cookies
-}
-
-// signInPage asks one instance for the sign-in page, as the holder of these
-// cookies, and answers the status code.
-//
-// The sign-in page is what this proof reads rather than the front page, and the
-// reason is which half of the application owns each answer. The front page is
-// the application's: it draws a sign-in link or a sign-out button because the
-// layout this project happens to ship draws them, and a project that keeps a
-// different layout -- or none -- answers the same bytes to both. The sign-in
-// page is the guard's: the auth module redirects whoever already has a session
-// away from it, so 200 and 303 mean "no session was read" and "a session was
-// read" in any application that registers the module, whatever its views say.
-//
-// A test that reads the layout proves the layout. This one has to prove the
-// session, and it is copied into every project generated from this skeleton --
-// where the layout is the first thing somebody replaces.
-func signInPage(t *testing.T, handler http.Handler, cookies []*http.Cookie) int {
-	t.Helper()
-
-	r := httptest.NewRequest(http.MethodGet, "/auth/login", nil)
-	for _, c := range cookies {
-		r.AddCookie(c)
-	}
-
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, r)
-	if rec.Code != http.StatusOK && (rec.Code < 300 || rec.Code > 399) {
-		t.Fatalf("GET /auth/login = %d, want 200 for a guest or a redirect for somebody signed in. Body:\n%s",
-			rec.Code, rec.Body.String())
-	}
-	return rec.Code
-}
-
 // TestASessionWrittenByOneInstanceIsReadByTheOther.
 //
 // The proof the whole wiring exists for, and the only one that could not pass
-// while the defect was there: two applications, one store, a sign-in on the
-// first, and the second one recognising that person. With the session backend
-// built in the process, the second instance sees a stranger -- which is exactly
-// what half the requests behind a load balancer used to get.
+// while the defect was there: two applications, one store, a rotation on the
+// first, and the second one loading that identity. UI calls this exact Rotate
+// seam only after every factor succeeds; keeping the storage proof here avoids
+// making the bare skeleton depend on UI that is published later.
 func TestASessionWrittenByOneInstanceIsReadByTheOther(t *testing.T) {
 	address := respServer(t)
 	sharedSessionEnv(t, address)
@@ -225,22 +147,34 @@ func TestASessionWrittenByOneInstanceIsReadByTheOther(t *testing.T) {
 		email    = "ana@example.test"
 		password = "a-long-enough-password"
 	)
-	if _, err := first.Users.Register(context.Background(), bootstrap.Tenant(), "Ana", email, password); err != nil {
+	user, err := first.Users.Register(context.Background(), bootstrap.Tenant(), "Ana", email, password)
+	if err != nil {
 		t.Fatalf("registering: %v", err)
 	}
 
-	// The assertion can tell the two states apart. Without this the test would
-	// pass just as well against a guard that redirected everybody, or nobody.
-	if guest := signInPage(t, second.Kernel.Handler(), nil); guest != http.StatusOK {
-		t.Fatalf("the second instance answered %d to a guest asking for the sign-in page, want 200: "+
-			"nothing below distinguishes anything", guest)
+	response := httptest.NewRecorder()
+	id, err := first.Sessions.Rotate(context.Background(), response, "", user.Subject())
+	if err != nil {
+		t.Fatalf("rotating the session on the first instance: %v", err)
+	}
+	if id == "" {
+		t.Fatal("the first instance returned an empty session id")
+	}
+	cookies := response.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("the first instance wrote no session cookie")
 	}
 
-	cookies := signIn(t, first.Kernel.Handler(), email, password)
-
-	if held := signInPage(t, second.Kernel.Handler(), cookies); held == http.StatusOK {
-		t.Fatalf("the second instance offered the sign-in page to a person the first one signed in: " +
-			"the session did not reach a store both of them read")
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	for _, cookie := range cookies {
+		request.AddCookie(cookie)
+	}
+	loaded, err := second.Sessions.Load(context.Background(), request)
+	if err != nil {
+		t.Fatalf("loading the first instance's session on the second: %v", err)
+	}
+	if loaded.ID != user.ID || loaded.Tenant != user.TenantID {
+		t.Fatalf("loaded subject = %s in %s, want %s in %s", loaded.ID, loaded.Tenant, user.ID, user.TenantID)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/arandu-io/framework/data"
+	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/observability"
 	"github.com/arandu-io/framework/security"
 
@@ -28,6 +29,13 @@ import (
 // none.
 func bootedApp(t *testing.T) (bootstrap.App, *data.DB) {
 	t.Helper()
+	app, db := builtApp(t)
+	bootApp(t, app)
+	return app, db
+}
+
+func builtApp(t *testing.T) (bootstrap.App, *data.DB) {
+	t.Helper()
 	sqliteEnv(t)
 
 	if err := bootstrap.Dispatch("migrate", nil); err != nil {
@@ -38,12 +46,15 @@ func bootedApp(t *testing.T) (bootstrap.App, *data.DB) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	k := app.Kernel
-	if err := k.Boot(context.Background()); err != nil {
+	return app, db
+}
+
+func bootApp(t *testing.T, app bootstrap.App) {
+	t.Helper()
+	if err := app.Kernel.Boot(context.Background()); err != nil {
 		t.Fatalf("boot: %v", err)
 	}
-	t.Cleanup(func() { _ = k.Shutdown() })
-	return app, db
+	t.Cleanup(func() { _ = app.Kernel.Shutdown() })
 }
 
 // TestTheConsoleRecordsARealRequest is the shape of a debugging session: make a
@@ -51,9 +62,10 @@ func bootedApp(t *testing.T) (bootstrap.App, *data.DB) {
 func TestTheConsoleRecordsARealRequest(t *testing.T) {
 	app, _ := bootedApp(t)
 	handler := app.Kernel.Handler()
+	const requested = "/robots.txt"
 
 	first := httptest.NewRecorder()
-	handler.ServeHTTP(first, httptest.NewRequest(http.MethodGet, "/auth/login", nil))
+	handler.ServeHTTP(first, httptest.NewRequest(http.MethodGet, requested, nil))
 	id := first.Header().Get("X-Request-ID")
 	if id == "" {
 		t.Fatal("the response carries no request id")
@@ -64,7 +76,7 @@ func TestTheConsoleRecordsARealRequest(t *testing.T) {
 	if list.Code != http.StatusOK {
 		t.Fatalf("the console answered %d", list.Code)
 	}
-	if !strings.Contains(list.Body.String(), "/auth/login") {
+	if !strings.Contains(list.Body.String(), requested) {
 		t.Errorf("the request is not in the console:\n%s", list.Body.String())
 	}
 
@@ -73,7 +85,7 @@ func TestTheConsoleRecordsARealRequest(t *testing.T) {
 	if detail.Code != http.StatusOK {
 		t.Fatalf("the detail page answered %d", detail.Code)
 	}
-	for _, want := range []string{id, "Timeline", "/auth/login"} {
+	for _, want := range []string{id, "Timeline", requested} {
 		if !strings.Contains(detail.Body.String(), want) {
 			t.Errorf("the detail page does not show %q", want)
 		}
@@ -85,34 +97,61 @@ func TestTheConsoleRecordsARealRequest(t *testing.T) {
 // breaks the console shows a request with no queries -- which reads like the
 // application not touching the database.
 func TestTheConsoleSeesTheQueriesOfTheRequest(t *testing.T) {
-	app, _ := bootedApp(t)
+	app, _ := builtApp(t)
+
+	user, err := app.Users.Register(
+		context.Background(), bootstrap.Tenant(), "Ana", "ana@example.test", "a-long-enough-password",
+	)
+	if err != nil {
+		t.Fatalf("registering the user read by the request: %v", err)
+	}
+	app.Kernel.Register(queryProbe{query: func(ctx context.Context) error {
+		_, err := app.Users.FindForAuthentication(ctx, user.TenantID, user.ID)
+		return err
+	}})
+	bootApp(t, app)
 	handler := app.Kernel.Handler()
 
-	// A request that queries: the login form issues none, so this drives one
-	// through a route that does.
-	// The form first, for the CSRF token: without it the POST is refused by the
-	// middleware and never reaches the database, which would make this test
-	// pass or fail for the wrong reason.
-	form := httptest.NewRecorder()
-	handler.ServeHTTP(form, httptest.NewRequest(http.MethodGet, "/auth/login", nil))
-
-	rec := post(handler, csrfToken(t, form.Body.String()), "nobody@example.test", "a-long-enough-password")
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("the login was not attempted: status %d", rec.Code)
+	request := httptest.NewRequest(http.MethodGet, "/console-query-probe", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, request)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("the application-owned query probe answered %d", rec.Code)
 	}
 	id := rec.Header().Get("X-Request-ID")
+	if id == "" {
+		t.Fatal("the queried response carries no request id")
+	}
 
 	detail := httptest.NewRecorder()
 	handler.ServeHTTP(detail, httptest.NewRequest(http.MethodGet, observability.ConsolePath+"/"+id+"?format=json", nil))
 
 	body := detail.Body.String()
-	if !strings.Contains(body, "FROM users") && !strings.Contains(body, "from users") {
-		t.Errorf("the console shows no query for a login attempt:\n%s", body)
+	if !strings.Contains(strings.ToLower(body), `from \"users\"`) {
+		t.Errorf("the console shows no application user query:\n%s", body)
 	}
-	// The origin is what saves the time: it has to name the repository file.
-	if !strings.Contains(body, "user.repo.go") {
-		t.Errorf("the query has no origin pointing at the repository:\n%s", body)
+	// The origin is what saves the time: Model queries cross Hesape's native
+	// database seam, and the recorder has to name that exact source rather than
+	// an obsolete community-module repository.
+	if !strings.Contains(body, "database/dbmodel.go") {
+		t.Errorf("the query has no origin pointing at the native model database seam:\n%s", body)
 	}
+}
+
+type queryProbe struct {
+	query func(context.Context) error
+}
+
+func (queryProbe) Name() string { return "query-probe" }
+
+func (p queryProbe) Routes(router *fhttp.Router) {
+	router.Get("/console-query-probe", func(writer http.ResponseWriter, request *http.Request) {
+		if err := p.query(request.Context()); err != nil {
+			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	})
 }
 
 func TestTheGrantStillComesFromTheSession(t *testing.T) {
