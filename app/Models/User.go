@@ -1,30 +1,34 @@
 // Package models holds this application's domain types.
-//
-// There is no Active Record here. A model is a struct with fields and behaviour;
-// it has no save(), no find() and no static query builder, and it does not know
-// a database exists. Persistence is a repository, and every repository method
-// takes a security.Grant -- which is what makes a query without a policy
-// impossible to write rather than merely discouraged.
 package models
 
 import (
-	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"log/slog"
+	"time"
 
 	"github.com/arandu-io/framework/data"
-	"github.com/arandu-io/framework/modules/auth"
 	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/database/model"
 )
 
-// User is the authenticated account.
-//
-// It is an alias of the auth module's type, not a copy. Two structs describing
-// one table is two ways to describe one thing, and the copy is the one that
-// drifts: the module owns the columns, the migration and the hashing, and this
-// name is here so app/Models/User.go is where the user model is found.
-//
-// The password hash never leaves the type: User implements MarshalJSON and
-// LogValue so a dump, a log line or a JSON response cannot carry it.
-type User = auth.User
+// User is an account owned by this application.
+type User struct {
+	ID       string `db:"id"`
+	TenantID string `db:"tenant_id"`
+	Name     string `db:"name"`
+	Email    string `db:"email"`
+	Password string `db:"password"`
+
+	// Roles is the decoded application value. RoleData is the portable JSON
+	// text stored in the database; services keep both representations aligned.
+	Roles    []string `db:"-"`
+	RoleData string   `db:"roles"`
+
+	VerifiedAt time.Time `db:"verified_at"`
+	CreatedAt  time.Time `db:"created_at"`
+}
 
 // The roles this application recognises. Strings, because that is what the
 // column holds and what a Policy compares against.
@@ -35,31 +39,70 @@ const (
 	RoleMember = "member"
 )
 
-// UserRepository is the only door to the users table.
-//
-// Every method takes a Grant, including the reads. A read path without a policy
-// is a cross-tenant data leak with a technical name, so List and Find are on
-// this interface for exactly the same reason Create is.
-//
-// It is declared here, next to the model, and implemented in app/Repositories --
-// or, as below, by the module that owns the table. The interface is what lets a
-// service be tested against a fake without a database.
-type UserRepository interface {
-	// Find returns one user by id, scoped to the grant's tenant.
-	Find(ctx context.Context, g security.Grant, id string) (User, error)
-	// FindByEmail is how a sign-in looks an account up.
-	FindByEmail(ctx context.Context, g security.Grant, email string) (User, error)
-	// Create stores a new user under the grant's tenant.
-	Create(ctx context.Context, g security.Grant, u User) (User, error)
-	// Update replaces a user's mutable fields.
-	Update(ctx context.Context, g security.Grant, u User) (User, error)
-	// Delete removes one user.
-	Delete(ctx context.Context, g security.Grant, id string) error
-	// List returns a page of users, filtered by the grant's tenant.
-	List(ctx context.Context, g security.Grant, q data.Query) ([]User, error)
+// Users returns the model for the application-owned users table.
+func Users(db *data.DB) *model.Model[User] {
+	m := model.NewModel[User]("users", db, db.GetQueryGrammar(), db.GetPostProcessor())
+	m.KeyType = "string"
+	m.Incrementing = false
+	m.UpdatedAtColumn = ""
+	return m
 }
 
-// The auth module's repository is the implementation this application uses. The
-// assertion is compile-time: if the contract above and the module below ever
-// disagree, the build stops here instead of at the first call site.
-var _ UserRepository = (*auth.UserRepo)(nil)
+// DecodeRoles reads the portable JSON column into Roles.
+func (u *User) DecodeRoles() error {
+	u.Roles = nil
+	if u.RoleData == "" {
+		u.Roles = []string{}
+		return nil
+	}
+	return json.Unmarshal([]byte(u.RoleData), &u.Roles)
+}
+
+// EncodeRoles returns Roles as portable JSON text.
+func (u User) EncodeRoles() (string, error) {
+	roles := u.Roles
+	if roles == nil {
+		roles = []string{}
+	}
+	b, err := json.Marshal(roles)
+	return string(b), err
+}
+
+// Verified reports whether the address was confirmed.
+func (u User) Verified() bool { return !u.VerifiedAt.IsZero() }
+
+// Subject returns the session subject derived only from stored account data.
+func (u User) Subject() security.Subject {
+	return security.Subject{
+		ID: u.ID, Tenant: u.TenantID, Roles: append([]string(nil), u.Roles...), Verified: u.Verified(),
+	}
+}
+
+// PasswordFingerprint identifies the complete current password hash without
+// exposing that hash in a signed URL or pending cookie.
+func (u User) PasswordFingerprint() string {
+	sum := sha256.Sum256([]byte(u.Password))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+// MarshalJSON keeps password material and its persistence representation out
+// of responses and dumps.
+func (u User) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		ID         string    `json:"id"`
+		TenantID   string    `json:"tenant_id"`
+		Name       string    `json:"name"`
+		Email      string    `json:"email"`
+		Roles      []string  `json:"roles"`
+		VerifiedAt time.Time `json:"verified_at,omitempty"`
+		CreatedAt  time.Time `json:"created_at"`
+	}{
+		ID: u.ID, TenantID: u.TenantID, Name: u.Name, Email: u.Email,
+		Roles: append([]string(nil), u.Roles...), VerifiedAt: u.VerifiedAt, CreatedAt: u.CreatedAt,
+	})
+}
+
+// LogValue records only identifiers when a whole User reaches structured logs.
+func (u User) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("id", u.ID), slog.String("tenant", u.TenantID))
+}

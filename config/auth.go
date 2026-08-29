@@ -14,8 +14,9 @@ const DefaultTenant = "00000000-0000-4000-8000-000000000001"
 // Auth is who may sign in, and for how long.
 //
 // What it deliberately does not hold is a list of guards and providers. There is
-// one way to authenticate -- the auth module, over the users table -- and a
-// second configurable path would be a second way to do one thing.
+// one way to authenticate -- the application user service, over the users
+// table -- and a second configurable path would be a second way to do one
+// thing.
 //
 // It does not hold the session lifetime either, and that is a removal rather
 // than an omission. SESSION_TTL was read here as well as in Session, into a
@@ -24,7 +25,7 @@ const DefaultTenant = "00000000-0000-4000-8000-000000000001"
 // day either read grew a rule the other had not. One variable, one reader.
 type Auth struct {
 	// Tenant is the tenant every login belongs to. A multi-tenant deployment
-	// resolves it from the host name instead; see auth.TenantResolver.
+	// resolves it from the host name instead; see services.TenantResolver.
 	Tenant string
 
 	// PasswordMinLength is the shortest password accepted at registration.

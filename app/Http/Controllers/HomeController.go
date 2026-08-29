@@ -1,13 +1,21 @@
 package controllers
 
 import (
+	"context"
+
 	"github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/modules/auth"
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/hesape/view"
 
 	"github.com/arandu-io/arandu/storage/framework/views"
 )
+
+// UserNames is the projection the landing page needs from application users.
+// Keeping the interface here lets the published UI replace this controller
+// without coupling the request layer to a concrete service constructor.
+type UserNames interface {
+	PublicNames(context.Context, security.Subject, []string) (map[string]string, error)
+}
 
 // HomeController answers the landing page.
 //
@@ -36,14 +44,9 @@ type HomeController struct {
 	// The tenant is whose rows are read. It comes from the configuration,
 	// through bootstrap/app.go, and never from the request.
 	//
-	// These two are the auth module's own service and not a wrapper around it,
-	// and that is what keeps the starter kit publishable: the kit replaces this
-	// file with a version that takes exactly these, so a constructor here that
-	// took anything else would leave bootstrap/app.go calling something that no
-	// longer exists -- with no flag having been passed. ui's
-	// TestTheProjectsInThisTreeCompileTheConstructorTheKitPublishes is what
-	// found that, after it had been true for a while.
-	people *auth.Service
+	// The application owns the user service. This controller asks only for the
+	// projection it renders, which is also the seam the published UI keeps.
+	people UserNames
 	tenant string
 }
 
@@ -54,7 +57,7 @@ type HomeController struct {
 // that extend it. Its publisher must keep this constructor aligned with
 // bootstrap/app.go, or regenerating authentication leaves the project unable to
 // compile.
-func NewHomeController(appName string, sessions *security.SessionStore, csrf *security.CSRF, people *auth.Service, tenant string) *HomeController {
+func NewHomeController(appName string, sessions *security.SessionStore, csrf *security.CSRF, people UserNames, tenant string) *HomeController {
 	return &HomeController{
 		appName: appName, sessions: sessions, csrf: csrf,
 		people: people, tenant: tenant,
@@ -72,10 +75,9 @@ var _ http.Indexer = (*HomeController)(nil)
 // reason the view is compiled instead of interpreted.
 //
 // view.Page is the chrome the layout draws, embedded rather than repeated. The
-// navigation draws a link only for what answers: the skeleton registers the
-// framework's sign-in route and nothing else, so registration stays off until
-// there is a handler behind it -- a link to a route nobody registered is a 404
-// the layout put there.
+// navigation draws a link only for what answers. The published authentication
+// UI owns the sign-in and sign-out routes; registration stays off until its
+// handler is published as well.
 func (c *HomeController) Index(ctx *http.Context) error {
 	// Who is signed in, from the session cookie and never from the request. An
 	// error here is the anonymous case -- no cookie, a forged one, or a session

@@ -28,12 +28,12 @@ import (
 	"github.com/arandu-io/framework/jobs"
 	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/framework/mail"
-	"github.com/arandu-io/framework/modules/auth"
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/framework/security"
 	fwview "github.com/arandu-io/framework/view"
 	cache2 "github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/exception"
+	"github.com/arandu-io/hesape/onetime"
 	"github.com/arandu-io/hesape/queue"
 	hredis "github.com/arandu-io/hesape/redis"
 	"github.com/arandu-io/hesape/redis/connections"
@@ -43,6 +43,7 @@ import (
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	listeners "github.com/arandu-io/arandu/app/Listeners"
 	providers "github.com/arandu-io/arandu/app/Providers"
+	services "github.com/arandu-io/arandu/app/Services"
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/routes"
 
@@ -99,14 +100,20 @@ type App struct {
 	// Kernel is the composed application: configuration, modules, the global
 	// middleware pipeline and the router.
 	Kernel *kernel.Kernel
-	// Auth is returned as well as registered, because the seeders need it and
-	// reaching into the module to fetch it later would be exactly the kind of
-	// hidden coupling the explicit wiring exists to avoid.
-	Auth *auth.Service
+	// Users is the application-owned account service. Seeders receive this same
+	// value instead of reaching through a framework module.
+	Users *services.UserService
+	// TwoFactor is the application-owned enrolment and challenge service.
+	TwoFactor *services.TwoFactorService
+	// EmailCodes stores purpose-bound verification and reset codes.
+	EmailCodes onetime.CodeStore
+	// Sessions is the only store allowed to create authenticated identity, after
+	// every required factor has succeeded.
+	Sessions *security.SessionStore
 	// Scheduler runs what the modules declared. `aru schedule:list` reads it.
 	Scheduler *scheduler.Module
 	// Relay is what empties the outbox. It is returned as well as registered for
-	// the reason Auth is, sharpened by what it guards: a test that built a relay
+	// the reason Users is, sharpened by what it guards: a test that built a relay
 	// of its own would pass over an application that wires none, and an
 	// application that wires none writes rows nothing ever reads.
 	Relay *events.Relay
@@ -173,6 +180,12 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 		return App{}, err
 	}
 	limiter := cache2.NewRateLimiter(limitStore.GetStore())
+	emailCodes, err := onetime.New(limitStore.GetStore(), fw.App.Key, onetime.Config{
+		TTL: cfg.Auth.PasswordResetTTL,
+	})
+	if err != nil {
+		return App{}, fmt.Errorf("bootstrap: build email code store: %w", err)
+	}
 
 	// The queue over the application's own database, which is what makes a job
 	// commitable by the same transaction as the row it is about. For volume
@@ -185,7 +198,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// events.NewModule() brings the table and publishes nothing, which is a
 	// coherent state -- storing is what cannot be recovered later, publishing can
 	// start the day there is somewhere to publish to. It stops being coherent the
-	// moment something stores: the auth module writes a row for every
+	// moment something stores: the application user service writes a row for every
 	// registration, every confirmed address and every reset password, and without
 	// this line they accumulate in a table no process reads.
 	//
@@ -232,13 +245,16 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 		Name:  cfg.Mail.FromName,
 	})
 
-	userRepository := auth.NewUserRepo(db)
-	authService := auth.NewService(userRepository, sessions, csrf)
+	userService := services.NewUserService(db)
+	twoFactorService, err := services.NewTwoFactorService(db, fw.App.Key)
+	if err != nil {
+		return App{}, fmt.Errorf("bootstrap: build two-factor service: %w", err)
+	}
 
 	// The controllers, built here and handed to the routes. A controller that
 	// constructed its own collaborators would be a controller no test can pin.
 	deps := routes.Deps{
-		Home: controllers.NewHomeController(cfg.App.Name, sessions, csrf, authService, cfg.Auth.Tenant),
+		Home: controllers.NewHomeController(cfg.App.Name, sessions, csrf, userService, cfg.Auth.Tenant),
 		// What the route guards read. The same store the pipeline and the
 		// controllers were given, and it has to be: two stores over one key
 		// would agree about the signature and disagree about which sessions
@@ -296,10 +312,6 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// embedded assets. Without it every page answers with an error that
 			// names this missing line, and every stylesheet 404s.
 			fwview.NewModule(),
-			// Single tenant: every login belongs to one constant. A multi-tenant
-			// application swaps this for a resolver that reads the host name --
-			// same code path, same queries, one line different.
-			auth.New(authService, auth.FixedTenant(cfg.Auth.Tenant)),
 			// The outbox table, and the relay built above that empties it. A
 			// module that records domain events stores them in the same
 			// transaction as the write, and this is what brings the table those
@@ -323,7 +335,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			jobs.NewModule(queueStore),
 			// This application: its routes, from routes/web.go. Its migrations
 			// arrive by the blank import above, not through here.
-			providers.NewAppServiceProvider(deps),
+			providers.NewAppServiceProvider(deps).WithDatabase(db),
 			// `aru make:module` adds the next modules here.
 		)
 
@@ -356,7 +368,11 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{Recorder: k.Recorder(), Locker: locker})
 	k.Register(sched)
 
-	return App{Kernel: k, Auth: authService, Scheduler: sched, Relay: relay, Queue: queueStore, Mail: mailer, Cache: stores.Connection()}, nil
+	return App{
+		Kernel: k, Users: userService, TwoFactor: twoFactorService,
+		EmailCodes: emailCodes, Sessions: sessions, Scheduler: sched,
+		Relay: relay, Queue: queueStore, Mail: mailer, Cache: stores.Connection(),
+	}, nil
 }
 
 // The names this application's cache stores are known by, and the driver the

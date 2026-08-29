@@ -141,7 +141,7 @@ func seedCommands(cfg appconfig.Config, app App) []console.Command {
 			if name != "" {
 				args = append([]string{name}, args...)
 			}
-			return seeders.Run(ctx, seeders.Deps{Auth: app.Auth, Tenant: cfg.Auth.Tenant}, args)
+			return seeders.Run(ctx, seeders.Deps{Users: app.Users, Tenant: cfg.Auth.Tenant}, args)
 		},
 		Environment: string(cfg.App.Env),
 		SeederPath:  filepath.Join("database", "seeders"),
@@ -247,7 +247,7 @@ func seedFor(cfg appconfig.Config, app App) func(context.Context, string) error 
 		if name != "" {
 			args = []string{name}
 		}
-		_, err := seeders.Run(ctx, seeders.Deps{Auth: app.Auth, Tenant: cfg.Auth.Tenant}, args)
+		_, err := seeders.Run(ctx, seeders.Deps{Users: app.Users, Tenant: cfg.Auth.Tenant}, args)
 		return err
 	}
 }

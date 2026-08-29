@@ -2,6 +2,8 @@
 
 package views
 
+import hview "github.com/arandu-io/hesape/view"
+
 @go
 // HomeData is what HomeController.Index hands this page.
 //
@@ -12,7 +14,7 @@ package views
 // description, the token and the navigation -- and embedding it is all this
 // page has to do to fit the frame.
 type HomeData struct {
-	view.Page
+	hview.Page
 
 	// Name is who the page greets.
 	Name string

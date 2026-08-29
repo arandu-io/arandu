@@ -1,39 +1,55 @@
 // Package policies holds this application's authorization decisions.
-//
-// A policy is usually a convention an organized team keeps. Here it is skeleton,
-// and the compiler and `aru doctor` both enforce it: a repository whose entity
-// has no policy fails the check, because an entity that is reachable and that
-// nobody decided who may reach is the failure this framework exists to prevent.
-//
-// A policy answers one question -- may this subject perform this action on this
-// resource -- and it denies by default. There is no allow-all branch, and adding
-// one is not a shortcut, it is the end of the guarantee.
 package policies
 
 import (
-	"github.com/arandu-io/framework/modules/auth"
+	"context"
+	"fmt"
+
 	"github.com/arandu-io/framework/security"
+
+	"github.com/arandu-io/arandu/app/Models"
 )
 
-// UserPolicy is the only authority over who does what with a user.
-//
-// It is an alias of the auth module's policy, not a second one. The module owns
-// the table, the actions and the tenant check, and a copy here would be the one
-// that drifts -- two policies for one entity is two answers to one question. The
-// name is here so app/Policies/UserPolicy.go is where the user's policy is
-// found.
-//
-// Replace the alias with a struct of your own the day this application needs a
-// rule the module does not have. The contract is security.Policy[models.User],
-// and security.Authorize is the only way to turn a decision into a Grant.
-type UserPolicy = auth.UserPolicy
-
-// The actions a user can be the subject of, re-exported so a call site names a
-// constant instead of a string. A typo in a string would silently authorize
-// nothing -- or, in a policy written with a default branch, everything.
+// User actions are constants so a misspelling cannot silently widen a policy.
 const (
-	ActionUserView   security.Action = auth.ActionUserView
-	ActionUserCreate security.Action = auth.ActionUserCreate
-	ActionUserUpdate security.Action = auth.ActionUserUpdate
-	ActionUserDelete security.Action = auth.ActionUserDelete
+	ActionUserView        security.Action = "user.view"
+	ActionUserCreate      security.Action = "user.create"
+	ActionUserUpdate      security.Action = "user.update"
+	ActionUserDelete      security.Action = "user.delete"
+	ActionUserNamesPublic security.Action = "user.names.public"
 )
+
+// UserPolicy is the only authority over application users.
+type UserPolicy struct{}
+
+// Can decides whether subject may perform action on user and denies by default.
+func (UserPolicy) Can(_ context.Context, subject security.Subject, action security.Action, user models.User) error {
+	if action == ActionUserNamesPublic {
+		if subject.Tenant == "" || user.TenantID == "" || user.TenantID != subject.Tenant {
+			return fmt.Errorf("public user names require the reader's tenant")
+		}
+		return nil
+	}
+
+	if user.TenantID != "" && user.TenantID != subject.Tenant {
+		return fmt.Errorf("resource belongs to another tenant")
+	}
+
+	switch action {
+	case ActionUserView, ActionUserUpdate:
+		if subject.ID == user.ID || subject.HasRole(models.RoleAdmin) {
+			return nil
+		}
+	case ActionUserCreate:
+		if subject.HasRole(models.RoleAdmin) || subject.IsGuest() && len(user.Roles) == 0 {
+			return nil
+		}
+	case ActionUserDelete:
+		if subject.HasRole(models.RoleAdmin) {
+			return nil
+		}
+	}
+	return fmt.Errorf("insufficient role for %s", action)
+}
+
+var _ security.Policy[models.User] = UserPolicy{}
