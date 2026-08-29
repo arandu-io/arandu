@@ -97,5 +97,5 @@ jobs:
           # A release with an empty body leaves the file alone, which is not a
           # failure.
           git diff --cached --quiet && exit 0
-          git commit -m "Write ${TAG} into the changelog"
+          git commit -s -m "Write ${TAG} into the changelog"
           git push origin main
