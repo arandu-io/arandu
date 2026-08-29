@@ -18,9 +18,9 @@ import (
 // version number people maintain, upgrade and argue about for a build step that
 // does not exist.
 
-// tools parses the [tools] table. The format is the subset `aru` reads: a
-// section header and key = "value" lines.
-func tools(t *testing.T) map[string]string {
+// manifestSection parses one table from the subset of TOML that `aru` reads:
+// a section header and key = "value" lines.
+func manifestSection(t *testing.T, wanted string) map[string]string {
 	t.Helper()
 
 	body, err := os.ReadFile(filepath.Join(tests.Root(t), "arandu.toml"))
@@ -39,7 +39,7 @@ func tools(t *testing.T) map[string]string {
 			section = strings.Trim(line, "[]")
 			continue
 		}
-		if section != "tools" {
+		if section != wanted {
 			continue
 		}
 		key, value, ok := strings.Cut(line, "=")
@@ -51,8 +51,14 @@ func tools(t *testing.T) map[string]string {
 	return out
 }
 
+func TestTheManifestRequiresTheOldestAruThatBuildsNativeAuthenticationViews(t *testing.T) {
+	if got := manifestSection(t, "arandu")["aru"]; got != "v0.35.0" {
+		t.Errorf("arandu.toml requires aru %q, want v0.35.0 for native authentication views", got)
+	}
+}
+
 func TestTheToolchainPinsOnlyWhatIsDownloaded(t *testing.T) {
-	pinned := tools(t)
+	pinned := manifestSection(t, "tools")
 
 	if version, found := pinned["templ"]; found {
 		t.Errorf("arandu.toml still pins templ %q, and nothing downloads it: "+
