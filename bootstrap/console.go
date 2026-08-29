@@ -38,8 +38,9 @@ func Tenant() string { return appconfig.Tenant() }
 
 // dispatch runs one command against a fully wired application.
 //
-// Every command builds the same application, and that is the point: `aru work`
-// reaches the same services a request does, so a worker is never a second,
+// Every command builds the same application, and that is the point: the public
+// `aru queue:work` command delegates to this binary's internal `work` subcommand
+// and reaches the same services a request does, so a worker is never a second,
 // subtly different program.
 func Dispatch(command string, args []string) error {
 	cfg, err := appconfig.Load()

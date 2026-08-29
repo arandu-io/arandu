@@ -109,7 +109,7 @@ type App struct {
 	// of its own would pass over an application that wires none, and an
 	// application that wires none writes rows nothing ever reads.
 	Relay *events.Relay
-	// Queue is the job store `aru work` drains.
+	// Queue is the job store `aru queue:work` drains.
 	Queue *queue.DatabaseQueue
 	// Mail is what sends. It is returned as well as used, because a job that
 	// sends is built outside this function and reaching back in for the mailer
@@ -128,7 +128,7 @@ type App struct {
 //
 // It does not boot, listen or migrate. main.go decides which of those the
 // requested command needs, which is what keeps `aru routes` from opening a
-// socket and `aru work` from starting a scheduler.
+// socket and `aru queue:work` from starting a scheduler.
 //
 // It fails when what the configuration named cannot be assembled -- a
 // certificate file that is not there is the case that exists today. Refusing
@@ -191,11 +191,11 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// # It runs in `aru serve`, and in no other command
 	//
 	// That is not decided here. The module's loop is a kernel.Background one, and
-	// Start is called by Kernel.Run and never by Kernel.Boot -- so `aru work`,
-	// `aru routes` and every migration command build this same application and
-	// start no relay.
+	// Start is called by Kernel.Run, never by Kernel.Boot. The `aru queue:work`
+	// command, `aru routes` and every migration command build this same
+	// application and start no relay.
 	//
-	// It is also the right place rather than the convenient one. `aru work`
+	// It is also the right place rather than the convenient one. `aru queue:work`
 	// scales with the depth of the job queue, so a relay there is one publisher
 	// per worker replica and the count is whatever the queue happened to need. A
 	// relay in a command of its own would be a second deployable to build,
@@ -310,9 +310,9 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// error page. A relay built beside it and not handed to it publishes
 			// nothing and reports itself healthy.
 			events.WithRelay(relay),
-			// The jobs table. Work that happens after the response, drained by
-			// `aru work` -- the same image with another argument, which is what
-			// keeps the deploy at one artifact.
+			// The jobs table. Work that happens after the response is drained by
+			// `aru queue:work`, which delegates to this image's internal `work`
+			// subcommand and keeps the deploy at one artifact.
 			//
 			// The module is the framework's and the driver is the one built
 			// above: a module registers its routes on the framework's router,

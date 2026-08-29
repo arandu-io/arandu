@@ -37,12 +37,12 @@ const (
 type Queue struct {
 	Connection QueueConnection
 
-	// Default is the queue a job goes to when it names none, and the queue
-	// `aru work` drains when it is not told otherwise. One name for both, so a
-	// deployment cannot dispatch into a queue no worker is reading.
+	// Default is the queue a job goes to when it names none. It is also the queue
+	// `aru queue:work` drains when it is not told otherwise. One name for both,
+	// so a deployment cannot dispatch into a queue no worker is reading.
 	Default string
 
-	// Workers is how many jobs one `aru work` process runs at once. The
+	// Workers is how many jobs one `aru queue:work` process runs at once. The
 	// --workers flag overrides it for one invocation.
 	Workers int
 

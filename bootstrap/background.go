@@ -92,8 +92,9 @@ func scheduleRun(ctx context.Context, sched *scheduler.Module, args []string) er
 	return s.RunNow(ctx, id, *tenant)
 }
 
-// WorkerOptions is what `aru work` runs its worker with: the four queue
-// settings, and the flags that override them for one invocation.
+// WorkerOptions builds the options for the internal `work` subcommand that
+// `aru queue:work` delegates to: the four queue settings, and the flags that
+// override them for one invocation.
 //
 // It is exported for the reason Open is. What has to be checkable is whether a
 // number written in the environment is the number the worker is given, and the

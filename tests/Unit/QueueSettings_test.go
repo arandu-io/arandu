@@ -1,28 +1,60 @@
 package unit_test
 
 import (
+	"bytes"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // The four queue variables, from .env to the worker that runs the jobs.
 //
-// They were read and validated once and then dropped: `aru work` built its
-// worker from a queue name and a job count written into the flag declarations,
-// so no setting of QUEUE_WORKERS changed anything, QUEUE_RETRY_AFTER left every
-// lease at the component's own five minutes while the file beside it said
-// ninety seconds, and QUEUE_MAX_ATTEMPTS parked a job after a number nobody
-// chose. Nothing failed, which is why it lasted -- a lease that is the wrong
-// length is a lease that works until a job runs longer than it.
+// They were read and validated once and then dropped: `aru queue:work` built
+// its worker from a queue name and a job count written into the flag
+// declarations, so no setting of QUEUE_WORKERS changed anything,
+// QUEUE_RETRY_AFTER left every lease at the component's own five minutes while
+// the file beside it said ninety seconds, and QUEUE_MAX_ATTEMPTS parked a job
+// after a number nobody chose. Nothing failed, which is why it lasted -- a
+// lease that is the wrong length is a lease that works until a job runs longer
+// than it.
 //
 // The assertions are made on the settings the worker is built with, because
 // that is the far end reachable without a job queue and a clock: the worker
 // itself does not return until it is interrupted, and every number below is one
 // it was handed.
+
+// TestTheStarterNamesOnlyThePublicQueueWorkerCommand keeps the operator-facing
+// examples on the CLI command rather than the application binary's internal
+// subcommand. The searched spelling is assembled so this guard does not carry
+// the text it exists to reject.
+func TestTheStarterNamesOnlyThePublicQueueWorkerCommand(t *testing.T) {
+	root := tests.Root(t)
+	retired := []byte("aru" + " work")
+	paths := []string{
+		".env.example",
+		"bootstrap/app.go",
+		"bootstrap/background.go",
+		"bootstrap/console.go",
+		"config/queue.go",
+		"tests/Feature/Scheduler_test.go",
+		"tests/Unit/QueueSettings_test.go",
+	}
+
+	for _, path := range paths {
+		source, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		if err != nil {
+			t.Fatalf("reading %s: %v", path, err)
+		}
+		if found := bytes.Count(source, retired); found != 0 {
+			t.Errorf("%s contains %d retired public worker command spelling(s); use `aru queue:work`", path, found)
+		}
+	}
+}
 
 // queueEnv is a configuration that loads, with the four variables cleared so a
 // value exported in a shell cannot answer for one a case did not set.
@@ -40,9 +72,8 @@ func queueEnv(t *testing.T) {
 	}
 }
 
-// TestTheQueueSettingsReachTheWorker is the whole path: four variables, the
-// configuration this application parsed them into, and the options `aru work`
-// builds its worker from.
+// TestTheQueueSettingsReachTheWorker is the whole path: four variables and the
+// configuration this application parses into options for `aru queue:work`.
 func TestTheQueueSettingsReachTheWorker(t *testing.T) {
 	queueEnv(t)
 

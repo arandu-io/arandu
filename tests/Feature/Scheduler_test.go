@@ -160,8 +160,8 @@ func TestTheSchedulerIsWiredIntoTheApplication(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = app.Kernel.Shutdown() })
 
-	// The jobs table is part of the schema the application migrates, or
-	// `aru work` fails on a table that does not exist.
+	// The jobs table is part of the schema the application migrates. Without it,
+	// `aru queue:work` fails on a table that does not exist.
 	if _, err := app.Queue.PendingSize(context.Background(), ""); err != nil {
 		t.Fatalf("the jobs table is missing from the migrations: %v", err)
 	}
