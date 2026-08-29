@@ -11,7 +11,7 @@ package assets
 import (
 	_ "embed"
 
-	"github.com/arandu-io/framework/view"
+	"github.com/arandu-io/hesape/view"
 )
 
 // stylesheet is the compiled output of resources/css/app.css.

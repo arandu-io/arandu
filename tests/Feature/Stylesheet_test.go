@@ -12,7 +12,8 @@ import (
 	"testing"
 
 	fhttp "github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/view"
+	fwview "github.com/arandu-io/framework/view"
+	"github.com/arandu-io/hesape/view"
 
 	_ "github.com/arandu-io/arandu/assets"
 	"github.com/arandu-io/arandu/tests"
@@ -33,7 +34,7 @@ func TestTheBrowserGetsThisProjectsStylesheet(t *testing.T) {
 	onDisk := []byte(tests.File(t, filepath.Join("assets", "app.css")))
 
 	r := fhttp.NewRouter()
-	view.NewModule().Routes(r)
+	fwview.NewModule().Routes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()
 

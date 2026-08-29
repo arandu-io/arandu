@@ -4,7 +4,7 @@ import (
 	"github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/modules/auth"
 	"github.com/arandu-io/framework/security"
-	"github.com/arandu-io/framework/view"
+	"github.com/arandu-io/hesape/view"
 
 	"github.com/arandu-io/arandu/storage/framework/views"
 )

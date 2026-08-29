@@ -31,13 +31,14 @@ import (
 	"github.com/arandu-io/framework/modules/auth"
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/framework/security"
-	"github.com/arandu-io/framework/view"
+	fwview "github.com/arandu-io/framework/view"
 	cache2 "github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/exception"
 	"github.com/arandu-io/hesape/queue"
 	hredis "github.com/arandu-io/hesape/redis"
 	"github.com/arandu-io/hesape/redis/connections"
 	hmiddleware "github.com/arandu-io/hesape/routing/middleware"
+	"github.com/arandu-io/hesape/view"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	listeners "github.com/arandu-io/arandu/app/Listeners"
@@ -294,7 +295,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// optional kernel.RendererProvider interface, and serves the
 			// embedded assets. Without it every page answers with an error that
 			// names this missing line, and every stylesheet 404s.
-			view.NewModule(),
+			fwview.NewModule(),
 			// Single tenant: every login belongs to one constant. A multi-tenant
 			// application swaps this for a resolver that reads the host name --
 			// same code path, same queries, one line different.
