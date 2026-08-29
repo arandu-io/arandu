@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
-	_ "github.com/arandu-io/arandu/database/migrations"
+	appmigrations "github.com/arandu-io/arandu/database/migrations"
 	"github.com/arandu-io/hesape/database"
 	_ "github.com/arandu-io/hesape/database/connectors/sqlite"
 	dbmigrations "github.com/arandu-io/hesape/database/migrations"
@@ -21,25 +22,47 @@ var nativeAuthMigrationNames = []string{
 	"20260828_0003_create_two_factor",
 }
 
-func TestTheApplicationOwnsTheExactNativeAuthMigrationCatalog(t *testing.T) {
+const nativeAuthTestPath = "tests/native-auth-schema"
+
+var registerNativeAuthTestPath sync.Once
+
+func TestTheApplicationOwnsTheExactNativeAuthMigrationSubset(t *testing.T) {
+	assertNativeAuthProductionCatalog(t)
+}
+
+func TestTheNativeAuthCatalogAllowsAdditionalDomainMigrations(t *testing.T) {
+	dbmigrations.Register(additionalDomainMigration{})
+	assertNativeAuthProductionCatalog(t)
+}
+
+func assertNativeAuthProductionCatalog(t *testing.T) {
+	t.Helper()
 	registered := dbmigrations.Registered(dbmigrations.DefaultPath)
-	names := make([]string, 0, len(registered))
+	wanted := make(map[string]struct{}, len(nativeAuthMigrationNames))
+	for _, name := range nativeAuthMigrationNames {
+		wanted[name] = struct{}{}
+	}
+
+	names := make([]string, 0, len(nativeAuthMigrationNames))
 	for _, migration := range registered {
+		if _, native := wanted[migration.GetName()]; !native {
+			continue
+		}
 		names = append(names, migration.GetName())
 		if _, ok := migration.(dbmigrations.ReversibleMigration); !ok {
-			t.Errorf("migration %q cannot be rolled back", migration.GetName())
+			t.Errorf("native auth migration %q cannot be rolled back", migration.GetName())
 		}
 	}
 
 	if !reflect.DeepEqual(names, nativeAuthMigrationNames) {
-		t.Fatalf("application migration catalog = %v, want %v", names, nativeAuthMigrationNames)
+		t.Fatalf("native auth migration subset = %v, want %v inside the production catalog", names, nativeAuthMigrationNames)
 	}
 }
 
 func TestFreshNativeAuthMigrationsCreateTheExactPortableSchema(t *testing.T) {
 	harness := newMigrationHarness(t)
 
-	applied, err := harness.migrator.Run(context.Background(), []string{dbmigrations.DefaultPath}, dbmigrations.Options{})
+	applied, err := harness.migrator.Run(context.Background(), []string{nativeAuthTestPath}, dbmigrations.Options{})
 	if err != nil {
 		t.Fatalf("migrating a fresh database: %v", err)
 	}
@@ -79,7 +102,7 @@ func TestFreshNativeAuthMigrationsCreateTheExactPortableSchema(t *testing.T) {
 
 func TestTheUsersSchemaIsolatesEmailUniquenessByTenant(t *testing.T) {
 	harness := newMigrationHarness(t)
-	if _, err := harness.migrator.Run(context.Background(), []string{dbmigrations.DefaultPath}, dbmigrations.Options{}); err != nil {
+	if _, err := harness.migrator.Run(context.Background(), []string{nativeAuthTestPath}, dbmigrations.Options{}); err != nil {
 		t.Fatalf("migrating: %v", err)
 	}
 
@@ -103,7 +126,7 @@ func TestTheUsersSchemaIsolatesEmailUniquenessByTenant(t *testing.T) {
 
 func TestAnExistingAuthSchemaUpgradesOnceAndRollsBackOnlyTheNewBatch(t *testing.T) {
 	harness := newMigrationHarness(t)
-	registered := dbmigrations.Registered(dbmigrations.DefaultPath)
+	registered := dbmigrations.Registered(nativeAuthTestPath)
 
 	if err := harness.migrator.RunPending(context.Background(), registered[:2], dbmigrations.Options{}); err != nil {
 		t.Fatalf("installing the historical user schema: %v", err)
@@ -112,7 +135,7 @@ func TestAnExistingAuthSchemaUpgradesOnceAndRollsBackOnlyTheNewBatch(t *testing.
 		t.Fatal("the historical schema unexpectedly contains second-factor storage")
 	}
 
-	applied, err := harness.migrator.Run(context.Background(), []string{dbmigrations.DefaultPath}, dbmigrations.Options{})
+	applied, err := harness.migrator.Run(context.Background(), []string{nativeAuthTestPath}, dbmigrations.Options{})
 	if err != nil {
 		t.Fatalf("upgrading the historical schema: %v", err)
 	}
@@ -120,7 +143,7 @@ func TestAnExistingAuthSchemaUpgradesOnceAndRollsBackOnlyTheNewBatch(t *testing.
 		t.Fatalf("upgrade applied %v, want only %v", applied, nativeAuthMigrationNames[2:])
 	}
 
-	replayed, err := harness.migrator.Run(context.Background(), []string{dbmigrations.DefaultPath}, dbmigrations.Options{})
+	replayed, err := harness.migrator.Run(context.Background(), []string{nativeAuthTestPath}, dbmigrations.Options{})
 	if err != nil {
 		t.Fatalf("replaying the applied catalog: %v", err)
 	}
@@ -128,7 +151,7 @@ func TestAnExistingAuthSchemaUpgradesOnceAndRollsBackOnlyTheNewBatch(t *testing.
 		t.Fatalf("replay applied migrations again: %v", replayed)
 	}
 
-	reverted, err := harness.migrator.Rollback(context.Background(), []string{dbmigrations.DefaultPath}, dbmigrations.Options{})
+	reverted, err := harness.migrator.Rollback(context.Background(), []string{nativeAuthTestPath}, dbmigrations.Options{})
 	if err != nil {
 		t.Fatalf("rolling back the upgrade: %v", err)
 	}
@@ -151,6 +174,11 @@ type migrationHarness struct {
 
 func newMigrationHarness(t *testing.T) migrationHarness {
 	t.Helper()
+	registerNativeAuthTestPath.Do(func() {
+		dbmigrations.Register(appmigrations.CreateUsers{}, nativeAuthTestPath)
+		dbmigrations.Register(appmigrations.AddNameAndVerificationToUsers{}, nativeAuthTestPath)
+		dbmigrations.Register(appmigrations.CreateTwoFactor{}, nativeAuthTestPath)
+	})
 
 	databasePath := filepath.Join(t.TempDir(), "auth-schema.sqlite")
 	handle, err := sql.Open("sqlite", databasePath)
@@ -180,6 +208,17 @@ func newMigrationHarness(t *testing.T) migrationHarness {
 
 	return migrationHarness{db: handle, migrator: migrator, repository: repository}
 }
+
+// additionalDomainMigration simulates what `aru make:module` adds beside the
+// native auth history. It is registered only in this test binary and must not
+// change which three migrations the auth proof audits or executes.
+type additionalDomainMigration struct{ dbmigrations.BaseMigration }
+
+func (additionalDomainMigration) GetName() string { return "20260829_9999_create_invoices" }
+
+func (additionalDomainMigration) Up(context.Context, dbmigrations.Connection) error { return nil }
+
+func (additionalDomainMigration) Down(context.Context, dbmigrations.Connection) error { return nil }
 
 type columnSpec struct {
 	name     string
