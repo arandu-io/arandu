@@ -80,11 +80,15 @@ func TestKyseEditorSettingsKeepSourceViewsVisible(t *testing.T) {
 		t.Errorf("search.exclude = %#v, want only generated views", searchExcludes)
 	}
 
-	var fileExcludes map[string]bool
-	decodeSetting(t, document, "files.exclude", &fileExcludes)
-	for pattern, excluded := range fileExcludes {
-		if excluded && strings.Contains(filepath.ToSlash(pattern), "resources/views") {
-			t.Errorf("files.exclude hides source views with %q", pattern)
+	if raw, configured := document["files.exclude"]; configured {
+		var fileExcludes map[string]bool
+		if err := json.Unmarshal(raw, &fileExcludes); err != nil {
+			t.Fatalf("parse editor setting %q: %v", "files.exclude", err)
+		}
+		for pattern, excluded := range fileExcludes {
+			if excluded && strings.Contains(filepath.ToSlash(pattern), "resources/views") {
+				t.Errorf("files.exclude hides source views with %q", pattern)
+			}
 		}
 	}
 }
