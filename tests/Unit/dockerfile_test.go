@@ -1,6 +1,7 @@
 package unit_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,54 @@ func dockerfile(t *testing.T) string {
 		t.Fatalf("the skeleton has no Dockerfile, and doc 17 says it does: %v", err)
 	}
 	return string(body)
+}
+
+func dockerArgument(t *testing.T, name string) string {
+	t.Helper()
+	prefix := "ARG " + name + "="
+	for _, raw := range strings.Split(dockerfile(t), "\n") {
+		line := strings.TrimSpace(raw)
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		value := strings.TrimSpace(strings.TrimPrefix(line, prefix))
+		if value == "" {
+			t.Fatalf("Dockerfile declares %s without a default", name)
+		}
+		return value
+	}
+	t.Fatalf("Dockerfile does not declare %s with a default", name)
+	return ""
+}
+
+func releaseParts(t *testing.T, value string) [3]int {
+	t.Helper()
+	var parts [3]int
+	n, err := fmt.Sscanf(value, "v%d.%d.%d", &parts[0], &parts[1], &parts[2])
+	if err != nil || n != len(parts) || fmt.Sprintf("v%d.%d.%d", parts[0], parts[1], parts[2]) != value {
+		t.Fatalf("%q is not a vMAJOR.MINOR.PATCH release", value)
+	}
+	return parts
+}
+
+func releaseIsBelow(t *testing.T, candidate, floor string) bool {
+	t.Helper()
+	got := releaseParts(t, candidate)
+	want := releaseParts(t, floor)
+	for i := range got {
+		if got[i] != want[i] {
+			return got[i] < want[i]
+		}
+	}
+	return false
+}
+
+func TestTheDockerBuildUsesAnAruReleaseAtOrAboveTheManifestFloor(t *testing.T) {
+	version := dockerArgument(t, "ARU_VERSION")
+	floor := manifestSection(t, "arandu")["aru"]
+	if releaseIsBelow(t, version, floor) {
+		t.Errorf("Dockerfile defaults ARU_VERSION to %s, below the arandu.toml floor %s", version, floor)
+	}
 }
 
 func TestTheImageIsStaticAndDistroless(t *testing.T) {
