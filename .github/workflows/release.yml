@@ -91,8 +91,8 @@ jobs:
           } > CHANGELOG.next
           mv CHANGELOG.next CHANGELOG.md
 
-          git config user.name "HYZIS"
-          git config user.email "admin@hyz.is"
+          git config user.name "Paulo R. Lima"
+          git config user.email "paulorlima@hyz.is"
           git add CHANGELOG.md
           # A release with an empty body leaves the file alone, which is not a
           # failure.
