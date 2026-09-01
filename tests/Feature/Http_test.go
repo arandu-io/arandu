@@ -95,7 +95,7 @@ func TestLoginFormIsServedWithACSRFToken(t *testing.T) {
 	k := tests.Kernel(t, config.EnvDev)
 	rec := publishedAuthLogin(t, k.Handler())
 	body := rec.Body.String()
-	if !strings.Contains(body, `name="_csrf"`) {
+	if !strings.Contains(body, `name="_token"`) {
 		t.Error("the form carries no CSRF field")
 	}
 	// The attribute below is the single most common mistake in this stack: without
