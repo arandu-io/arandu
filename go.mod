@@ -2,6 +2,8 @@ module github.com/arandu-io/arandu
 
 go 1.26
 
+retract v0.10.0 // Requires retracted Kyse v0.15.1 and lacks method override in the default HTTP pipeline.
+
 require github.com/arandu-io/framework v0.42.0
 
 require (
