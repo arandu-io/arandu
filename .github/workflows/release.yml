@@ -40,6 +40,24 @@ jobs:
         run: |
           set -euo pipefail
 
+          # A tag can be pushed from any local branch. Publishing it before its
+          # commit reaches main creates an immutable release from code that CI
+          # on the release branch never accepted. Peel the tag so this check is
+          # identical for annotated and lightweight tags, and ask Git about
+          # ancestry instead of trusting the branch that triggered the event.
+          git fetch --no-tags origin \
+            +refs/heads/main:refs/remotes/origin/main
+
+          if ! tag_commit="$(git rev-parse --verify "${TAG}^{commit}" 2>/dev/null)"; then
+            echo "refusing release: tag ${TAG} does not resolve to a commit" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$tag_commit" refs/remotes/origin/main; then
+            echo "refusing release: tag ${TAG} points to ${tag_commit}, which is not in origin/main" >&2
+            echo "merge the release commit into main before pushing the tag" >&2
+            exit 1
+          fi
+
           # The baseline for the notes, asked of the history rather than of a
           # date-sorted tag list: sorting puts whatever tag was created last in
           # front, and for a lightweight tag that is the commit's date and not
