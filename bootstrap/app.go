@@ -33,6 +33,7 @@ import (
 	fwview "github.com/arandu-io/framework/view"
 	cache2 "github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/exception"
+	httpmiddleware "github.com/arandu-io/hesape/http/middleware"
 	"github.com/arandu-io/hesape/onetime"
 	"github.com/arandu-io/hesape/queue"
 	hredis "github.com/arandu-io/hesape/redis"
@@ -305,6 +306,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			hmiddleware.Throttle(limiter, cache2.PerMinute(300),
 				middleware.KeyBySession(sessions.IDFromRequest), fhttp.Refuse),
 			middleware.CSRFProtect(csrf, sessions.IDFromRequest),
+			httpmiddleware.OverrideMethod(),
 		).
 		Register(
 			// The view layer. It brings the renderer ctx.View needs, through the

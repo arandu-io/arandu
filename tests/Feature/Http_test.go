@@ -3,6 +3,7 @@ package feature_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -119,6 +120,47 @@ func TestWriteWithoutCSRFIsRejected(t *testing.T) {
 	}
 }
 
+// TestSpoofedMethodReachesTheRouterAfterCSRF proves the browser-facing
+// contract through the complete application pipeline. The browser can submit
+// only POST, but the real router must observe DELETE after the request has
+// passed the session-bound CSRF check. There is deliberately no DELETE probe
+// route, so 405 is the public evidence; without the override, the POST probe
+// handler answers instead.
+func TestSpoofedMethodReachesTheRouterAfterCSRF(t *testing.T) {
+	k := tests.Kernel(t, config.EnvDev, methodProbeModule{})
+
+	form := httptest.NewRecorder()
+	k.Handler().ServeHTTP(form, httptest.NewRequest(http.MethodGet, "/", nil))
+	if form.Code != http.StatusOK {
+		t.Fatalf("token page status = %d, want 200", form.Code)
+	}
+	body := url.Values{
+		"_token":  {csrfTokenFromPage(t, form.Body.String())},
+		"_method": {http.MethodDelete},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/method-probe", strings.NewReader(body.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, cookie := range form.Result().Cookies() {
+		request.AddCookie(cookie)
+	}
+
+	response := httptest.NewRecorder()
+	k.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("spoofed DELETE status = %d, want 405; the router did not observe DELETE", response.Code)
+	}
+}
+
+type methodProbeModule struct{}
+
+func (methodProbeModule) Name() string { return "method-probe" }
+
+func (methodProbeModule) Routes(router *fhttp.Router) {
+	router.Action(http.MethodPost, "/method-probe", func(ctx *fhttp.Context) error {
+		return ctx.Status(http.StatusNoContent)
+	})
+}
+
 // TestHealthFailsWithoutTheDatabase: the probe has to depend on the database, or
 // a pod with no connection keeps receiving traffic.
 func TestHealthFailsWithoutTheDatabase(t *testing.T) {
@@ -189,6 +231,24 @@ func publishedAuthLogin(t *testing.T, handler http.Handler) *httptest.ResponseRe
 		t.Fatalf("GET /auth/login = %d, want 200", recorder.Code)
 	}
 	return recorder
+}
+
+func csrfTokenFromPage(t *testing.T, html string) string {
+	t.Helper()
+	for _, marker := range []string{`name="_token" value="`, `"X-CSRF-Token": "`} {
+		start := strings.Index(html, marker)
+		if start < 0 {
+			continue
+		}
+		value := html[start+len(marker):]
+		end := strings.IndexByte(value, '"')
+		if end < 0 {
+			t.Fatal("the CSRF token is not terminated")
+		}
+		return value[:end]
+	}
+	t.Fatal("the page carries no CSRF token")
+	return ""
 }
 
 func TestUnknownCommandIsRejected(t *testing.T) {
