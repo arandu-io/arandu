@@ -16,15 +16,25 @@ import (
 // that string when a write is rejected.
 //
 // A resources/js/app.js attaching the same header from a htmx:configRequest
-// listener would be a second answer to a question that already has one, and
-// nothing embeds, serves or references such a file, so it would never even run.
-// This test is what keeps it out.
+// listener would be a second answer to a question that already has one. This
+// test is what keeps it out.
 
-// TestResourcesHoldNoJavaScript: resources/ is the input of `aru view:build`,
-// and that build knows two kinds of file -- .kyse.go, which it compiles, and
-// .css, which Tailwind reads. A .js in there is not built, not embedded and not
-// served; it is a file that looks like behaviour and is not.
-func TestResourcesHoldNoJavaScript(t *testing.T) {
+// TestResourcesHoldOneJavaScriptFile: resources/js/custom.js is where an
+// application writes client behaviour, and it is the only script under
+// resources/ there is.
+//
+// One, and not none: the file is embedded by the Go file beside it, served from
+// this origin and loaded by the layout, so what goes in it runs. And one, and
+// not any number: every other .js there would be a file that looks like
+// behaviour and is not, because nothing embeds it -- `aru view:build` knows
+// .kyse.go, which it compiles, and .css, which Tailwind reads, and a script is
+// neither. It would sit in the tree looking like the place to put something,
+// and a second one that IS embedded is a second place to register the same
+// behaviour under a name only one of them wins.
+func TestResourcesHoldOneJavaScriptFile(t *testing.T) {
+	const only = "resources/js/custom.js"
+
+	found := map[string]bool{}
 	err := filepath.WalkDir(filepath.Join(tests.Root(t), "resources"), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -32,12 +42,24 @@ func TestResourcesHoldNoJavaScript(t *testing.T) {
 		if d.IsDir() || filepath.Ext(path) != ".js" {
 			return nil
 		}
-		t.Errorf("%s is never built, embedded or served: `aru view:build` compiles .kyse.go and .css, "+
-			"and the CSRF token travels in hx-headers on <body>", path)
+		rel, relErr := filepath.Rel(tests.Root(t), path)
+		if relErr != nil {
+			return relErr
+		}
+		rel = filepath.ToSlash(rel)
+		found[rel] = true
+		if rel != only {
+			t.Errorf("%s is never built, embedded or served: `aru view:build` compiles .kyse.go and .css, "+
+				"the CSRF token travels in hx-headers on <body>, and %s is the one script this project serves", rel, only)
+		}
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walking resources: %v", err)
+	}
+	if !found[only] {
+		t.Errorf("%s is missing, and it is where an application registers its own behaviours: "+
+			"without it the layout asks for a script nothing embeds and no page renders at all", only)
 	}
 }
 

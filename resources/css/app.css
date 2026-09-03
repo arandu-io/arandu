@@ -1,4 +1,10 @@
-/* The stylesheet of this application: Tailwind v4, Basecoat, and nothing else.
+/* The skeleton's stylesheet: Tailwind v4, Basecoat, and nothing else.
+ *
+ * This file is not the place to customise. It ships with the skeleton and an
+ * upgrade rewrites it, so every edit made here is a merge to resolve on the
+ * next release -- and the release that resolves it silently is the one that
+ * takes your colours back out. custom.css, imported at the bottom, is the file
+ * that is yours and that nothing upstream touches.
  *
  * `aru view:build` compiles it with the standalone tailwindcss binary -- a
  * single executable the CLI downloads and pins in arandu.toml. There is no
@@ -136,3 +142,19 @@
     color-scheme: dark;
   }
 }
+
+/* This project's own stylesheet, and it is the last line on purpose.
+ *
+ * Everything above belongs to the skeleton and an upgrade may rewrite any of
+ * it. custom.css is where a project writes, and CSS resolves a tie by order:
+ * imported beside Basecoat it would still sit ABOVE the accent blocks and the
+ * base layer here, so a project redeclaring --primary would watch its colour
+ * lose to a file it did not write and find nothing on the page saying why.
+ * Last is what makes "put it in custom.css" true rather than usually true.
+ *
+ * Anything added to this file later goes above this line.
+ *
+ * An @import after rules is ignored by a browser and compiled by Tailwind, and
+ * Tailwind is the only thing that reads this file: what a browser fetches is
+ * the compiled output, where these declarations are already in order. */
+@import "./custom.css";

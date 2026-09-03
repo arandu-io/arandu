@@ -132,6 +132,17 @@ func TestTheApplicationTreeHasOneOwnerPerResponsibility(t *testing.T) {
 		"database/seeders",
 		"public",
 		"resources/css",
+		// The customisation layer, and it is required rather than optional for
+		// the reason a place to put something is only useful when it is already
+		// there: a directory a project has to create first is a directory a
+		// project invents a name for instead.
+		//
+		// It was a refused path while nothing embedded, served or referenced
+		// what went in it -- a .js under resources/ was then a file that looked
+		// like behaviour and could not be one. The Go file beside custom.js is
+		// what changed that, and it has to be beside it: //go:embed cannot
+		// reference a parent directory.
+		"resources/js",
 		"resources/views",
 		"routes",
 		"storage/app/private",
@@ -162,6 +173,17 @@ func TestTheApplicationTreeHasOneOwnerPerResponsibility(t *testing.T) {
 		"config/app.go",
 		"database/migrations/migrations.go",
 		"public/public.go",
+		// The two files a project customises, and the one that carries the
+		// second of them into the binary.
+		//
+		// They are required because their absence is silent. Deleting
+		// custom.css breaks the stylesheet build outright, which is loud, but
+		// re-creating it somewhere else is not: a project that customises in a
+		// file of its own invented name has an override nothing imports, a page
+		// that draws the skeleton's design, and nothing anywhere saying so.
+		"resources/css/custom.css",
+		"resources/js/custom.js",
+		"resources/js/js.go",
 		"routes/console.go",
 		"routes/web.go",
 		"tests/TestCase.go",
@@ -202,7 +224,6 @@ func TestTheApplicationTreeHasOneOwnerPerResponsibility(t *testing.T) {
 		"bootstrap/cache",
 		"routes/api.go",
 		"routes/channels.go",
-		"resources/js",
 		"public/assets/manifest.json",
 		"storage/logs",
 	}

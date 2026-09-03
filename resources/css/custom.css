@@ -1,0 +1,31 @@
+/* This project's stylesheet, and the only file here that is.
+ *
+ * app.css beside it belongs to the skeleton: it carries the vendored design
+ * system, the theme tokens and the rules the framework's own pages assume, and
+ * an upgrade rewrites it. Anything written there is a merge conflict waiting
+ * for the next release. Nothing writes this file but you.
+ *
+ * app.css imports it LAST, after everything else it pulls in, so a declaration
+ * here wins a tie by being later in the cascade. Overriding something is
+ * writing it again below, never editing where it came from:
+ *
+ *     :root {
+ *       --primary: oklch(0.55 0.2 260);
+ *       --radius: 0.25rem;
+ *     }
+ *
+ *     .brand-hero {
+ *       @apply text-3xl font-bold tracking-tight;
+ *     }
+ *
+ * The same Tailwind run compiles this file and app.css, so @apply, @utility,
+ * @theme, @layer and a plain rule all work here with no further declaration.
+ *
+ * What that run does NOT do is read class names out of this file: the names it
+ * compiles utilities for come from the sources app.css lists -- the views of
+ * this project and the imported component library. A class mentioned only in a
+ * comment here produces nothing, and a class this file defines is a rule and is
+ * emitted whether or not a view uses it.
+ *
+ * Empty is the intended starting state.
+ */
