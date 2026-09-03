@@ -53,6 +53,12 @@ import (
 	// is silently absent from the page.
 	_ "github.com/arandu-io/arandu/assets"
 
+	// This project's own client script, embedded. It registers itself as an
+	// asset, and the layout asks for that asset by name -- so without this
+	// import the page refuses to render rather than quietly losing the
+	// behaviours the script defines.
+	_ "github.com/arandu-io/arandu/resources/js"
+
 	// This application's own schema changes. Importing them is what registers
 	// them: each one calls migrations.Register from init(), and a package
 	// nothing imports is not in the binary at all -- so without this line `aru

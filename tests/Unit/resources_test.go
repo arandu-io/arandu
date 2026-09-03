@@ -16,134 +16,51 @@ import (
 // that string when a write is rejected.
 //
 // A resources/js/app.js attaching the same header from a htmx:configRequest
-// listener would be a second answer to a question that already has one, and
-// nothing embeds, serves or references such a file, so it would never even run.
-// This test is what keeps it out.
+// listener would be a second answer to a question that already has one. This
+// test is what keeps it out.
 
-// TestResourcesHoldNoJavaScript: resources/ is the input of `aru view:build`,
-// and that build knows two kinds of file -- .kyse.go, which it compiles, and
-// .css, which Tailwind reads. A .js in there is not built, not embedded and not
-// served; it is a file that looks like behaviour and is not.
-func TestResourcesHoldNoJavaScript(t *testing.T) {
-	for _, path := range javaScriptUnder(t, filepath.Join(tests.Root(t), "resources")) {
-		t.Errorf("%s is never built, embedded or served: `aru view:build` compiles .kyse.go and .css, "+
-			"and the CSRF token travels in hx-headers on <body>", path)
-	}
-}
-
-// TestTheJavaScriptGuardSeesAPlantedFile is the guard on the guard.
+// TestResourcesHoldOneJavaScriptFile: resources/js/custom.js is where an
+// application writes client behaviour, and it is the only script under
+// resources/ there is.
 //
-// The test above passes on a clean tree and it would pass just as quietly on a
-// walk that had stopped reaching anything -- a renamed directory, a swallowed
-// error, an extension compared against the wrong string. Planting one file where
-// the walk has to find it is what separates "there is no JavaScript here" from
-// "nothing looked".
-func TestTheJavaScriptGuardSeesAPlantedFile(t *testing.T) {
-	root := t.TempDir()
-	nested := filepath.Join(root, "css", "vendor")
-	if err := os.MkdirAll(nested, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	planted := filepath.Join(nested, "behaviour.js")
-	if err := os.WriteFile(planted, []byte("(() => {})();\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// A stylesheet beside it, because a guard that reported every file would
-	// also "find" the planted one.
-	if err := os.WriteFile(filepath.Join(nested, "style.css"), []byte(":root{}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+// One, and not none: the file is embedded by the Go file beside it, served from
+// this origin and loaded by the layout, so what goes in it runs. And one, and
+// not any number: every other .js there would be a file that looks like
+// behaviour and is not, because nothing embeds it -- `aru view:build` knows
+// .kyse.go, which it compiles, and .css, which Tailwind reads, and a script is
+// neither. It would sit in the tree looking like the place to put something,
+// and a second one that IS embedded is a second place to register the same
+// behaviour under a name only one of them wins.
+func TestResourcesHoldOneJavaScriptFile(t *testing.T) {
+	const only = "resources/js/custom.js"
 
-	found := javaScriptUnder(t, root)
-	if len(found) != 1 || found[0] != planted {
-		t.Errorf("the walk reported %v, want exactly %s: the guard on resources/ is not looking where it says", found, planted)
-	}
-}
-
-// javaScriptUnder returns every .js file below a directory.
-//
-// It is a function rather than a walk inside the test so the same code that
-// clears resources/ can be pointed at a tree with a file planted in it. A guard
-// checked only against the tree it guards is a guard nothing has ever seen fire.
-func javaScriptUnder(t *testing.T, root string) []string {
-	t.Helper()
-
-	var found []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	found := map[string]bool{}
+	err := filepath.WalkDir(filepath.Join(tests.Root(t), "resources"), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() && filepath.Ext(path) == ".js" {
-			found = append(found, path)
+		if d.IsDir() || filepath.Ext(path) != ".js" {
+			return nil
+		}
+		rel, relErr := filepath.Rel(tests.Root(t), path)
+		if relErr != nil {
+			return relErr
+		}
+		rel = filepath.ToSlash(rel)
+		found[rel] = true
+		if rel != only {
+			t.Errorf("%s is never built, embedded or served: `aru view:build` compiles .kyse.go and .css, "+
+				"the CSRF token travels in hx-headers on <body>, and %s is the one script this project serves", rel, only)
 		}
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walking %s: %v", root, err)
+		t.Fatalf("walking resources: %v", err)
 	}
-	return found
-}
-
-// TestTheVendorUpdaterCopiesNothingExecutable.
-//
-// resources/css/basecoat is refreshed by a script, and the script is what
-// decides what a refresh puts there. It used to create a js/ directory and copy
-// seven upstream scripts into it -- files nothing builds, embeds or serves, and
-// which the guard above refuses -- so the repository was one run of its own
-// updater away from red, and the run had never happened.
-//
-// The script is read as commands, with its comments dropped: the prose explains
-// why no JavaScript is copied and would otherwise be the thing that fails this.
-func TestTheVendorUpdaterCopiesNothingExecutable(t *testing.T) {
-	commands := vendorCommands(t)
-
-	stylesheets := false
-	for _, line := range commands {
-		if strings.Contains(line, ".css") {
-			stylesheets = true
-		}
-		if strings.Contains(line, ".js") {
-			t.Errorf("the updater copies JavaScript into resources/: %s", line)
-		}
-		if strings.HasPrefix(line, "mkdir") && strings.Contains(line, "js") {
-			t.Errorf("the updater creates a directory for JavaScript under resources/: %s", line)
-		}
+	if !found[only] {
+		t.Errorf("%s is missing, and it is where an application registers its own behaviours: "+
+			"without it the layout asks for a script nothing embeds and no page renders at all", only)
 	}
-	if !stylesheets {
-		t.Fatal("the updater copies no stylesheet, so this test read something that is not the updater")
-	}
-
-	// The removal stays even though nothing is put back: a checkout where the
-	// old updater has already run keeps that directory, and its own test suite
-	// stays red until something clears it.
-	cleared := false
-	for _, line := range commands {
-		if strings.HasPrefix(line, "rm ") && strings.Contains(line, "/js") {
-			cleared = true
-		}
-	}
-	if !cleared {
-		t.Error("the updater no longer removes a js/ left by an earlier version of itself, so a tree that " +
-			"ran that version stays refused by the guard above with nothing to clear it")
-	}
-}
-
-// vendorCommands returns the updater's lines with comments and blanks dropped.
-func vendorCommands(t *testing.T) []string {
-	t.Helper()
-
-	var commands []string
-	for _, line := range strings.Split(tests.File(t, "resources/css/basecoat/vendor.sh"), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		commands = append(commands, line)
-	}
-	if len(commands) == 0 {
-		t.Fatal("the updater has no commands in it")
-	}
-	return commands
 }
 
 // TestTheStylesheetDoesNotReadItsOwnOutput is the guard for a build that was

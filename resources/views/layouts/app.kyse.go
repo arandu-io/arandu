@@ -58,6 +58,12 @@ import "github.com/arandu-io/kyse/components"
 	<script src="{{ view.URL("ui.js") }}" defer></script>
 	<script src="{{ view.URL("basecoat.bundle.js") }}" defer></script>
 
+	<!-- This project's own behaviours, and after ui.js because it registers into
+	     the registry ui.js creates. Deferred scripts run in document order, so
+	     ui.js being listed above is the whole of what makes arandu.ui exist by
+	     the time this one asks for it. -->
+	<script src="{{ view.URL("custom.js") }}" defer></script>
+
 	<!-- The theme is read before the first paint, so a person who chose dark does
 	     not get a white flash on every navigation. It is the one script that
 	     cannot be deferred: everything else here reacts to a click, and this runs
