@@ -50,10 +50,11 @@ type Session struct {
 	Path   string
 	Domain string
 
-	// Secure marks the cookie HTTPS-only. It follows the environment rather than
-	// a variable: a cookie that is Secure in development never reaches a browser
-	// on http://localhost, and one that is not in production is one network away
-	// from being read.
+	// Secure marks the cookie HTTPS-only. SESSION_SECURE decides it, and without
+	// that variable it follows whichever of the environment and the application
+	// address says the traffic is protected: a cookie that is Secure in
+	// development never reaches a browser on http://localhost, and one that is
+	// not in production is one network away from being read.
 	Secure bool
 
 	// SameSite is Lax by default, which keeps the session out of cross-site
@@ -79,7 +80,7 @@ func loadSession(base bootstrap.Configuration, cache Cache) (Session, error) {
 	default:
 		return Session{}, fmt.Errorf("SESSION_DRIVER has unsupported value %q; expected memory or kv", driver)
 	}
-	secure, err := envBool("SESSION_SECURE", !base.App.Env.Is(hconfig.EnvDev))
+	secure, err := loadSessionSecure(base)
 	if err != nil {
 		return Session{}, err
 	}
@@ -105,4 +106,32 @@ func loadSession(base bootstrap.Configuration, cache Cache) (Session, error) {
 		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	}, nil
+}
+
+// loadSessionSecure answers whether the session cookie may only travel over
+// HTTPS.
+//
+// SESSION_SECURE decides it outright. Without it the answer is the strongest of
+// what the configuration already says, and it takes two facts because one of
+// them has a permissive default and the other does not:
+//
+//   - the environment, which is what lets a development run have the attribute
+//     off: a Secure cookie is not sent to http://localhost, so a developer
+//     would be handed a browser that discards every session it is given.
+//   - the answer already computed for this configuration, from the scheme of
+//     the application's own address.
+//
+// The environment on its own is not enough, and that is why the second reading
+// is here. It falls back to development when nothing states it, development is
+// the one environment where the cookie may go out in the clear, and so a
+// deployment that named neither variable served every session unprotected with
+// nothing said at the boot or on any request afterwards. The address does not
+// have that shape: an application answering on https says so, because every
+// absolute link it writes is built from it.
+//
+// The two are combined rather than one replacing the other, so that a
+// deployment naming a production environment while serving on a plain address
+// keeps the attribute it has.
+func loadSessionSecure(base bootstrap.Configuration) (bool, error) {
+	return envBool("SESSION_SECURE", base.Session.Secure || !base.App.Env.Is(hconfig.EnvDev))
 }
