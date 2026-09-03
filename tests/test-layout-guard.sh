@@ -195,27 +195,17 @@ while IFS= read -r module; do
 	# provides package v0.12.0" is. CI has a cold cache every run, so this failed
 	# there and passed here.
 	#
-	# go.sum is put back afterwards. `go mod download all` walks the whole module
-	# graph and records a sum for every module in it, including the test-only
-	# dependencies OF dependencies -- kr/pretty, stretchr/objx, golang.org/x/net
-	# here, none of which this module builds. A library whose go.sum already
-	# carries them sees no change; this one does not, so warming the cache
-	# rewrites a tracked file, and a guard that reports a clean layout by dirtying
-	# the tree it was asked about is not one anybody runs twice. The warm cache is
-	# the point and it survives the restore: the modules stay downloaded.
-	sums=$(mktemp "${TMPDIR:-/tmp}/arandu-layout-guard.XXXXXX") || sums=""
-	if [ -n "$sums" ] && [ -f "$module/go.sum" ]; then
-		cp "$module/go.sum" "$sums"
-	else
-		sums=""
-	fi
-
-	(cd "$module" && GOWORK=off go mod download all >/dev/null 2>&1) || true
-
-	if [ -n "$sums" ]; then
-		cp "$sums" "$module/go.sum"
-		rm -f "$sums"
-	fi
+	# The `all` is left off, and its absence is the point rather than a
+	# shortening. `go mod download all` walks the whole module graph and records
+	# a sum for every module in it, including the test-only dependencies OF
+	# dependencies -- kr/pretty, stretchr/objx, golang.org/x/net here, none of
+	# which this module builds. A module whose go.sum does not already carry them
+	# came out of this guard with a tracked file rewritten, and a guard that
+	# reports a clean layout by dirtying the tree it was asked about makes every
+	# later reading of `git status` lie. The plain form fetches the modules that
+	# provide what the main module imports, which is exactly the set `go list`
+	# below is about to ask for, so the cache is still warm.
+	(cd "$module" && GOWORK=off go mod download >/dev/null 2>&1) || true
 
 	if ! packages=$(cd "$module" && GOWORK=off go list -tags 'integration e2e' ./... 2>&1); then
 		echo "[FAILED] go list failed in $module, so nothing was checked there:"
