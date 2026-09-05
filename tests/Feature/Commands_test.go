@@ -310,3 +310,50 @@ func openForTest(t *testing.T) (appconfig.Config, *data.DB, func()) {
 	t.Cleanup(closeDB)
 	return cfg, db, closeDB
 }
+
+// TestVendorPublishIsDispatched.
+//
+// `aru vendor:publish` forwards to this binary, so the switch is the whole of
+// whether the command exists at all: what a module offers a project is declared
+// by the module, and the list of modules exists nowhere but in here.
+//
+// Nothing is applied. The preview reads the registered modules and prints what
+// it would do, which is the mode that touches no file -- and this application
+// registers no module that publishes anything, so what it prints is the answer
+// a project gets before it adds one.
+func TestVendorPublishIsDispatched(t *testing.T) {
+	sqliteEnv(t)
+
+	t.Run("the preview runs", func(t *testing.T) {
+		if err := bootstrap.Dispatch("vendor:publish", nil); err != nil {
+			t.Fatalf("vendor:publish: %v", err)
+		}
+	})
+
+	t.Run("a kind of file that does not exist is refused", func(t *testing.T) {
+		err := bootstrap.Dispatch("vendor:publish", []string{"--tag=stylesheet"})
+
+		if err == nil {
+			t.Fatal("a tag from outside the closed set was accepted")
+		}
+		if strings.Contains(err.Error(), "unknown command") {
+			t.Fatalf("vendor:publish reached no case: %v", err)
+		}
+		if !strings.Contains(err.Error(), "migration") {
+			t.Errorf("the refusal does not list the kinds that exist: %v", err)
+		}
+	})
+
+	t.Run("it is named where the unknown commands are listed", func(t *testing.T) {
+		// The listing and the dispatch are one line apart and were still out of
+		// step twice, both times for a command that ran and was never mentioned.
+		err := bootstrap.Dispatch("no-such-command", nil)
+
+		if err == nil {
+			t.Fatal("an unknown command was accepted")
+		}
+		if !strings.Contains(err.Error(), "vendor:publish") {
+			t.Errorf("a command this binary answers is missing from the listing: %v", err)
+		}
+	})
+}
