@@ -69,7 +69,7 @@ func TestThisProjectsScriptIsServedAfterTheFrameworks(t *testing.T) {
 	// Looked up rather than asked for by name: view.URL refuses an unregistered
 	// name by panicking, and a panic in a test reports the stack of the view
 	// package instead of what a reader of this file needs to be told.
-	var script view.Asset
+	var script view.Registration
 	for _, a := range view.Assets() {
 		if a.Name == "custom.js" {
 			script = a
@@ -102,7 +102,7 @@ func TestThisProjectsScriptIsServedAfterTheFrameworks(t *testing.T) {
 	if at < 0 {
 		t.Fatalf("no page loads custom.js: the layout carries no <script> pointing at %s.\nThe file is served and nothing fetches it, so every behaviour it registers is dead code.", script.URL)
 	}
-	if ui := strings.Index(body, view.AssetURL("ui.js")); ui < 0 || ui > at {
+	if ui := strings.Index(body, view.Asset("ui.js")); ui < 0 || ui > at {
 		t.Errorf("custom.js is loaded before ui.js.\nBoth are deferred and run in document order, so arandu.ui is undefined when custom.js runs and every behaviour it defines is lost.")
 	}
 }

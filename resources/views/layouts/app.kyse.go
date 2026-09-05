@@ -53,22 +53,22 @@ import "github.com/arandu-io/kyse/components"
 	<!-- Every asset is embedded in the binary and addressed by content hash. No
 	     CDN, because the CSP is script-src 'self'; no build directory, because
 	     there is no bundler to write one (RULE 13). -->
-	<link rel="stylesheet" href="{{ view.AssetURL("app.css") }}">
-	<script src="{{ view.AssetURL("htmx.min.js") }}" defer></script>
-	<script src="{{ view.AssetURL("ui.js") }}" defer></script>
-	<script src="{{ view.AssetURL("basecoat.bundle.js") }}" defer></script>
+	<link rel="stylesheet" href="{{ view.Asset("app.css") }}">
+	<script src="{{ view.Asset("htmx.min.js") }}" defer></script>
+	<script src="{{ view.Asset("ui.js") }}" defer></script>
+	<script src="{{ view.Asset("basecoat.bundle.js") }}" defer></script>
 
 	<!-- This project's own behaviours, and after ui.js because it registers into
 	     the registry ui.js creates. Deferred scripts run in document order, so
 	     ui.js being listed above is the whole of what makes arandu.ui exist by
 	     the time this one asks for it. -->
-	<script src="{{ view.AssetURL("custom.js") }}" defer></script>
+	<script src="{{ view.Asset("custom.js") }}" defer></script>
 
 	<!-- The theme is read before the first paint, so a person who chose dark does
 	     not get a white flash on every navigation. It is the one script that
 	     cannot be deferred: everything else here reacts to a click, and this runs
 	     once, before there is a page to react on. -->
-	<script src="{{ view.AssetURL("theme.js") }}"></script>
+	<script src="{{ view.Asset("theme.js") }}"></script>
 </head>
 <!-- hx-headers is load-bearing: without it every hx-post fails the CSRF check,
      and the failure reads like a broken session rather than a missing attribute. -->

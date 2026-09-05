@@ -38,7 +38,7 @@ func TestTheBrowserGetsThisProjectsStylesheet(t *testing.T) {
 	server := httptest.NewServer(r)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + view.AssetURL(view.Stylesheet))
+	resp, err := http.Get(server.URL + view.Asset(view.Stylesheet))
 	if err != nil {
 		t.Fatal(err)
 	}
