@@ -92,6 +92,21 @@ func Dispatch(command string, args []string) error {
 	case "work":
 		return work(ctx, k, app.Queue, cfg.Queue, args)
 
+	case "vendor:publish":
+		// No boot. What a module publishes is declared by the module and
+		// collected from the registration, so the answer is complete before a
+		// single service is started -- and a command that writes files into the
+		// tree has no business opening a socket to do it.
+		//
+		// The root is the working directory because the CLI runs this binary
+		// from the project root. A root of its own would be a second answer to
+		// where the project is.
+		publications, err := k.Publications()
+		if err != nil {
+			return err
+		}
+		return Publish(".", publications, args, os.Stdout)
+
 	case "Version":
 		fmt.Printf("%s %s (%s)\n", cfg.App.Name, Version, Commit)
 		return nil
@@ -176,7 +191,7 @@ func unknownCommand(command string, available []console.Command) error {
 	}
 
 	err := fmt.Errorf("unknown command: %s (expected serve, routes, schedule:list, "+
-		"schedule:run, work, Version or one of %s)", command, strings.Join(names, ", "))
+		"schedule:run, work, vendor:publish, Version or one of %s)", command, strings.Join(names, ", "))
 	if help := routes.Help(); help != "" {
 		return fmt.Errorf("%w\n\n%s", err, help)
 	}
