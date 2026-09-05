@@ -4,6 +4,10 @@
 
 **Full Changelog**: https://github.com/arandu-io/arandu/compare/v0.11.0...v0.12.0
 
+## [v0.12.0](https://github.com/arandu-io/arandu/compare/v0.11.0...v0.12.0) - 2026-09-05
+
+**Full Changelog**: https://github.com/arandu-io/arandu/compare/v0.11.0...v0.12.0
+
 ## [v0.11.0](https://github.com/arandu-io/arandu/compare/v0.10.1...v0.11.0) - 2026-09-04
 
 **Full Changelog**: https://github.com/arandu-io/arandu/compare/v0.10.1...v0.11.0
