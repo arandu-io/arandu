@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -85,6 +86,21 @@ func TestTheStylesheetDoesNotReadItsOwnOutput(t *testing.T) {
 	}
 	if !strings.Contains(string(source), `@source "../views/`) {
 		t.Error("with automatic detection off, the views have to be declared, or the stylesheet compiles to nothing")
+	}
+}
+
+// Descendant variants on generated tooltip text once compiled into :has(),
+// which is invalid CSS and prevents the asset bundler from building a project.
+func TestTheCompiledStylesheetHasNoEmptyRelationalSelectors(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join(tests.Root(t), "assets", "app.css"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(source) == 0 {
+		t.Fatal("the compiled stylesheet is empty")
+	}
+	if regexp.MustCompile(`:has\(\s*\)`).Match(source) {
+		t.Fatal("the compiled stylesheet contains an empty :has() selector; check variants applied to pseudo-elements")
 	}
 }
 
