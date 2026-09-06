@@ -97,7 +97,7 @@ func sharedSessionEnv(t *testing.T, address string) {
 
 	sqliteEnv(t)
 	t.Setenv("CACHE_STORE", "memory")
-	t.Setenv("SESSION_DRIVER", "kv")
+	t.Setenv("SESSION_DRIVER", "redis")
 	t.Setenv("REDIS_URL", "redis://"+address)
 	// A prefix per run, so a server that outlives one test -- the one
 	// REDIS_ADDRESS names -- never answers this test with the last run's keys.
@@ -180,7 +180,7 @@ func TestASessionWrittenByOneInstanceIsReadByTheOther(t *testing.T) {
 
 // TestTheSessionReachesItsStoreWhateverTheCacheDefaultsTo.
 //
-// SESSION_DRIVER=kv beside CACHE_STORE=memory, which is the combination the
+// SESSION_DRIVER=redis beside CACHE_STORE=memory, which is the combination the
 // nullable connection could not express: there was one connection, the cache
 // decided whether it existed, and a session that wanted one where the cache
 // wanted none had nothing to use.
@@ -192,7 +192,7 @@ func TestASessionWrittenByOneInstanceIsReadByTheOther(t *testing.T) {
 func TestTheSessionReachesItsStoreWhateverTheCacheDefaultsTo(t *testing.T) {
 	sqliteEnv(t)
 	t.Setenv("CACHE_STORE", "memory")
-	t.Setenv("SESSION_DRIVER", "kv")
+	t.Setenv("SESSION_DRIVER", "redis")
 	// Port 1 is reserved and nothing listens on it, so the connection is refused
 	// at once rather than left to time out.
 	t.Setenv("REDIS_URL", "redis://127.0.0.1:1")
@@ -248,7 +248,7 @@ func migrateBeforeTheSessionIsPointedAtIt(t *testing.T) {
 
 // TestASessionOverAStoreThisProcessKeepsToItselfIsRefusedAtTheBoot.
 //
-// Load refuses SESSION_DRIVER=kv without REDIS_URL, and a configuration
+// Load refuses SESSION_DRIVER=redis without REDIS_URL, and a configuration
 // assembled in Go skips Load entirely -- which is every test in this repository
 // and every consumer that builds the struct by hand. The refusal that matters
 // is the one in the wiring, because it is the one nothing can go around.
@@ -262,12 +262,12 @@ func TestASessionOverAStoreThisProcessKeepsToItselfIsRefusedAtTheBoot(t *testing
 	t.Setenv("REDIS_URL", "")
 
 	cfg, db, _ := openForTest(t)
-	cfg.Session.Driver = appconfig.SessionKV
+	cfg.Session.Driver = appconfig.SessionRedis
 
 	if _, err := bootstrap.Build(cfg, db); err == nil {
 		t.Fatal("the application started with its sessions in a store no other replica can read")
 	} else {
-		for _, want := range []string{"SESSION_DRIVER", `"kv"`, `"redis"`, "REDIS_URL"} {
+		for _, want := range []string{"SESSION_DRIVER", `"redis"`, "REDIS_URL"} {
 			if !strings.Contains(err.Error(), want) {
 				t.Errorf("the refusal does not name %s, and whoever reads it has to guess which two settings disagree: %v", want, err)
 			}
@@ -291,5 +291,23 @@ func TestAnUnknownSessionDriverIsRefusedAtTheBoot(t *testing.T) {
 		t.Fatal("the application started on a session driver it does not implement")
 	} else if !strings.Contains(err.Error(), "SESSION_DRIVER") || !strings.Contains(err.Error(), `"kev"`) {
 		t.Errorf("the refusal names neither the setting nor the value: %v", err)
+	}
+}
+
+// A retired spelling must not select shared or in-process sessions implicitly.
+func TestRetiredSessionDriverIsRefusedAtTheBoot(t *testing.T) {
+	sqliteEnv(t)
+	t.Setenv("SESSION_DRIVER", "memory")
+	t.Setenv("CACHE_STORE", "memory")
+	cfg, db, _ := openForTest(t)
+	cfg.Session.Driver = "kv"
+	_, err := bootstrap.Build(cfg, db)
+	if err == nil {
+		t.Fatal("the retired session driver was accepted")
+	}
+	for _, want := range []string{"SESSION_DRIVER", `"kv"`, "memory", "redis"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("driver refusal %q does not contain %q", err, want)
+		}
 	}
 }

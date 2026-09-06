@@ -549,7 +549,7 @@ func (c *cacheStores) connect() (*connections.Connection, error) {
 
 // sessionBackend builds the session backend SESSION_DRIVER named.
 //
-// The driver names a store, and not the cache's default one. SESSION_DRIVER=kv
+// The driver names a store, and not the cache's default one. SESSION_DRIVER=redis
 // with the in-process cache is a deployment that keeps its sessions where every
 // replica can read them and caches inside each process, and refusing it would
 // be refusing a combination that is right for anybody whose cache is cheap to
@@ -573,7 +573,7 @@ func sessionBackend(cfg appconfig.Session, stores *cacheStores) (security.Sessio
 		// SESSION_DRIVER=memory asks for.
 		return security.NewMemoryBackend(), nil
 
-	case appconfig.SessionKV:
+	case appconfig.SessionRedis:
 		conn, err := stores.Shared(respStore)
 		if err != nil {
 			return nil, fmt.Errorf("SESSION_DRIVER %q names the cache store %q: %w", cfg.Driver, respStore, err)
@@ -586,7 +586,7 @@ func sessionBackend(cfg appconfig.Session, stores *cacheStores) (security.Sessio
 		// nobody recognises must not fall through to the in-process store: the
 		// sessions would be kept where nothing asked for them.
 		return nil, fmt.Errorf("SESSION_DRIVER has unsupported value %q; expected %s or %s",
-			cfg.Driver, appconfig.SessionMemory, appconfig.SessionKV)
+			cfg.Driver, appconfig.SessionMemory, appconfig.SessionRedis)
 	}
 }
 

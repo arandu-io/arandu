@@ -252,9 +252,9 @@ func TestClosedConfigurationDiscriminatorsFailAtBoot(t *testing.T) {
 			want: []string{"CACHE_STORE", `"redis"`, "REDIS_URL"},
 		},
 		{
-			name: "KV session without its URL",
-			env:  map[string]string{"SESSION_DRIVER": "kv"},
-			want: []string{"SESSION_DRIVER", `"kv"`, "REDIS_URL"},
+			name: "Redis session without its URL",
+			env:  map[string]string{"SESSION_DRIVER": "redis"},
+			want: []string{"SESSION_DRIVER", `"redis"`, "REDIS_URL"},
 		},
 		{
 			name: "Redis queue without its URL",
@@ -262,9 +262,9 @@ func TestClosedConfigurationDiscriminatorsFailAtBoot(t *testing.T) {
 			want: []string{"QUEUE_CONNECTION", `"redis"`, "REDIS_URL"},
 		},
 		{
-			name: "KV session with an unknown URL scheme",
+			name: "Redis session with an unknown URL scheme",
 			env: map[string]string{
-				"SESSION_DRIVER": "kv",
+				"SESSION_DRIVER": "redis",
 				"REDIS_URL":      "memcached://cache.example.test:11211",
 			},
 			want: []string{"REDIS_URL", `"memcached"`, "redis and rediss"},
@@ -285,7 +285,12 @@ func TestClosedConfigurationDiscriminatorsFailAtBoot(t *testing.T) {
 		{
 			name: "unknown session driver",
 			env:  map[string]string{"SESSION_DRIVER": "database"},
-			want: []string{"SESSION_DRIVER", `"database"`, "memory", "kv"},
+			want: []string{"SESSION_DRIVER", `"database"`, "memory", "redis"},
+		},
+		{
+			name: "retired session driver",
+			env:  map[string]string{"SESSION_DRIVER": "kv", "REDIS_URL": "redis://localhost:6379"},
+			want: []string{"SESSION_DRIVER", `"kv"`, "memory", "redis"},
 		},
 		{
 			name: "unknown queue connection",
@@ -336,7 +341,7 @@ func TestClosedConfigurationDiscriminatorsAcceptDocumentedValues(t *testing.T) {
 	t.Run("shared drivers and the R2 disk are accepted", func(t *testing.T) {
 		cfg, err := loadConfigurationWith(t, map[string]string{
 			"CACHE_STORE":      "redis",
-			"SESSION_DRIVER":   "kv",
+			"SESSION_DRIVER":   "redis",
 			"QUEUE_CONNECTION": "redis",
 			"FILESYSTEM_DISK":  "r2",
 			"LOG_FORMAT":       "json",
@@ -345,7 +350,7 @@ func TestClosedConfigurationDiscriminatorsAcceptDocumentedValues(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.Cache.Store != appconfig.CacheRedis || cfg.Session.Driver != appconfig.SessionKV ||
+		if cfg.Cache.Store != appconfig.CacheRedis || cfg.Session.Driver != appconfig.SessionRedis ||
 			cfg.Queue.Connection != appconfig.QueueRedis || cfg.Filesystems.Default != appconfig.DiskR2 ||
 			cfg.Logging.Format != "json" {
 			t.Fatalf("configured = cache %q, session %q, queue %q, disk %q, log %q",

@@ -142,7 +142,7 @@ func TestTheCertificatesAreFilePathsTheConfigurationCarries(t *testing.T) {
 // TestTheRESPStoreIsDefinedWhoeverNamesIt.
 //
 // The endpoint is parsed whether or not the cache defaults to it, because the
-// cache is not the only thing that names that store: SESSION_DRIVER=kv beside
+// cache is not the only thing that names that store: SESSION_DRIVER=redis beside
 // CACHE_STORE=memory is a deployment that shares its sessions and caches inside
 // each process, and a store that existed only while the cache happened to
 // default to it could not be named by anything else.

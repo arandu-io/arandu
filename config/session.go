@@ -23,10 +23,9 @@ const (
 	// wrong for two: behind a load balancer, half the requests land on the
 	// replica that never saw the login.
 	SessionMemory SessionDriver = "memory"
-	// SessionKV keeps them over RESP, shared by every replica. It is the store
-	// CACHE_STORE spells redis; these two words name one store, and the
-	// bootstrap is where that is written down once.
-	SessionKV SessionDriver = "kv"
+	// SessionRedis keeps sessions over RESP, shared by every replica.
+	// It names the Redis store independently of CACHE_STORE.
+	SessionRedis SessionDriver = "redis"
 )
 
 // Session is where session state is kept, how long it lasts, and how the cookie
@@ -72,12 +71,12 @@ func loadSession(cache Cache) (Session, error) {
 	driver := SessionDriver(env("SESSION_DRIVER", string(SessionMemory)))
 	switch driver {
 	case SessionMemory:
-	case SessionKV:
+	case SessionRedis:
 		if cache.Address == "" {
 			return Session{}, fmt.Errorf("SESSION_DRIVER %q requires REDIS_URL", driver)
 		}
 	default:
-		return Session{}, fmt.Errorf("SESSION_DRIVER has unsupported value %q; expected memory or kv", driver)
+		return Session{}, fmt.Errorf("SESSION_DRIVER has unsupported value %q; expected memory or redis", driver)
 	}
 	secure, err := loadSessionSecure()
 	if err != nil {
