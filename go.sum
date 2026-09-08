@@ -8,8 +8,8 @@ github.com/arandu-io/hesape/database/connectors/sqlite v0.7.1 h1:WVzNGpZpaSUL+RH
 github.com/arandu-io/hesape/database/connectors/sqlite v0.7.1/go.mod h1:UV7Sfqbq+AFZJahvkefxJv6BKETRtInpw4YMzMnhOuE=
 github.com/arandu-io/hesape/redis v0.7.1 h1:0lv4nlV+VOVQprvS4tSJ4fUEj3bl2rx23+O2WFT2A2g=
 github.com/arandu-io/hesape/redis v0.7.1/go.mod h1:0jw7s+hxkQPQxbObeKFpTmWN4rlxKgjPGNcvjgEQr1M=
-github.com/arandu-io/kyse v0.27.0 h1:aP+fnaAQyi9qQNGsB3h48Ia9aYVpl3yFmfChIBa0jFE=
-github.com/arandu-io/kyse v0.27.0/go.mod h1:P6GdMPvqf/MJU5PpUnYtCOSJWAoo+Jbdwqfc0o84ujg=
+github.com/arandu-io/kyse v0.28.0 h1:6wSC1w/y/MKU/By9BbArS+YByWDr8IhG3ycg0RgHj2c=
+github.com/arandu-io/kyse v0.28.0/go.mod h1:P6GdMPvqf/MJU5PpUnYtCOSJWAoo+Jbdwqfc0o84ujg=
 github.com/bsm/ginkgo/v2 v2.12.0 h1:Ny8MWAHyOepLGlLKYmXG4IEkioBysk6GpaRTLC8zwWs=
 github.com/bsm/ginkgo/v2 v2.12.0/go.mod h1:SwYbGRRDovPVboqFv0tPTcG1sN61LM1Z4ARdbAV9g4c=
 github.com/bsm/gomega v1.27.10 h1:yeMWxP2pV2fG3FgAODIY8EiRE3dy0aeFYt4l7wh6yKA=
