@@ -1,0 +1,48 @@
+/* Meter
+ *
+ * A level inside a range that is known, which is not a progress bar -- see the
+ * component's own note for why the two are different controls.
+ *
+ * The pseudo-elements are the engines' and there is no standard among them:
+ * WebKit draws ::-webkit-meter-bar and its three value pseudo-elements, Gecko
+ * draws ::-moz-meter-bar and carries the good-or-bad state on the element
+ * itself. Both are written, so the meter looks the same in each, and an engine
+ * that matches neither still draws its own -- which is a meter, just not this
+ * one.
+ */
+@layer components {
+  .meter {
+    @apply block h-2 w-full overflow-hidden rounded-full bg-primary/20 align-middle;
+
+    &::-webkit-meter-bar {
+      @apply rounded-full bg-primary/20;
+      border: none;
+      height: 100%;
+    }
+
+    &::-webkit-meter-optimum-value {
+      @apply rounded-full bg-primary;
+    }
+
+    &::-webkit-meter-suboptimum-value {
+      @apply rounded-full;
+      background: color-mix(in oklab, var(--color-primary) 45%, var(--color-muted));
+    }
+
+    &::-webkit-meter-even-less-good-value {
+      @apply bg-destructive rounded-full;
+    }
+
+    &::-moz-meter-bar {
+      @apply rounded-full bg-primary;
+    }
+
+    &:-moz-meter-sub-optimum::-moz-meter-bar {
+      background: color-mix(in oklab, var(--color-primary) 45%, var(--color-muted));
+    }
+
+    &:-moz-meter-sub-sub-optimum::-moz-meter-bar {
+      @apply bg-destructive;
+    }
+  }
+}

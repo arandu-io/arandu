@@ -1,0 +1,37 @@
+/* Edit in place
+ *
+ * A value that becomes a field. The edit button is drawn only under the
+ * pointer and whenever anything in the row has focus -- so it is out of the
+ * way while reading and never out of reach from a keyboard, which is the
+ * failure a hover-only control has.
+ */
+@layer components {
+  .edit-in-place {
+    @apply flex flex-wrap items-center gap-2;
+
+    & > [data-part='edit'] {
+      @apply opacity-0 transition-opacity;
+    }
+
+    &:hover > [data-part='edit'],
+    &:focus-within > [data-part='edit'] {
+      @apply opacity-100;
+    }
+
+    & > [data-part='input'] {
+      @apply flex-1;
+    }
+
+    & > [data-part='message'] {
+      @apply w-full;
+    }
+  }
+
+  /* Touch has no hover, so the control stays drawn -- an invisible button on a
+   * phone is a value nobody can edit. */
+  @media (hover: none) {
+    .edit-in-place > [data-part='edit'] {
+      @apply opacity-100;
+    }
+  }
+}

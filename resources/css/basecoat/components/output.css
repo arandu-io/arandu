@@ -1,0 +1,30 @@
+/* Output
+ *
+ * The result of a calculation. Tabular figures, because a number that is
+ * updated in place and whose digits are different widths jitters on every
+ * change -- and jitter reads as instability in exactly the control whose job
+ * is to look settled.
+ */
+@layer components {
+  .output {
+    @apply border-border bg-card text-card-foreground inline-flex min-h-9 w-fit
+           items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium
+           tabular-nums transition-colors;
+
+    &.htmx-request {
+      @apply opacity-60;
+    }
+
+    &[data-tone='muted'] {
+      @apply bg-muted text-muted-foreground border-transparent;
+    }
+
+    &[data-tone='primary'] {
+      @apply bg-primary text-primary-foreground border-transparent;
+    }
+
+    &[data-tone='destructive'] {
+      @apply border-destructive/30 bg-destructive/5 text-destructive;
+    }
+  }
+}

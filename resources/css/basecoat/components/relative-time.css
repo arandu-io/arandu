@@ -1,0 +1,17 @@
+/* Relative time
+ *
+ * A timestamp the browser rewrites in the reader's own locale. Tabular
+ * figures, because a list of them lines up down a column and a proportional
+ * digit set does not.
+ */
+@layer components {
+  .relative-time {
+    @apply tabular-nums;
+
+    &[title] {
+      @apply cursor-help decoration-dotted underline-offset-4;
+      text-decoration-line: underline;
+      text-decoration-color: color-mix(in oklab, currentColor 30%, transparent);
+    }
+  }
+}

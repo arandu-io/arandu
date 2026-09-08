@@ -87,3 +87,32 @@
     }
   }
 }
+
+@layer components {
+  /* The panel slides in from the edge it is anchored to, and the backdrop
+   * fades with it. Without the slide the drawer is a rectangle that was not
+   * there and now is, which reads as the page having changed rather than as a
+   * panel having opened -- and the edge it came from is what says how to send
+   * it back.
+   *
+   * Only on open. A dialog closing is removed from the top layer at once, and
+   * an exit animation on it plays against an element that is already gone. */
+  .drawer[open] {
+    animation: scn-sheet-in-bottom 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .drawer[open][data-side='right'] { animation-name: scn-sheet-in-right; }
+  .drawer[open][data-side='left'] { animation-name: scn-sheet-in-left; }
+  .drawer[open][data-side='top'] { animation-name: scn-sheet-in-top; }
+
+  .drawer[open]::backdrop {
+    animation: scn-sheet-backdrop-in 220ms ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .drawer[open],
+    .drawer[open]::backdrop {
+      animation: none;
+    }
+  }
+}

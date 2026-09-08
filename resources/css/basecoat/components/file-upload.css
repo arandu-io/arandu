@@ -1,0 +1,50 @@
+/* File upload
+ *
+ * A label wrapped around a real file input, so a click anywhere in the area
+ * opens the picker with no handler and the input stays where a keyboard and a
+ * screen reader find it.
+ *
+ * data-dragging is written by the behaviour and is the only thing it draws --
+ * everything else here is state the element already has.
+ */
+@layer components {
+  .file-upload {
+    @apply border-input bg-background text-muted-foreground flex min-h-32 cursor-pointer
+           flex-col items-center justify-center gap-2 rounded-lg border border-dashed
+           p-6 text-center text-sm transition-colors;
+
+    &:hover {
+      @apply border-ring/50 bg-accent/30;
+    }
+
+    /* The ring is on the area because the input inside it is visually hidden:
+     * without this, focusing the field shows a ring around nothing. */
+    &:has(> input:focus-visible) {
+      @apply border-ring ring-ring/50 ring-[3px];
+    }
+
+    &[data-dragging='true'] {
+      @apply border-primary bg-primary/5 text-foreground;
+    }
+
+    &:has(> input:disabled) {
+      @apply pointer-events-none opacity-50;
+    }
+  }
+
+  .file-upload-prompt {
+    @apply flex flex-col items-center gap-1;
+
+    & > small {
+      @apply text-muted-foreground/70 text-xs;
+    }
+  }
+
+  .file-upload-list {
+    @apply flex flex-col gap-1 text-sm;
+
+    &:empty {
+      @apply hidden;
+    }
+  }
+}

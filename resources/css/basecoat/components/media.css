@@ -1,0 +1,36 @@
+/* Media player, responsive image and lazy load
+ *
+ * Three things that draw something the browser fetches, and whose whole job in
+ * CSS is to hold the space before it arrives. Without that, the picture or the
+ * panel appearing pushes everything under it down -- which a reader
+ * experiences as the page moving while they are reading it.
+ */
+@layer components {
+  .media-player {
+    @apply flex flex-col gap-2;
+  }
+
+  .media-player-video {
+    @apply bg-muted w-full rounded-lg;
+    aspect-ratio: 16 / 9;
+  }
+
+  .media-player[data-ratio='4/3'] .media-player-video { aspect-ratio: 4 / 3; }
+  .media-player[data-ratio='1/1'] .media-player-video { aspect-ratio: 1 / 1; }
+  .media-player[data-ratio='21/9'] .media-player-video { aspect-ratio: 21 / 9; }
+
+  .media-player > audio {
+    @apply w-full;
+  }
+
+  /* The intrinsic width and height are written on the element, so the ratio is
+   * known before the file arrives. height:auto is what keeps the drawn image
+   * from being stretched to that height once CSS sets its width. */
+  .responsive-image {
+    @apply block h-auto max-w-full;
+  }
+
+  .lazy-load {
+    @apply block min-h-24;
+  }
+}

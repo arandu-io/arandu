@@ -1,0 +1,35 @@
+/* Pagination
+ *
+ * A trail of page links. The current one is a link that points at itself
+ * carrying aria-current, drawn filled -- not a disabled button, which would
+ * take the one entry saying where the reader is out of the tab order.
+ */
+@layer components {
+  .pagination {
+    & > ul {
+      @apply flex flex-wrap items-center gap-1;
+    }
+
+    & a {
+      @apply text-foreground inline-flex h-9 min-w-9 items-center justify-center
+             rounded-md px-3 text-sm font-medium tabular-nums no-underline
+             transition-colors;
+
+      &:hover {
+        @apply bg-accent text-accent-foreground;
+      }
+
+      &:focus-visible {
+        @apply ring-ring/50 outline-none ring-[3px];
+      }
+
+      &[aria-current='page'] {
+        @apply bg-primary text-primary-foreground;
+      }
+    }
+  }
+
+  .pagination-ellipsis {
+    @apply text-muted-foreground inline-flex h-9 min-w-9 items-center justify-center;
+  }
+}

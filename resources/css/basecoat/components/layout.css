@@ -1,0 +1,218 @@
+/* Layout
+ *
+ * The eight things from the component set that are a frame and nothing else.
+ *
+ * They are classes rather than kyse components on purpose. A component draws
+ * markup from typed fields, and a frame has no fields -- what goes inside it is
+ * whatever the page puts there. Written as a component each would have to take
+ * a string of HTML, which is the one thing this view layer refuses, so they are
+ * what they actually are: rules a caller writes on their own element.
+ *
+ * Every one of them is CSS with no script at all.
+ */
+@layer components {
+  /* Auto grid -- as many equal columns as fit, with no breakpoints.
+   *
+   * The min() is what keeps it from overflowing on a narrow screen: without
+   * it, a track with a 16rem minimum stays 16rem wide inside a 15rem viewport
+   * and the page scrolls sideways. */
+  .auto-grid {
+    display: grid;
+    gap: calc(var(--spacing) * 4);
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(min(var(--auto-grid-min, 16rem), 100%), 1fr)
+    );
+  }
+
+  /* auto-fill keeps the empty tracks, so four cards in a six-track row stay
+   * card-sized instead of stretching. It is right for a grid whose cells have
+   * a natural size and wrong for one that should fill the row. */
+  .auto-grid[data-fill] {
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(min(var(--auto-grid-min, 16rem), 100%), 1fr)
+    );
+  }
+
+  /* Aspect ratio -- a box locked to a shape, so the space is reserved before
+   * the picture arrives and nothing under it moves when it does. */
+  .aspect-ratio {
+    @apply relative block w-full overflow-hidden;
+    aspect-ratio: 16 / 9;
+
+    & > img,
+    & > video,
+    & > iframe {
+      @apply size-full object-cover;
+    }
+  }
+
+  .aspect-ratio[data-ratio='1/1'] { aspect-ratio: 1 / 1; }
+  .aspect-ratio[data-ratio='4/3'] { aspect-ratio: 4 / 3; }
+  .aspect-ratio[data-ratio='3/2'] { aspect-ratio: 3 / 2; }
+  .aspect-ratio[data-ratio='21/9'] { aspect-ratio: 21 / 9; }
+
+  /* Scroll area -- a region that scrolls with a scrollbar that matches the
+   * theme, and a fade at each end saying there is more.
+   *
+   * The scrollbar is the browser's, restyled. A scrollbar drawn in script is
+   * one that does not move with a trackpad, does not respond to the keyboard,
+   * and disappears on a system that overlays them. */
+  .scroll-area {
+    @apply relative overflow-auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+    overscroll-behavior: contain;
+
+    &::-webkit-scrollbar {
+      @apply size-2;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      @apply rounded-full;
+      background: var(--color-border);
+    }
+
+    /* The fades are a mask rather than a gradient overlay, so they work over
+     * any ground -- an overlay has to know the background colour, and inside a
+     * card it is the wrong one. */
+    &[data-fade] {
+      mask-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        black 1.5rem,
+        black calc(100% - 1.5rem),
+        transparent 100%
+      );
+    }
+  }
+
+  /* Snap list -- the bare scroll-snapping rail: a gallery strip, a chip row, a
+   * shelf of dates. */
+  .snap-list {
+    @apply flex gap-3 overflow-x-auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: calc(var(--spacing) * 4);
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    & > * {
+      scroll-snap-align: start;
+      @apply shrink-0;
+    }
+  }
+
+  .snap-list[data-orientation='vertical'] {
+    @apply flex-col overflow-x-hidden overflow-y-auto;
+    scroll-snap-type: y mandatory;
+  }
+
+  /* Sticky header -- pins on scroll and reacts the moment it does.
+   *
+   * scroll-state(stuck) is what makes the second half work with no sentinel
+   * element and no scroll listener: the header knows it is stuck because the
+   * browser tells it. Where it is unsupported the header still pins, which is
+   * the part that matters. */
+  .sticky-header {
+    @apply bg-background/80 sticky top-0 z-30 backdrop-blur transition-shadow;
+    container-type: scroll-state;
+  }
+
+  @supports (container-type: scroll-state) {
+    .sticky-header {
+      @apply bg-transparent backdrop-blur-none;
+    }
+
+    @container scroll-state(stuck: top) {
+      .sticky-header {
+        @apply bg-background/80 shadow-sm backdrop-blur;
+      }
+    }
+  }
+
+  /* Scroll progress -- a bar that fills as the page is read.
+   *
+   * animation-timeline: scroll() is the whole thing. Written in script it is a
+   * scroll listener that runs on every frame of every scroll, on the main
+   * thread, to move one element -- which is the classic cause of a page that
+   * stutters while it is being read. */
+  .scroll-progress {
+    @apply bg-primary fixed inset-x-0 top-0 z-50 h-1 origin-left;
+    transform: scaleX(0);
+    animation: scn-scroll-progress linear;
+    animation-timeline: scroll();
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scroll-progress {
+      transition: none;
+    }
+  }
+
+  /* Splitter -- two panes with a divider that can be dragged.
+   *
+   * The divider is a real separator with a tabindex, so it can be reached and
+   * moved with the arrow keys as well as dragged. A divider that is only
+   * draggable is a layout nobody using a keyboard can change. */
+  .splitter {
+    @apply grid;
+    grid-template-columns: var(--splitter-start, 1fr) auto var(--splitter-end, 1fr);
+
+    & > [role='separator'] {
+      @apply bg-border hover:bg-ring w-px cursor-col-resize transition-colors;
+
+      &:focus-visible {
+        @apply ring-ring/50 outline-none ring-[3px];
+      }
+    }
+  }
+
+  .splitter[data-orientation='vertical'] {
+    grid-template-columns: none;
+    grid-template-rows: var(--splitter-start, 1fr) auto var(--splitter-end, 1fr);
+
+    & > [role='separator'] {
+      @apply h-px w-auto cursor-row-resize;
+    }
+  }
+
+  /* Landmarks -- the page shell.
+   *
+   * Every region is a real element, so the landmarks a screen reader lists are
+   * the ones the page has: header, nav, main, aside, footer. A shell of divs
+   * with roles written on them says the same thing and is longer. */
+  .landmarks {
+    @apply grid min-h-dvh;
+    grid-template-areas:
+      'banner'
+      'main'
+      'contentinfo';
+    grid-template-rows: auto 1fr auto;
+
+    & > header { grid-area: banner; }
+    & > main { grid-area: main; }
+    & > footer { grid-area: contentinfo; }
+  }
+
+  .landmarks[data-aside] {
+    @apply gap-6;
+
+    @media (width >= 64rem) {
+      grid-template-areas:
+        'banner banner'
+        'main complementary'
+        'contentinfo contentinfo';
+      grid-template-columns: 1fr 18rem;
+
+      & > aside { grid-area: complementary; }
+    }
+  }
+}

@@ -1,0 +1,67 @@
+/* Toolbar and menubar
+ *
+ * Both are one tab stop with the arrow keys moving inside, and both draw the
+ * control the keyboard is on rather than leaving it to the browser's focus
+ * ring alone -- in a roving group the ring is the only thing saying where the
+ * next key press will land.
+ */
+@layer components {
+  .toolbar {
+    @apply bg-card flex w-fit items-center gap-1 rounded-lg border p-1;
+
+    &[data-orientation='vertical'] {
+      @apply flex-col;
+    }
+
+    & > [role='separator'] {
+      @apply bg-border mx-1 h-6 w-px shrink-0 self-stretch border-0;
+    }
+
+    &[data-orientation='vertical'] > [role='separator'] {
+      @apply mx-0 my-1 h-px w-6;
+    }
+
+    & [aria-pressed='true'] {
+      @apply bg-accent text-accent-foreground;
+    }
+  }
+
+  .menubar {
+    @apply flex w-full items-center gap-1;
+
+    & .menubar-menu {
+      @apply relative;
+    }
+
+    & [data-popover] {
+      @apply bg-popover text-popover-foreground start-0 top-full mt-1 min-w-48
+             rounded-md border p-1 shadow-md;
+    }
+
+    & [role='menuitem'] {
+      @apply flex w-full items-center justify-between gap-4 rounded-sm px-2 py-1.5
+             text-sm no-underline outline-none select-none;
+
+      &:hover,
+      &:focus-visible {
+        @apply bg-accent text-accent-foreground;
+      }
+
+      &[disabled] {
+        @apply pointer-events-none opacity-50;
+      }
+
+      &[data-variant='destructive'] {
+        @apply text-destructive;
+      }
+    }
+
+    & [role='separator'] {
+      @apply bg-border my-1 h-px border-0;
+    }
+
+    & [role='presentation'] {
+      @apply text-muted-foreground px-2 py-1.5 text-xs font-medium;
+    }
+  }
+}

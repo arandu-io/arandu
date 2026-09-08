@@ -5,3 +5,22 @@
     @apply flex field-sizing-content min-h-16 w-full outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50;
   }
 }
+
+@layer components {
+  /* A box that fits what is in it.
+   *
+   * field-sizing: content is the whole mechanism: the box's preferred size
+   * becomes its content's, so it grows as lines are added and shrinks as they
+   * are removed, with the rows attribute as the floor. A browser that does not
+   * support it ignores the declaration and keeps the fixed box, which is the
+   * box that was there before -- so this degrades to the old behaviour rather
+   * than to a broken one.
+   *
+   * There is no ceiling here. One is a length, and a length belongs to the
+   * design rather than to the component -- a caller adds max-h-* to the box
+   * the same way they add anything else to it.
+   */
+  .textarea[data-autosize='true'] {
+    field-sizing: content;
+  }
+}

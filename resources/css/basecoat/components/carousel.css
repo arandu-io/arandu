@@ -1,0 +1,89 @@
+/* Carousel
+ *
+ * The movement is CSS scroll-snap, so a drag, a swipe, the trackpad and the
+ * scrollbar all work before any script has run. The buttons ask the same
+ * viewport to scroll; they are not a second mechanism.
+ */
+@layer components {
+  .carousel {
+    @apply relative grid gap-3;
+    grid-template-areas:
+      'viewport viewport'
+      'dots     controls';
+    grid-template-columns: 1fr auto;
+  }
+
+  .carousel-viewport {
+    @apply flex gap-4 overflow-x-auto rounded-lg;
+    grid-area: viewport;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    &:focus-visible {
+      @apply ring-ring/50 outline-none ring-[3px];
+    }
+  }
+
+  .carousel[data-orientation='vertical'] .carousel-viewport {
+    @apply max-h-96 flex-col overflow-x-hidden overflow-y-auto;
+    scroll-snap-type: y mandatory;
+  }
+
+  .carousel-slide {
+    @apply flex w-full shrink-0 flex-col gap-2;
+    scroll-snap-align: start;
+  }
+
+  .carousel-media {
+    @apply bg-muted w-full rounded-md object-cover;
+    aspect-ratio: 16 / 9;
+  }
+
+  .carousel > [data-part='previous'],
+  .carousel > [data-part='next'] {
+    grid-area: controls;
+    @apply size-8 p-0;
+
+    &::before {
+      @apply text-base leading-none;
+    }
+  }
+
+  .carousel > [data-part='previous'] {
+    justify-self: end;
+    margin-inline-end: calc(var(--spacing) * 10);
+
+    &::before {
+      content: '\\2039';
+    }
+  }
+
+  .carousel > [data-part='next'] {
+    justify-self: end;
+
+    &::before {
+      content: '\\203A';
+    }
+  }
+
+  .carousel-dots {
+    @apply flex items-center gap-2;
+    grid-area: dots;
+  }
+
+  .carousel-dot {
+    @apply bg-border size-2 rounded-full transition-colors;
+
+    &:hover {
+      @apply bg-muted-foreground;
+    }
+
+    &:focus-visible {
+      @apply ring-ring/50 outline-none ring-[3px];
+    }
+  }
+}

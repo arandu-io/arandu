@@ -1,0 +1,13 @@
+/* Highlight
+ *
+ * The part of a line that matched a search. The default <mark> is a fixed
+ * yellow that belongs to no theme and is unreadable on a dark ground, so both
+ * the ground and the text are set from tokens.
+ */
+@layer components {
+  .highlight-match {
+    @apply rounded-sm px-0.5 font-medium;
+    background-color: color-mix(in oklab, var(--color-primary) 22%, transparent);
+    color: var(--color-foreground);
+  }
+}

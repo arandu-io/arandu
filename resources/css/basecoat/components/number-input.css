@@ -1,0 +1,33 @@
+/* Number input
+ *
+ * The two step buttons beside a number box, and the removal of the engine's
+ * own spinner -- which is what this file mostly is.
+ *
+ * The native spinner is hidden rather than kept alongside: two ways to step
+ * one number, one of them four pixels tall and one of them absent on Firefox,
+ * is the worse of both. What replaces it is a pair of real buttons, and the
+ * arrow keys keep working either way because the element is still a number.
+ */
+@layer components {
+  .input-group:has(> [data-number-step]) {
+    & > input[type='number'] {
+      @apply text-center tabular-nums;
+      -moz-appearance: textfield;
+      appearance: textfield;
+
+      &::-webkit-outer-spin-button,
+      &::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+    }
+
+    & > [data-number-step] {
+      @apply text-muted-foreground hover:text-foreground shrink-0 px-2;
+
+      & > svg {
+        @apply size-4;
+      }
+    }
+  }
+}

@@ -55,3 +55,35 @@
     transform: translateY(100%);
   }
 }
+
+@layer components {
+  /* A toast arrives and leaves, and both are the animation rather than the
+   * appearance: a panel that is simply there was already there as far as
+   * anyone watching the corner of the screen can tell.
+   *
+   * The direction follows the side the tray is on, so a toast in the right-hand
+   * tray comes in from the right. Coming in from the wrong side reads as the
+   * toast having been pushed rather than having arrived. */
+  .toast {
+    animation: scn-toast-in 180ms ease-out;
+  }
+
+  .toast[data-state='closed'] {
+    animation: scn-toast-out 140ms ease-in forwards;
+  }
+
+  [data-position$='-right'] .toast {
+    animation-name: scn-toast-in-right;
+  }
+
+  [data-position$='-left'] .toast {
+    animation-name: scn-toast-in-left;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast,
+    .toast[data-state='closed'] {
+      animation: none;
+    }
+  }
+}

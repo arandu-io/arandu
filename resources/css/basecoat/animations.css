@@ -11,8 +11,14 @@
  * this code" has an answer and "is this structure or implementation" never did.
  *
  * They are here because Basecoat has one keyframe and a panel that appears is
- * not a panel that arrives. Nothing below is referenced by a rule in this
- * directory yet; the components that use them name them.
+ * not a panel that arrives. Each one is named by the component it belongs to:
+ * the toast four by toast.css, the sheet five by drawer.css -- a drawer is what
+ * this project calls that panel -- the popover one by popover.css, the progress
+ * one by progress.css and the scroll one by layout.css.
+ *
+ * They sat here unreferenced from the day they were copied until 08/09/2026. A
+ * keyframe nothing names is a keyframe that does nothing, and twelve of them
+ * read as twelve animations the project had.
  */
 
 @keyframes scn-progress-indeterminate {
