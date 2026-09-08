@@ -1,0 +1,45 @@
+/* Data table
+ *
+ * The apparatus around a list: a search box, a menu of columns, the table, the
+ * count and the pager. It is one region and one id, because every control
+ * swaps the whole thing -- which is what lets a sort link carry the search and
+ * a page link carry both.
+ */
+@layer components {
+  .data-table {
+    @apply flex flex-col gap-3;
+
+    /* The table draws its own container with the border. Nested inside this
+     * one, a second margin under it would double the gap the flex column
+     * already sets. */
+    & > .table-container {
+      @apply m-0;
+    }
+  }
+
+  .data-table-toolbar {
+    @apply flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .data-table-search {
+    @apply relative flex min-w-0 flex-1 items-center gap-2;
+
+    @media (width >= 40rem) {
+      @apply max-w-xs flex-none;
+    }
+
+    & > .input {
+      @apply w-full;
+    }
+
+    /* The indicator sits over the end of the box rather than after it, so the
+     * box does not shrink when a request starts. */
+    & > .spinner {
+      @apply pointer-events-none absolute end-3;
+    }
+  }
+
+  .data-table-pagination {
+    @apply flex justify-end;
+  }
+}
