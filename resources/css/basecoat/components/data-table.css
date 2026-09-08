@@ -21,7 +21,7 @@
     @apply flex flex-wrap items-center justify-between gap-2;
   }
 
-  .data-table-search {
+  .data-table-controls {
     @apply relative flex min-w-0 flex-1 items-center gap-2;
 
     @media (width >= 40rem) {
@@ -41,5 +41,72 @@
 
   .data-table-pagination {
     @apply flex justify-end;
+  }
+}
+
+@layer components {
+  /* The footer says one thing between its two halves: where in the list the
+   * reader is. On a narrow screen the range goes above the pager rather than
+   * beside it, because two of them side by side is two things too small to
+   * read. */
+  .data-table-footer {
+    @apply flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .data-table-showing {
+    @apply text-muted-foreground text-sm tabular-nums;
+  }
+
+  .data-table-sizes {
+    @apply text-muted-foreground flex shrink-0 items-center gap-2 text-sm;
+
+    & > select {
+      @apply w-auto;
+    }
+  }
+
+  /* A search that matched nothing. It is a row and not an empty body, because
+   * the table still has its headers and a person needs to be told which of
+   * the two happened. */
+  .data-table-nothing {
+    @apply text-muted-foreground py-8 text-center text-sm;
+  }
+
+  /* The pager the behaviour draws carries buttons where the server's carries
+   * links: one is a page it fetches, the other a page it already has. They
+   * are drawn the same because to a reader they do the same thing. */
+  .data-table-pagination button {
+    @apply text-foreground inline-flex h-9 min-w-9 cursor-pointer items-center
+           justify-center rounded-md border-0 bg-transparent px-3 text-sm
+           font-medium tabular-nums transition-colors;
+
+    &:hover {
+      @apply bg-accent text-accent-foreground;
+    }
+
+    &:focus-visible {
+      @apply ring-ring/50 outline-none ring-[3px];
+    }
+
+    &[aria-current='page'] {
+      @apply bg-primary text-primary-foreground;
+    }
+  }
+}
+
+@layer components {
+  /* A facet is a native multiple select inside the same form as the search, so
+   * choosing narrows the list with no script and the chosen values ride on
+   * every link. size="1" keeps it the height of the box beside it; the browser
+   * still opens the whole list. */
+  .data-table-facet > select {
+    @apply h-9 w-auto min-w-32;
+  }
+
+  /* The pager the behaviour moves is the pager the server drew, so an entry it
+   * slid out of the window is hidden rather than removed -- which is what lets
+   * the names, the roles and the caller's classes survive a page change. */
+  .data-table-pagination li[hidden] {
+    @apply hidden;
   }
 }
