@@ -77,3 +77,76 @@
   .table-container tr[data-level='5'] > td:first-child { padding-inline-start: calc(var(--spacing) * 18); }
   .table-container tr[data-level='6'] > td:first-child { padding-inline-start: calc(var(--spacing) * 22); }
 }
+
+@layer components {
+  /* Ordering, the columns menu and the count.
+   *
+   * The header is a link and not a button, because it goes somewhere: the same
+   * list ordered differently is a different address, and one that can be
+   * linked to, bookmarked and gone back to.
+   *
+   * The arrow is drawn from aria-sort, so there is one source for which way
+   * the table is ordered and it is the one a screen reader reads. */
+  .table-sort {
+    @apply text-inherit inline-flex items-center gap-1 no-underline;
+
+    &:hover {
+      @apply text-foreground underline;
+    }
+
+    &::after {
+      @apply text-muted-foreground/40 text-[10px] leading-none;
+      content: '\2195';
+    }
+  }
+
+  [aria-sort='ascending'] .table-sort::after {
+    @apply text-foreground;
+    content: '\2191';
+  }
+
+  [aria-sort='descending'] .table-sort::after {
+    @apply text-foreground;
+    content: '\2193';
+  }
+
+  .table-count {
+    @apply text-muted-foreground mb-2 text-sm;
+
+    /* Nothing chosen is not news. The line keeps its height so the table does
+     * not move when the first box is ticked. */
+    &:empty::before {
+      content: '\00a0';
+    }
+  }
+
+  .table-columns {
+    @apply relative mb-2 w-fit;
+
+    & > summary {
+      @apply border-input text-foreground inline-flex cursor-pointer list-none
+             items-center gap-2 rounded-md border px-3 py-1.5 text-sm;
+
+      &:hover {
+        @apply bg-accent text-accent-foreground;
+      }
+    }
+
+    & > summary::-webkit-details-marker {
+      @apply hidden;
+    }
+
+    & > div {
+      @apply bg-popover text-popover-foreground absolute end-0 top-full z-40 mt-1
+             flex min-w-40 flex-col gap-1 rounded-md border p-2 shadow-md;
+    }
+
+    & label {
+      @apply flex cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-sm;
+
+      &:hover {
+        @apply bg-accent text-accent-foreground;
+      }
+    }
+  }
+}
