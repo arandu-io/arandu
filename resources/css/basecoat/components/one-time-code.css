@@ -1,0 +1,51 @@
+/* One-time code
+ *
+ * The row of single-character boxes a code is typed into.
+ *
+ * The component has drawn `otp` and `otp-square` since it shipped and no rule
+ * existed for either, in this directory or in the compiled stylesheet -- so
+ * the squares rendered as default text inputs of default width, in a row with
+ * no gap. A class the markup names and the stylesheet does not define looks
+ * correct in review and unstyled in a project.
+ *
+ * The boxes are inputs and not one field with letter-spacing. A single field
+ * spaced out looks the same and is a different control: it cannot be filled
+ * one box at a time, the caret sits between characters rather than in one, and
+ * a screen reader reads the whole value on every keystroke instead of the
+ * character that changed.
+ */
+@layer components {
+  .otp {
+    @apply flex w-fit items-center gap-2;
+  }
+
+  .otp-square {
+    @apply border-input bg-background text-foreground size-11 rounded-md border
+           text-center text-lg font-medium tabular-nums transition-[color,box-shadow]
+           outline-none;
+
+    /* The caret is hidden because the box holds one character: a caret beside
+     * it says there is somewhere else in the box to type, and there is not. */
+    caret-color: transparent;
+
+    &:focus-visible {
+      @apply border-ring ring-ring/50 ring-[3px];
+    }
+
+    &:disabled {
+      @apply pointer-events-none opacity-50;
+    }
+  }
+
+  /* A wrong code marks the whole group, not one square: the code is one value,
+   * and nothing here knows which character was wrong. */
+  .otp[aria-invalid='true'] .otp-square {
+    @apply border-destructive;
+  }
+
+  /* A filled square is drawn as filled, so somebody can see how far along they
+   * are without counting. */
+  .otp-square:not(:placeholder-shown) {
+    @apply border-ring;
+  }
+}

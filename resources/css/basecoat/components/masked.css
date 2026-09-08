@@ -1,0 +1,20 @@
+/* Masked input
+ *
+ * A field whose shape is written as it is typed: a date, a card number, a
+ * document. It has drawn the `masked` class since it shipped with no rule
+ * behind it, so it rendered as an unstyled input.
+ *
+ * Tabular figures, because a mask is almost always digits and a proportional
+ * digit set makes the separators drift as the value fills -- the field appears
+ * to move while somebody is typing into it.
+ */
+@layer components {
+  .masked {
+    @apply flex flex-col gap-1.5;
+
+    & > [data-part='input'] {
+      @apply tabular-nums;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+}
