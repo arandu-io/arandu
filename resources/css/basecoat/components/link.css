@@ -1,0 +1,38 @@
+/* Link
+ *
+ * Underlined by default, and that is the decision. A link told apart from the
+ * text around it by colour alone is a link that anyone with a colour
+ * deficiency has to hunt for -- and it is the most common single failure in
+ * body copy. Removing the underline is a named variant, so it is a choice
+ * somebody made rather than a default nobody noticed.
+ */
+@layer components {
+  .link {
+    @apply text-primary underline-offset-4 inline-flex items-center gap-1 rounded-sm
+           underline decoration-primary/40 outline-none transition-colors
+           hover:decoration-primary
+           focus-visible:ring-ring/50 focus-visible:ring-[3px];
+
+    & > svg {
+      @apply size-3.5 shrink-0;
+    }
+
+    &[data-variant='muted'] {
+      @apply text-muted-foreground decoration-muted-foreground/40
+             hover:text-foreground hover:decoration-foreground;
+    }
+
+    /* Underlined only under the pointer. It is for a link inside something
+     * already obviously clickable -- a card, a row -- where the underline is
+     * noise rather than the only signal. */
+    &[data-variant='hover'] {
+      @apply no-underline hover:underline;
+    }
+
+    /* Not a link at all: the current page, drawn in place of one so the trail
+     * of siblings keeps its shape. */
+    &[aria-current] {
+      @apply text-foreground no-underline;
+    }
+  }
+}

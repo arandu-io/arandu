@@ -105,3 +105,18 @@
     @apply relative inline-flex;
   }
 }
+
+@layer components {
+  /* A popover rises the small distance that says it came from the trigger
+   * under it. The transition already handles closing -- what was missing is
+   * the arrival, which a transition from invisible cannot express. */
+  [data-popover][aria-hidden='false'] {
+    animation: scn-popover-in 140ms ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-popover][aria-hidden='false'] {
+      animation: none;
+    }
+  }
+}

@@ -1,0 +1,23 @@
+/* Skip link
+ *
+ * Invisible until it has focus, and then unmissable. Both halves matter: a
+ * skip link drawn all the time is a line of chrome on every page for the
+ * people who never use it, and one that stays hidden when focused is a focus
+ * nobody can see -- which is worse than not having it, because the keyboard
+ * has moved somewhere invisible.
+ *
+ * It is the first focusable element in the document, so it sits over whatever
+ * the page starts with rather than pushing it down.
+ */
+@layer components {
+  .skip-link {
+    @apply sr-only;
+
+    &:focus {
+      @apply not-sr-only fixed top-4 left-4 z-50 inline-flex items-center gap-2
+             rounded-md bg-primary px-4 py-2 text-sm font-medium
+             text-primary-foreground no-underline shadow-md outline-none
+             ring-ring/50 ring-[3px];
+    }
+  }
+}

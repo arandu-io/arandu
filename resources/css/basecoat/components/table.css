@@ -32,3 +32,48 @@
     }
   }
 }
+
+@layer components {
+  /* Selection and the bar of bulk actions.
+   *
+   * The bar is revealed by :has(:checked) on the container -- so nothing counts
+   * selections and nothing has to be told when a checked row is swapped away.
+   * The state on the screen is the state in the form. */
+  .table-container[data-selectable='true'] {
+    @apply relative;
+
+    & .table-bulk {
+      @apply hidden;
+    }
+
+    &:has([data-part='select']:checked) .table-bulk {
+      @apply bg-accent text-accent-foreground mb-2 flex flex-wrap items-center gap-2
+             rounded-lg px-3 py-2;
+    }
+
+    & tr[aria-selected='true'] {
+      @apply bg-accent/40;
+    }
+  }
+
+  /* A navigable table is worked in rather than read, so the cell the keyboard
+   * is on has to be visible -- in a grid the focus ring is the only thing
+   * saying where the next arrow key lands. */
+  .table-container[data-navigable='true'] {
+    & td:focus-visible,
+    & th:focus-visible {
+      @apply ring-ring/50 outline-none ring-[3px] ring-inset;
+    }
+
+    & tr[aria-expanded] > td:first-child {
+      @apply font-medium;
+    }
+  }
+
+  /* A treegrid indents by depth, the same six levels the tree draws. */
+  .table-container tr[data-level='2'] > td:first-child { padding-inline-start: calc(var(--spacing) * 6); }
+  .table-container tr[data-level='3'] > td:first-child { padding-inline-start: calc(var(--spacing) * 10); }
+  .table-container tr[data-level='4'] > td:first-child { padding-inline-start: calc(var(--spacing) * 14); }
+  .table-container tr[data-level='5'] > td:first-child { padding-inline-start: calc(var(--spacing) * 18); }
+  .table-container tr[data-level='6'] > td:first-child { padding-inline-start: calc(var(--spacing) * 22); }
+}

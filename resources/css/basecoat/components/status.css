@@ -1,0 +1,24 @@
+/* Status
+ *
+ * A line the page updates and a screen reader reads. It keeps a minimum height
+ * whether or not it has text, because a region that collapses to nothing and
+ * back on every change moves everything under it -- and this region exists to
+ * be watched, so it changes often.
+ */
+@layer components {
+  .status {
+    @apply text-muted-foreground block min-h-5 text-sm;
+
+    &[data-tone='default'] {
+      @apply text-foreground;
+    }
+
+    &[data-tone='success'] {
+      @apply text-primary;
+    }
+
+    &[data-tone='destructive'] {
+      @apply text-destructive;
+    }
+  }
+}

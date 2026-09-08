@@ -1,0 +1,33 @@
+/* Spinner
+ *
+ * The indicator HTMX shows while a request is out. It is hidden until then and
+ * carries aria-hidden throughout: what is loading is said by the region's own
+ * aria-busy, and a spinner announced as well is the same thing said twice.
+ */
+@layer components {
+  .spinner {
+    @apply text-muted-foreground pointer-events-none inline-block size-4 shrink-0
+           rounded-full opacity-0 transition-opacity;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+
+    &.htmx-request,
+    .htmx-request & {
+      @apply opacity-100;
+      animation: scn-spinner 700ms linear infinite;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spinner.htmx-request,
+    .htmx-request .spinner {
+      animation-duration: 2s;
+    }
+  }
+}
+
+@keyframes scn-spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}

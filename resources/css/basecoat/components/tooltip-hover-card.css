@@ -1,0 +1,83 @@
+/* Tooltip and hover card
+ *
+ * Both appear beside a control on hover and on focus, and both are drawn from
+ * the trigger's own hover state rather than from a script -- so there is no
+ * timer to leak, no listener to remove and nothing to clean up when the
+ * trigger is swapped away by HTMX.
+ *
+ * On focus as well as hover, always. A tip that appears only under a pointer
+ * is a tip nobody using a keyboard ever sees, and it is usually where the only
+ * name for an icon-only button was written.
+ */
+@layer components {
+  .tooltip,
+  .hover-card {
+    @apply relative inline-block w-fit align-middle;
+  }
+
+  .tooltip-content {
+    @apply bg-foreground text-background pointer-events-none absolute z-50 w-max
+           max-w-xs rounded-md px-2 py-1 text-xs font-medium opacity-0 shadow-md
+           transition-opacity duration-150;
+    bottom: calc(100% + 0.5rem);
+    left: 50%;
+    translate: -50% 0;
+  }
+
+  .tooltip:hover > .tooltip-content,
+  .tooltip:focus-within > .tooltip-content {
+    @apply opacity-100;
+  }
+
+  .tooltip[data-side='bottom'] > .tooltip-content {
+    bottom: auto;
+    top: calc(100% + 0.5rem);
+  }
+
+  .tooltip[data-side='left'] > .tooltip-content {
+    bottom: auto;
+    left: auto;
+    right: calc(100% + 0.5rem);
+    top: 50%;
+    translate: 0 -50%;
+  }
+
+  .tooltip[data-side='right'] > .tooltip-content {
+    bottom: auto;
+    left: calc(100% + 0.5rem);
+    top: 50%;
+    translate: 0 -50%;
+  }
+
+  /* The card is bigger and slower than a tip, because it is read rather than
+   * glanced at -- and it stays under the pointer travelling to it, which is
+   * why the trigger and the card are one hover target. */
+  .hover-card-content {
+    @apply bg-popover text-popover-foreground pointer-events-none invisible absolute
+           z-50 flex w-72 flex-col gap-1 rounded-lg border p-4 opacity-0 shadow-md
+           transition-[opacity,visibility] duration-200;
+    top: calc(100% + 0.5rem);
+    left: 0;
+  }
+
+  .hover-card:hover > .hover-card-content,
+  .hover-card:focus-within > .hover-card-content {
+    @apply visible opacity-100;
+  }
+
+  .hover-card[data-side='top'] > .hover-card-content {
+    top: auto;
+    bottom: calc(100% + 0.5rem);
+  }
+
+  .hover-card-avatar {
+    @apply bg-muted size-10 rounded-full object-cover;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tooltip-content,
+    .hover-card-content {
+      @apply transition-none;
+    }
+  }
+}

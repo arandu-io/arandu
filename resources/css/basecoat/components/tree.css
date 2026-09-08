@@ -1,0 +1,75 @@
+/* Tree
+ *
+ * A hierarchy drawn flat, with the depth as an attribute rather than as
+ * nesting -- which is what lets the keyboard move from the last child of one
+ * branch straight to the next branch, and lets a single row be swapped in on
+ * its own.
+ *
+ * The indent is therefore padding from the level rather than from containers.
+ * Six levels are written out because a rule has to exist for each; deeper than
+ * six is a tree that should be paged instead.
+ */
+@layer components {
+  .tree {
+    @apply flex flex-col;
+  }
+
+  .tree-item {
+    @apply flex cursor-default items-center gap-1.5 rounded-md py-1 pe-2 text-sm
+           outline-none transition-colors;
+    padding-inline-start: calc(var(--spacing) * 2);
+
+    &:hover {
+      @apply bg-accent/50;
+    }
+
+    &:focus-visible {
+      @apply ring-ring/50 ring-[3px];
+    }
+
+    &[aria-selected='true'] {
+      @apply bg-accent text-accent-foreground;
+    }
+
+    &[aria-disabled='true'] {
+      @apply pointer-events-none opacity-50;
+    }
+
+    & a {
+      @apply text-inherit no-underline;
+    }
+  }
+
+  .tree-item[data-level='2'] { padding-inline-start: calc(var(--spacing) * 6); }
+  .tree-item[data-level='3'] { padding-inline-start: calc(var(--spacing) * 10); }
+  .tree-item[data-level='4'] { padding-inline-start: calc(var(--spacing) * 14); }
+  .tree-item[data-level='5'] { padding-inline-start: calc(var(--spacing) * 18); }
+  .tree-item[data-level='6'] { padding-inline-start: calc(var(--spacing) * 22); }
+
+  .tree-toggle {
+    @apply text-muted-foreground inline-flex size-4 shrink-0 items-center
+           justify-center transition-transform;
+
+    & > svg {
+      @apply size-3.5;
+    }
+  }
+
+  .tree-item[aria-expanded='true'] > .tree-toggle {
+    @apply rotate-90;
+  }
+
+  .tree-icon {
+    @apply text-muted-foreground inline-flex size-4 shrink-0 items-center justify-center;
+
+    & > svg {
+      @apply size-4;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tree-toggle {
+      @apply transition-none;
+    }
+  }
+}

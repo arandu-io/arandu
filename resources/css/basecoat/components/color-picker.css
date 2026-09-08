@@ -1,0 +1,39 @@
+/* Color picker
+ *
+ * The frame around the platform's own picker. The swatch itself is
+ * <input type="color">, which every engine draws with its own chrome and its
+ * own inner padding -- so the padding is zeroed and the well is stretched to
+ * the element, and the result is one square that looks the same everywhere.
+ */
+@layer components {
+  .color-picker {
+    @apply flex items-center gap-3;
+
+    & > input[type='color'] {
+      @apply border-input size-9 cursor-pointer rounded-md border bg-transparent p-0
+             outline-none transition-[color,box-shadow];
+
+      &::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+
+      &::-webkit-color-swatch {
+        @apply rounded-[5px];
+        border: none;
+      }
+
+      &::-moz-color-swatch {
+        @apply rounded-[5px];
+        border: none;
+      }
+
+      &:focus-visible {
+        @apply border-ring ring-ring/50 ring-[3px];
+      }
+
+      &:disabled {
+        @apply pointer-events-none cursor-not-allowed opacity-50;
+      }
+    }
+  }
+}

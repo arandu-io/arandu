@@ -1,0 +1,23 @@
+/* Feed
+ *
+ * A stream of articles, each one focusable so a keyboard can move between them
+ * rather than through everything inside them.
+ */
+@layer components {
+  .feed {
+    @apply flex flex-col gap-4;
+  }
+
+  .feed-article {
+    @apply bg-card text-card-foreground flex flex-col gap-2 rounded-lg border p-4
+           outline-none transition-colors;
+
+    &:focus-visible {
+      @apply ring-ring/50 ring-[3px];
+    }
+  }
+
+  .feed-media {
+    @apply bg-muted w-full rounded-md object-cover;
+  }
+}

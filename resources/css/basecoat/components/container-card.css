@@ -1,0 +1,67 @@
+/* Container card
+ *
+ * Lays itself out from its own width rather than from the window's, so one
+ * card is correct in a narrow sidebar and in a wide column without either the
+ * page or the caller saying which it is in.
+ *
+ * The threshold is a literal because a container query needs one: a length
+ * arriving as a field would be a length no rule was emitted for, and the card
+ * would never flip.
+ */
+@layer components {
+  .container-card {
+    @apply bg-card text-card-foreground overflow-hidden rounded-xl border shadow-sm;
+    container-type: inline-size;
+    container-name: container-card;
+  }
+
+  .container-card-layout {
+    @apply flex flex-col;
+  }
+
+  .container-card-media {
+    @apply bg-muted w-full object-cover;
+    aspect-ratio: 16 / 9;
+  }
+
+  .container-card-body {
+    @apply flex flex-col gap-2 p-6 text-center;
+  }
+
+  .container-card-footer {
+    @apply mt-2 flex items-center justify-center gap-2;
+  }
+
+  @container container-card (width >= 28rem) {
+    .container-card-layout {
+      @apply grid items-stretch;
+      grid-template-columns: 40% 1fr;
+    }
+
+    .container-card-media {
+      @apply h-full;
+      aspect-ratio: auto;
+    }
+
+    .container-card-body {
+      @apply text-left;
+    }
+
+    .container-card-footer {
+      @apply justify-start;
+    }
+  }
+
+  /* The narrower threshold, for a card whose text is short enough to sit
+   * beside a picture sooner. */
+  @container container-card (width >= 20rem) {
+    .container-card[data-break='wide'] .container-card-layout {
+      @apply grid items-stretch;
+      grid-template-columns: 40% 1fr;
+    }
+
+    .container-card[data-break='wide'] .container-card-body {
+      @apply text-left;
+    }
+  }
+}

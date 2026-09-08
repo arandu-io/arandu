@@ -1,0 +1,36 @@
+/* Segmented control
+ *
+ * A joined bar of radios. The chosen segment is drawn by :checked on the input
+ * beside its label, so the state on the screen and the state in the form are
+ * the same state -- there is nothing to keep in step.
+ */
+@layer components {
+  .segmented-control {
+    @apply bg-muted inline-flex w-fit items-center gap-1 rounded-lg p-1;
+
+    & [data-part='segment'] {
+      @apply text-muted-foreground cursor-pointer rounded-md px-3 py-1.5 text-sm
+             font-medium whitespace-nowrap transition-colors;
+    }
+
+    & [data-part='option']:checked + [data-part='segment'] {
+      @apply bg-background text-foreground shadow-sm;
+    }
+
+    & [data-part='option']:focus-visible + [data-part='segment'] {
+      @apply ring-ring/50 ring-[3px];
+    }
+
+    & [data-part='option']:disabled + [data-part='segment'] {
+      @apply pointer-events-none opacity-50;
+    }
+
+    &[data-size='sm'] [data-part='segment'] {
+      @apply px-2 py-1 text-xs;
+    }
+
+    &[data-size='lg'] [data-part='segment'] {
+      @apply px-4 py-2 text-base;
+    }
+  }
+}

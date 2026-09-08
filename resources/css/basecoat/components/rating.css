@@ -1,0 +1,59 @@
+/* Rating
+ *
+ * Stars over radio inputs. The hover preview is the general sibling
+ * combinator: hovering one label dims every label after it, so the ones before
+ * stay lit -- which is the whole "filled up to here" effect, in one rule and
+ * no script.
+ *
+ * The order in the markup is input, label, input, label, so a label's siblings
+ * are exactly the stars to its right. That is why the markup is written that
+ * way and not with each pair wrapped.
+ */
+@layer components {
+  .rating {
+    & .rating-stars {
+      @apply flex w-fit items-center gap-1;
+    }
+
+    & [data-part='star'] {
+      @apply text-muted-foreground/40 cursor-pointer transition-colors;
+
+      & > svg {
+        @apply size-6;
+      }
+    }
+
+    /* Lit up to the chosen star. CSS can only look forwards from an element,
+     * and the stars to light are the ones *before* the chosen input -- so the
+     * rule is written the only way it can be: light them all, then dim
+     * everything that follows the one that is checked. */
+    &:has([data-part='option']:checked) [data-part='star'] {
+      @apply text-primary;
+    }
+
+    & [data-part='option']:checked ~ [data-part='star'] {
+      @apply text-muted-foreground/40;
+    }
+
+    & [data-part='option']:checked + [data-part='star'] {
+      @apply text-primary;
+    }
+
+    /* Under the pointer, the preview overrides both. */
+    & .rating-stars:hover [data-part='star'] {
+      @apply text-primary;
+    }
+
+    & .rating-stars [data-part='star']:hover ~ [data-part='star'] {
+      @apply text-muted-foreground/40;
+    }
+
+    & [data-part='option']:focus-visible + [data-part='star'] {
+      @apply ring-ring/50 rounded-sm ring-[3px];
+    }
+
+    & [data-part='option']:disabled + [data-part='star'] {
+      @apply pointer-events-none;
+    }
+  }
+}
