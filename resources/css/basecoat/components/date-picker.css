@@ -1,0 +1,35 @@
+/* Date picker
+ *
+ * The native field with a calendar beside it. The field is still the field --
+ * it holds the value, it submits, and it enforces the range; the grid writes
+ * into it.
+ *
+ * The engine's own picker indicator is hidden when the grid is drawn. Two ways
+ * to open a calendar over one field is one too many, and the one that opens
+ * the browser's chrome is the one nobody can style.
+ */
+@layer components {
+  .date-picker {
+    @apply relative flex w-full items-center gap-1;
+
+    & > [data-part='input'] {
+      @apply flex-1;
+
+      &::-webkit-calendar-picker-indicator {
+        @apply hidden;
+      }
+    }
+
+    & > [data-part='open'] {
+      @apply size-8 shrink-0 p-0;
+
+      & > svg {
+        @apply size-4;
+      }
+    }
+  }
+
+  .date-picker-panel {
+    @apply end-0 top-full z-50 mt-1;
+  }
+}

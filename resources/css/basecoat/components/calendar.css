@@ -1,0 +1,82 @@
+/* Calendar
+ *
+ * A month as a table, because a month is tabular data: the column a day sits
+ * in is what says which weekday it is, and a screen reader reads that from the
+ * column head rather than from anything written on the cell.
+ *
+ * The cells are cells and not buttons. Forty-two buttons is forty-two tab
+ * stops; the grid role exists so it is one, with the arrows moving inside.
+ */
+@layer components {
+  .calendar {
+    @apply bg-popover text-popover-foreground flex w-fit flex-col gap-3 rounded-lg border p-3;
+  }
+
+  .calendar-header {
+    @apply flex items-center justify-between gap-2;
+
+    & > .btn {
+      @apply size-7 shrink-0 p-0;
+
+      & > svg {
+        @apply size-4;
+      }
+    }
+  }
+
+  .calendar-title {
+    @apply text-sm font-medium capitalize;
+  }
+
+  .calendar-grid {
+    @apply w-full border-collapse;
+  }
+
+  .calendar-weekday {
+    @apply text-muted-foreground size-9 text-center text-[0.8rem] font-normal;
+  }
+
+  .calendar-day {
+    @apply text-foreground size-9 cursor-pointer rounded-md text-center align-middle
+           text-sm tabular-nums transition-colors outline-none select-none;
+
+    &:hover {
+      @apply bg-accent text-accent-foreground;
+    }
+
+    &:focus-visible {
+      @apply ring-ring/50 ring-[3px];
+    }
+
+    /* A day from a neighbouring month is drawn rather than left blank, so the
+     * grid is six full weeks and the calendar does not change height when the
+     * month does. It recedes; it does not disappear. */
+    &[data-outside='true'] {
+      @apply text-muted-foreground/40;
+    }
+
+    /* Today is a ring and not a fill, because the fill means chosen and today
+     * is not chosen until somebody chooses it. */
+    &[data-today='true'] {
+      @apply ring-border font-medium ring-1 ring-inset;
+    }
+
+    &[aria-selected='true'] {
+      @apply bg-primary text-primary-foreground font-medium;
+
+      &:hover {
+        @apply bg-primary text-primary-foreground;
+      }
+    }
+
+    /* Outside the range: drawn, unreachable, and struck through so the reason
+     * is visible rather than only felt as a click that did nothing. */
+    &[aria-disabled='true'] {
+      @apply text-muted-foreground/30 pointer-events-none line-through;
+    }
+  }
+
+  .calendar-footer {
+    @apply flex items-center justify-between gap-2 border-t pt-2;
+  }
+}

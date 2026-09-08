@@ -31,6 +31,8 @@
 /* Forms */
 @import "./components/button.css";
 @import "./components/color-picker.css";
+@import "./components/calendar.css";
+@import "./components/date-picker.css";
 @import "./components/number-input.css";
 @import "./components/rating.css";
 @import "./components/segmented-control.css";
