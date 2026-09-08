@@ -6,6 +6,8 @@ github.com/arandu-io/hesape v0.28.0 h1:NVQm4uV8oEWT+W6XwZS7CPYmqsTeoO2dwpE5e8OCq
 github.com/arandu-io/hesape v0.28.0/go.mod h1:KNXJJuKrDIpWvJgNbE2LxtHkOqO4J6cqPkmMcNlxrL0=
 github.com/arandu-io/hesape v0.29.0 h1:rxembPnl9XuVqB/ILBf5A6zwKPmcsP2fMEuuKlIjEVI=
 github.com/arandu-io/hesape v0.29.0/go.mod h1:KNXJJuKrDIpWvJgNbE2LxtHkOqO4J6cqPkmMcNlxrL0=
+github.com/arandu-io/hesape v0.31.0 h1:EUtj0t0vGXYc8jitO/nXIgGhlkMeE1ToLAQwq1iaQ8o=
+github.com/arandu-io/hesape v0.31.0/go.mod h1:KNXJJuKrDIpWvJgNbE2LxtHkOqO4J6cqPkmMcNlxrL0=
 github.com/arandu-io/hesape/database/connectors/pgx v0.7.1 h1:QcK27YxrIlbctnsMS6CXygHrD0Rtukfp47w/GDY5QOA=
 github.com/arandu-io/hesape/database/connectors/pgx v0.7.1/go.mod h1:HVq+IRmKzm8lTE3e3yyTD0/xPoa65wIBLmJ1cMQQ3K4=
 github.com/arandu-io/hesape/database/connectors/sqlite v0.7.1 h1:WVzNGpZpaSUL+RHXyyxHT7miUk397RKh70yzmHDAYFM=
@@ -16,6 +18,8 @@ github.com/arandu-io/kyse v0.18.0 h1:swqDuWzRglV0YWVhd7YzqJlcFSCFRKUy4X2kZEs4qZg
 github.com/arandu-io/kyse v0.18.0/go.mod h1:ARRYvVvSV1oaZ26k/6zOh2xbXYdj6nLe7GoZpbO3heY=
 github.com/arandu-io/kyse v0.19.0 h1:j9wfY1p2BFsgdLA6v2ipdwW6IlnHpLYG+QqbIstqiLQ=
 github.com/arandu-io/kyse v0.19.0/go.mod h1:Vv1POws8KWTY6i8krxK5n4q8xNmoVibvhismDtOckc8=
+github.com/arandu-io/kyse v0.21.0 h1:4mcpncYRd7Vp/XPF//eetNLFDlv4hRo4ci0PKQFUxeI=
+github.com/arandu-io/kyse v0.21.0/go.mod h1:qog+M/HlmaCDUBm9RSEegpGhIsoMlCpEylP7pFGlriM=
 github.com/bsm/ginkgo/v2 v2.12.0 h1:Ny8MWAHyOepLGlLKYmXG4IEkioBysk6GpaRTLC8zwWs=
 github.com/bsm/ginkgo/v2 v2.12.0/go.mod h1:SwYbGRRDovPVboqFv0tPTcG1sN61LM1Z4ARdbAV9g4c=
 github.com/bsm/gomega v1.27.10 h1:yeMWxP2pV2fG3FgAODIY8EiRE3dy0aeFYt4l7wh6yKA=

@@ -7,7 +7,7 @@ retract v0.10.0 // Requires retracted Kyse v0.15.1 and lacks method override in 
 require github.com/arandu-io/framework v0.46.0
 
 require (
-	github.com/arandu-io/hesape v0.29.0
+	github.com/arandu-io/hesape v0.31.0
 	github.com/arandu-io/hesape/database/connectors/pgx v0.7.1
 	github.com/arandu-io/hesape/database/connectors/sqlite v0.7.1
 	github.com/arandu-io/hesape/redis v0.7.1
@@ -20,7 +20,7 @@ require (
 )
 
 require (
-	github.com/arandu-io/kyse v0.19.0
+	github.com/arandu-io/kyse v0.21.0
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
