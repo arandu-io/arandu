@@ -4,13 +4,13 @@ go 1.26
 
 retract v0.10.0 // Requires retracted Kyse v0.15.1 and lacks method override in the default HTTP pipeline.
 
-require github.com/arandu-io/framework v0.46.0
+require github.com/arandu-io/framework v0.46.3
 
 require (
 	github.com/arandu-io/hesape v0.36.0
-	github.com/arandu-io/hesape/database/connectors/pgx v0.7.1
-	github.com/arandu-io/hesape/database/connectors/sqlite v0.7.1
-	github.com/arandu-io/hesape/redis v0.7.1
+	github.com/arandu-io/hesape/database/connectors/pgx v0.8.0
+	github.com/arandu-io/hesape/database/connectors/sqlite v0.8.0
+	github.com/arandu-io/hesape/redis v0.8.0
 )
 
 require (
