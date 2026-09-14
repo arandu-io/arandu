@@ -182,23 +182,27 @@ func TestTheSkeletonExposesTheCompleteQueueCommandSurface(t *testing.T) {
 }
 
 // TestSeededCredentialsOnSQLite proves the native login seam without depending
-// on UI that is published only into a generated application: migrate, seed the
-// administrator, then verify indistinguishable refusals and one successful
-// credential lookup through the application-owned service.
+// on UI that is published only into a generated application: migrate, create a
+// user through the explicitly named seeder, then verify indistinguishable
+// refusals and one successful credential lookup through the application-owned
+// service. The root seeder deliberately creates no account.
 func TestSeededCredentialsOnSQLite(t *testing.T) {
 	sqliteEnv(t)
-	t.Setenv("ARANDU_ADMIN_EMAIL", "admin@example.test")
-	t.Setenv("ARANDU_ADMIN_PASSWORD", "a-long-enough-password")
 
 	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if err := bootstrap.Dispatch("db:seed", nil); err != nil {
-		t.Fatalf("db:seed: %v", err)
+		t.Fatalf("empty db:seed: %v", err)
 	}
-	// Seeding has to be safe to run again, or it cannot be part of a deploy.
-	if err := bootstrap.Dispatch("db:seed", nil); err != nil {
-		t.Fatalf("second db:seed: %v", err)
+	userSeed := []string{"UserSeeder", "-e", "admin@example.test", "-p", "a-long-enough-password", "-r", "admin"}
+	if err := bootstrap.Dispatch("db:seed", userSeed); err != nil {
+		t.Fatalf("explicit UserSeeder: %v", err)
+	}
+	// The explicit user seeder has to be safe to run again, or it cannot be an
+	// operator's recovery/bootstrap tool.
+	if err := bootstrap.Dispatch("db:seed", userSeed); err != nil {
+		t.Fatalf("second explicit UserSeeder: %v", err)
 	}
 
 	cfg, db, _ := openForTest(t)

@@ -119,6 +119,63 @@ func TestTheStylesheetCarriesTheClassesTheMarkupRenders(t *testing.T) {
 	}
 }
 
+// TestTheThemeTriggerShowsOneGlyphAtATime protects the CSS half of
+// components.ThemeToggle. The component deliberately renders both glyphs so
+// the pre-paint theme script can choose without rewriting markup. Without
+// these selectors both remain visible, which turns one icon button into the
+// sun-and-moon pair that originally exposed this gap in a generated skeleton.
+func TestTheThemeTriggerShowsOneGlyphAtATime(t *testing.T) {
+	stylesheets := map[string]string{
+		"source":   withoutComments(tests.File(t, filepath.Join("resources", "css", "app.css"))),
+		"compiled": tests.File(t, filepath.Join("assets", "app.css")),
+	}
+	wants := []struct {
+		name       string
+		expression string
+	}{
+		// Tailwind combines selectors with identical declarations in compiled
+		// output, so permit another selector before the opening brace.
+		{name: "the dark glyph starts hidden", expression: `(?s)\[data-theme-glyph=(?:"dark"|dark)\][^{]*\{[^}]*display:\s*none`},
+		{name: "dark mode hides the light glyph", expression: `(?s)html\.dark\s+\[data-theme-glyph=(?:"light"|light)\][^{]*\{[^}]*display:\s*none`},
+		{name: "dark mode reveals the dark glyph", expression: `(?s)html\.dark\s+\[data-theme-glyph=(?:"dark"|dark)\]\s*\{[^}]*display:\s*(?:inline|block|inline-block)`},
+	}
+
+	for stylesheet, body := range stylesheets {
+		for _, want := range wants {
+			if !regexp.MustCompile(want.expression).MatchString(body) {
+				t.Errorf("%s stylesheet does not prove %s; the theme trigger can show both the sun and moon", stylesheet, want.name)
+			}
+		}
+	}
+}
+
+// TestPasswordKeepsItsRevealControlInsideTheInput holds the structural CSS
+// required by components.Password. The markup is an input and a button inside
+// .input-group; password.css only supplies the visual skin. Without the base
+// input-group layout the button becomes a second full-width row and its eye is
+// centred, which is especially obvious on the dark sign-in screen.
+func TestPasswordKeepsItsRevealControlInsideTheInput(t *testing.T) {
+	components := withoutComments(tests.File(t, filepath.Join("resources", "css", "basecoat", "components.css")))
+	if !strings.Contains(components, `@import "./components/input-group.css";`) {
+		t.Fatal("the component bundle does not import input-group.css; Password renders its reveal button as a separate full-width row")
+	}
+
+	compiled := tests.File(t, filepath.Join("assets", "app.css"))
+	wants := []struct {
+		name       string
+		expression string
+	}{
+		{name: "the group is a flex row", expression: `(?s)\.input-group\{[^}]*display:flex`},
+		{name: "the password input fills the remaining row", expression: `(?s)\.input-group>:is\(input,textarea,select,\[data-control\]\)\{[^}]*flex:1`},
+		{name: "the reveal control is ordered at the end", expression: `(?s)\.input-group>:is\(\[data-align=(?:end|inline-end)\][^)]*\)\{[^}]*order:`},
+	}
+	for _, want := range wants {
+		if !regexp.MustCompile(want.expression).MatchString(compiled) {
+			t.Errorf("compiled stylesheet does not prove %s; run `aru view:build` after importing input-group.css", want.name)
+		}
+	}
+}
+
 // TestTheCustomisationLayerIsTheLastImport pins where a project's own CSS goes
 // and, more than that, when it is read.
 //

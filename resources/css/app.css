@@ -127,6 +127,23 @@
   }
 }
 
+/* ThemeToggle renders both glyphs so theme.js can decide the first paint by
+ * setting the dark class on <html>, without replacing markup after the page is
+ * visible. Exactly one glyph must take space in either mode. The portal already
+ * carries this client-contract rule; the skeleton needs its own copy because
+ * Kyse publishes components but no stylesheet into an application. */
+[data-theme-glyph="dark"] {
+  display: none;
+}
+
+html.dark [data-theme-glyph="light"] {
+  display: none;
+}
+
+html.dark [data-theme-glyph="dark"] {
+  display: inline;
+}
+
 /* The two rules the framework's own pages assume. Keep them: the error page and
  * the sign-in screen render before any application stylesheet is involved. */
 @layer base {

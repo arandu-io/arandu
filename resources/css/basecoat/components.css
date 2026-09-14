@@ -40,6 +40,7 @@
 @import "./components/field.css";
 @import "./components/label.css";
 @import "./components/input.css";
+@import "./components/input-group.css";
 @import "./components/textarea.css";
 @import "./components/password.css";
 @import "./components/one-time-code.css";
@@ -80,5 +81,5 @@
 @import "./animations.css";
 
 /* Not imported, and on disk if you want them: accordion, button-group, chart,
- * collapsible, combobox, command, drawer, input-group, item, kbd, progress,
+ * collapsible, combobox, command, drawer, item, kbd, progress,
  * radio, range, select, switch, tooltip. */
