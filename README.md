@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/logo.png" alt="Arandu" width="140" height="140">
+  <img src=".github/logo.svg" alt="Arandu" width="180">
 </p>
 
 <h1 align="center">arandu-io/arandu</h1>
