@@ -9,7 +9,7 @@
 
 Include the repository and version, `go version` when applicable, operating system, expected behavior, actual behavior, and the smallest reproduction. `aru doctor` output is useful when it applies.
 
-The Arandu ecosystem uses one organization-wide community. Individual product repositories do not maintain separate Discussions forums.
+The Arandu ecosystem uses one organization-wide Discussions hub. Individual product repositories do not maintain separate Discussions forums.
 
 Read [the manual](https://arandu.io/docs) for guides and architecture decisions.
 
