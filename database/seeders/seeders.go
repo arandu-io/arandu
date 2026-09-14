@@ -47,7 +47,6 @@ type Seeder = database.Seeder[Deps]
 var registry = []Seeder{
 	DatabaseSeeder{},
 	UserSeeder{},
-	AdminSeeder{},
 }
 
 // Run executes DatabaseSeeder, or the one named first on the command line, and
