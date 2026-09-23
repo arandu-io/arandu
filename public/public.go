@@ -125,18 +125,15 @@ func Names() []string {
 // Registering the names rather than mounting a file server under a prefix is
 // what keeps `aru routes` honest: every URL this application answers is a route
 // in the table, including these.
-func Routes(r *fhttp.Router, sitemapURL string) {
+func Routes(r *fhttp.Router) {
 	for _, name := range Names() {
-		r.Get("/"+name, handler(name, sitemapURL))
+		r.Get("/"+name, handler(name))
 	}
 }
 
 // handler serves one file.
-func handler(name, sitemapURL string) http.HandlerFunc {
+func handler(name string) http.HandlerFunc {
 	f := served[name]
-	if name == "robots.txt" {
-		f.body = append(append([]byte(nil), f.body...), []byte("\nSitemap: "+sitemapURL+"\n")...)
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", f.contentType)
 		w.Header().Set("Cache-Control", cacheControl)
