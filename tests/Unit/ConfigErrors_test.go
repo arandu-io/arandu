@@ -376,6 +376,7 @@ func loadConfigurationWith(t *testing.T, values map[string]string) (appconfig.Co
 	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
 	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
 	for _, key := range []string{
+		"APP_URL", "GEO_ENABLED", "GEO_INDEXING_ENABLED", "GEO_SURFACES",
 		"CACHE_STORE", "SESSION_DRIVER", "QUEUE_CONNECTION", "FILESYSTEM_DISK",
 		"LOG_FORMAT", "REDIS_URL",
 		"SESSION_SECURE", "SESSION_TTL", "CSRF_TTL",

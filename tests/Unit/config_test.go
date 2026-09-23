@@ -37,8 +37,8 @@ func unstatedEnv(t *testing.T) {
 	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
 	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
 	for _, key := range []string{
-		"APP_ENV", "APP_DEBUG", "APP_URL", "SESSION_SECURE", "SESSION_SECURE_COOKIE",
-		"SESSION_DRIVER", "SESSION_TTL", "CSRF_TTL", "CACHE_STORE", "REDIS_URL",
+		"APP_ENV", "APP_DEBUG", "APP_URL", "GEO_ENABLED", "GEO_INDEXING_ENABLED", "GEO_SURFACES",
+		"SESSION_SECURE", "SESSION_SECURE_COOKIE", "SESSION_DRIVER", "SESSION_TTL", "CSRF_TTL", "CACHE_STORE", "REDIS_URL",
 	} {
 		t.Setenv(key, "")
 	}

@@ -1,4 +1,0 @@
-User-agent: *
-Disallow: /_arandu/
-Allow: /_arandu/assets/
-Allow: /
