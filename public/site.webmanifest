@@ -1,0 +1,14 @@
+{
+  "id": "/",
+  "name": "Arandu",
+  "short_name": "Arandu",
+  "start_url": "/",
+  "scope": "/",
+  "display": "browser",
+  "theme_color": "#f6f2e8",
+  "background_color": "#fbf8f1",
+  "icons": [
+    {"src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"}
+  ]
+}
