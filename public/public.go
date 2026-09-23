@@ -4,9 +4,9 @@
 // Everything else this application ships is content-addressed: the stylesheet
 // and the scripts live in the framework, are embedded in the binary, and are
 // served from /_arandu/assets/<hash>/ with a URL the page writes for itself.
-// These two cannot work that way. /favicon.ico and /robots.txt are addresses
-// the client chooses, not addresses the application hands out, so the name has
-// to stay exactly what it is and the hash has nowhere to go.
+// /favicon.ico and /robots.txt are addresses the client chooses. The official
+// SVG brand assets retain stable compatibility URLs here, while pages use
+// their content-addressed registrations in the native asset registry.
 //
 // That is the whole reason this package exists, and the reason it is not a
 // second asset pipeline: one path for anything a page references, this one for
@@ -23,19 +23,23 @@
 package public
 
 import (
+	"bytes"
 	"embed"
 	"net/http"
 	"path"
 	"sort"
 
 	fhttp "github.com/arandu-io/framework/http"
+	"github.com/arandu-io/hesape/view"
 )
 
 // The files, compiled in. The list is explicit rather than a directory glob:
 // a glob would also embed this source file, and a public/ that silently
 // publishes whatever landed in it is how a stray dump file becomes a URL.
 //
-//go:embed favicon.ico favicon.png robots.txt
+//go:embed favicon.ico favicon.png favicon.svg aru-icon.svg arandu.svg logo-hyzis.svg robots.txt
+//go:embed site.webmanifest android-chrome-192x192.png android-chrome-512x512.png apple-touch-icon.png favicon-16x16.png favicon-32x32.png
+//go:embed social-cover.png social-cover-pt.png social-cover-es.png
 var files embed.FS
 
 // contentTypes is the whole table, and it is deliberately short. A public/ that
@@ -43,11 +47,17 @@ var files embed.FS
 // for and become a document root, which is the thing this framework does not
 // have.
 var contentTypes = map[string]string{
-	".ico": "image/x-icon",
-	// The logo, at the size a modern browser prefers. It is linked beside the
-	// .ico rather than instead of it: Safari and every feed reader still ask
-	// for /favicon.ico by that name, whatever the markup says.
+	".webmanifest": "application/manifest+json",
+	".ico":         "image/x-icon",
+	// Raster compatibility files support favicon fallbacks, home-screen icons
+	// and social previews alongside the preferred vector mark.
 	".png": "image/png",
+	// The mark, drawn rather than rastered. It is an SVG because it is the same
+	// file at every size a page asks for, and because a change to it reads as
+	// text in a diff.
+	".svg": "image/svg+xml",
+	// robots.txt is served as plain text. The two files a model asks for are
+	// generated controllers and therefore do not belong in this embedded set.
 	".txt": "text/plain; charset=utf-8",
 }
 
@@ -85,6 +95,18 @@ func init() {
 			panic("public: missing embedded file " + name + ": " + err.Error())
 		}
 		served[name] = file{body: body, contentType: contentType}
+		// Pages use the native content-addressed route for immutable caching.
+		// Keep the fixed names as compatibility URLs, with their shorter TTL.
+		if path.Ext(name) == ".svg" {
+			view.RegisterAsset(name, contentType, body)
+			if name == "arandu.svg" {
+				// The canonical artwork is the dark-theme brand: warm gold neutrals
+				// with the original red and mint accents. Light mode derives only
+				// the two gold outline paths as black, leaving every other path intact.
+				light := bytes.ReplaceAll(body, []byte(`fill="#FEDD86"`), []byte(`fill="black"`))
+				view.RegisterAsset("arandu-light.svg", contentType, light)
+			}
+		}
 	}
 }
 
@@ -103,15 +125,18 @@ func Names() []string {
 // Registering the names rather than mounting a file server under a prefix is
 // what keeps `aru routes` honest: every URL this application answers is a route
 // in the table, including these.
-func Routes(r *fhttp.Router) {
+func Routes(r *fhttp.Router, sitemapURL string) {
 	for _, name := range Names() {
-		r.Get("/"+name, handler(name))
+		r.Get("/"+name, handler(name, sitemapURL))
 	}
 }
 
 // handler serves one file.
-func handler(name string) http.HandlerFunc {
+func handler(name, sitemapURL string) http.HandlerFunc {
 	f := served[name]
+	if name == "robots.txt" {
+		f.body = append(append([]byte(nil), f.body...), []byte("\nSitemap: "+sitemapURL+"\n")...)
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", f.contentType)
 		w.Header().Set("Cache-Control", cacheControl)
