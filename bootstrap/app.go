@@ -14,6 +14,7 @@
 package bootstrap
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/events"
 	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
+	fwgeo "github.com/arandu-io/framework/geo"
 	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/framework/jobs"
@@ -258,6 +260,15 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 		return App{}, fmt.Errorf("bootstrap: build two-factor service: %w", err)
 	}
 
+	// GEO is native and opt-in at the deployment boundary. The application owns
+	// only the catalog: adding a public route to this project means deciding
+	// explicitly whether it belongs in this list. Indexing remains disabled by
+	// default even though the fail-closed machine endpoints are registered.
+	geoCatalog := fwgeo.CatalogFunc(func(context.Context) ([]fwgeo.Document, error) {
+		return []fwgeo.Document{{Path: "/", Title: cfg.App.Name}}, nil
+	})
+	geoModule := fwgeo.NewModule(cfg.Geo, geoCatalog)
+
 	// The controllers, built here and handed to the routes. A controller that
 	// constructed its own collaborators would be a controller no test can pin.
 	deps := routes.Deps{
@@ -320,6 +331,10 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// embedded assets. Without it every page answers with an error that
 			// names this missing line, and every stylesheet 404s.
 			fwview.NewModule(),
+			// Search/GEO surfaces. The module exists in every generated project,
+			// while GEO_INDEXING_ENABLED decides whether this deployment actually
+			// publishes its catalog. Disabled indexing fails closed.
+			geoModule,
 			// The outbox table, and the relay built above that empties it. A
 			// module that records domain events stores them in the same
 			// transaction as the write, and this is what brings the table those

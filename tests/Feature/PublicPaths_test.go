@@ -11,13 +11,10 @@ import (
 	"github.com/arandu-io/hesape/config"
 )
 
-// The two URLs nobody writes a link to and every client asks for anyway.
-//
-// A browser requests /favicon.ico on its own, and the layout links it by name;
-// a crawler requests /robots.txt before anything else. Having the files on disk
-// is not enough to answer either: there is no document root here, so a file that
-// is not embedded and routed does not exist.
-
+// Fixed browser assets and native GEO documents are real routes in the binary.
+// The favicon remains an embedded public file; crawler and model-facing paths
+// belong to the GEO module so disabling indexing fails closed instead of
+// leaving a permissive stale robots.txt on disk.
 func TestTheFixedPublicPathsAreServed(t *testing.T) {
 	k := tests.Kernel(t, config.EnvDev)
 
@@ -27,6 +24,9 @@ func TestTheFixedPublicPathsAreServed(t *testing.T) {
 	}{
 		{"/favicon.ico", "image/x-icon"},
 		{"/robots.txt", "text/plain"},
+		{"/sitemap.xml", "application/xml"},
+		{"/llms.txt", "text/plain"},
+		{"/llms-full.txt", "text/plain"},
 	} {
 		rec := httptest.NewRecorder()
 		k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tc.path, nil))
@@ -40,6 +40,42 @@ func TestTheFixedPublicPathsAreServed(t *testing.T) {
 		}
 		if rec.Body.Len() == 0 {
 			t.Errorf("GET %s served an empty body", tc.path)
+		}
+	}
+}
+
+func TestGeoDefaultsFailClosedAndOwnTheirRoutes(t *testing.T) {
+	k := tests.Kernel(t, config.EnvDev)
+	for _, tc := range []struct {
+		path string
+		want string
+	}{
+		{"/robots.txt", "Disallow: /"},
+		{"/sitemap.xml", "<urlset"},
+		{"/llms.txt", "Discovery disabled"},
+		{"/llms-full.txt", "Discovery disabled"},
+	} {
+		rec := httptest.NewRecorder()
+		k.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tc.path, nil))
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), tc.want) {
+			t.Fatalf("GET %s = %d %q", tc.path, rec.Code, rec.Body.String())
+		}
+		if tc.path == "/sitemap.xml" && strings.Contains(rec.Body.String(), "<loc>") {
+			t.Fatal("the generated project indexes a page before GEO indexing is enabled")
+		}
+
+		matches := 0
+		for _, route := range k.Routes() {
+			if route.Pattern != tc.path {
+				continue
+			}
+			matches++
+			if route.Module != "geo" {
+				t.Fatalf("%s belongs to %q, want geo", tc.path, route.Module)
+			}
+		}
+		if matches != 1 {
+			t.Fatalf("%s registered %d times", tc.path, matches)
 		}
 	}
 }

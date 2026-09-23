@@ -1,12 +1,12 @@
-// Package public serves the files a browser or a crawler asks for by a fixed
-// path.
+// Package public serves files a browser asks for by a fixed path.
 //
 // Everything else this application ships is content-addressed: the stylesheet
 // and the scripts live in the framework, are embedded in the binary, and are
 // served from /_arandu/assets/<hash>/ with a URL the page writes for itself.
-// /favicon.ico and /robots.txt are addresses the client chooses. The official
-// SVG brand assets retain stable compatibility URLs here, while pages use
-// their content-addressed registrations in the native asset registry.
+// These favicon and brand names cannot work that way. Browsers choose them
+// directly, so the names stay stable and the hash has nowhere to go. Crawler
+// discovery documents belong to the native GEO module and are not embedded
+// here.
 //
 // That is the whole reason this package exists, and the reason it is not a
 // second asset pipeline: one path for anything a page references, this one for
@@ -37,7 +37,7 @@ import (
 // a glob would also embed this source file, and a public/ that silently
 // publishes whatever landed in it is how a stray dump file becomes a URL.
 //
-//go:embed favicon.ico favicon.png favicon.svg aru-icon.svg arandu.svg logo-hyzis.svg robots.txt
+//go:embed favicon.ico favicon.png favicon.svg aru-icon.svg arandu.svg logo-hyzis.svg
 //go:embed site.webmanifest android-chrome-192x192.png android-chrome-512x512.png apple-touch-icon.png favicon-16x16.png favicon-32x32.png
 //go:embed social-cover.png social-cover-pt.png social-cover-es.png
 var files embed.FS
@@ -56,9 +56,6 @@ var contentTypes = map[string]string{
 	// file at every size a page asks for, and because a change to it reads as
 	// text in a diff.
 	".svg": "image/svg+xml",
-	// robots.txt is served as plain text. The two files a model asks for are
-	// generated controllers and therefore do not belong in this embedded set.
-	".txt": "text/plain; charset=utf-8",
 }
 
 // cacheControl is an hour, not a year.

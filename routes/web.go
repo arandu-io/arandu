@@ -67,10 +67,8 @@ func Web(r *http.Router, d Deps) {
 	// the match to the end of the path, which is what Route::get('/') means.
 	r.Action("GET", "/{$}", d.Home.Index).Name("home")
 
-	// The fixed names the outside world asks for: /favicon.ico, which the layout
-	// links, and /robots.txt, which a crawler fetches without being told to.
-	// They are embedded in the binary and there is no document root -- see the
-	// public package. Without this line the icon in the tab is a 404.
+	// The fixed favicon and brand names the browser asks for are embedded in the
+	// binary. Crawler discovery documents are registered by the native GEO module.
 	public.Routes(r)
 
 	// arandu:begin custom

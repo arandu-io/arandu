@@ -1,4 +1,4 @@
-// Package config is this application's configuration, one file per domain: ten
+// Package config is this application's configuration, one file per domain: eleven
 // files, named after what they configure.
 //
 // The difference is the one that matters: there is no config("app.name") lookup.
@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/arandu-io/framework/foundation/bootstrap"
+	"github.com/arandu-io/framework/geo"
 	hconfig "github.com/arandu-io/hesape/config"
 )
 
@@ -32,6 +33,7 @@ type Config struct {
 	Framework bootstrap.Configuration
 
 	App         App
+	Geo         geo.Config
 	Auth        Auth
 	Cache       Cache
 	Database    Database
@@ -78,7 +80,7 @@ func Load() (Config, error) {
 // setting instead of constructing a partial configuration.
 //
 // It is separate from Load so a test can supply a valid framework configuration
-// directly and get the ten application domains filled from their defaults.
+// directly and get the eleven application domains filled from their defaults.
 func From(base bootstrap.Configuration) (Config, error) {
 	if err := base.App.Validate(); err != nil {
 		return Config{}, fmt.Errorf("framework application configuration: %w", err)
@@ -127,6 +129,11 @@ func From(base bootstrap.Configuration) (Config, error) {
 		Services:    loadServices(),
 		Session:     session,
 	}
+	geoConfig, err := loadGeo(cfg.App)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Geo = geoConfig
 
 	return cfg, nil
 }
