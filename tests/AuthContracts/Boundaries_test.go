@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"testing"
 )
 
@@ -118,75 +117,29 @@ func TestApplicationCodeDoesNotNameSessionGuard(t *testing.T) {
 	}
 }
 
-func TestSecondFactorPersistenceKeepsAtomicWritesTenantScoped(t *testing.T) {
+// TestSecondFactorPersistenceGoesThroughTheModel keeps the second factor on
+// the one data path: every read and write through Model[T], scoped by the
+// Grant's tenant, and no statement written by hand beside it. A raw statement
+// is a query the tenant scope never sees. What the conditional writes decide,
+// and that each stays inside its tenant, is proved by running them, in
+// tests/NativeAuth.
+func TestSecondFactorPersistenceGoesThroughTheModel(t *testing.T) {
 	path := filepath.Join(projectRoot(t), "app", "Repositories", "TwoFactorRepository.go")
-	tests := []struct {
-		method    string
-		fragments []string
-		counts    map[string]int
-	}{
-		{
-			method: "Find",
-			fragments: []string{
-				"FROM user_two_factor WHERE user_id = ? AND tenant_id = ?",
-			},
-		},
-		{
-			method: "Enrol",
-			fragments: []string{
-				"DELETE FROM user_two_factor WHERE user_id = ? AND tenant_id = ? AND confirmed_at IS NULL",
-				"INSERT INTO user_two_factor (user_id, tenant_id, secret, confirmed_at, last_used_step, created_at)",
-			},
-		},
-		{
-			method: "Confirm",
-			fragments: []string{
-				"WHERE user_id = ? AND tenant_id = ? AND confirmed_at IS NULL",
-			},
-		},
-		{
-			method: "Disable",
-			counts: map[string]int{
-				"WHERE user_id = ? AND tenant_id = ?": 2,
-			},
-		},
-		{
-			method: "SpendStep",
-			fragments: []string{
-				"WHERE user_id = ? AND tenant_id = ? AND last_used_step < ?",
-			},
-		},
-		{
-			method: "ReplaceRecoveryCodes",
-			fragments: []string{
-				"DELETE FROM user_recovery_codes WHERE user_id = ? AND tenant_id = ?",
-				"INSERT INTO user_recovery_codes (id, tenant_id, user_id, code_hash, used_at, created_at)",
-			},
-		},
-		{
-			method: "ConsumeRecoveryCode",
-			fragments: []string{
-				"WHERE user_id = ? AND tenant_id = ? AND used_at IS NULL",
-				"WHERE id = ? AND tenant_id = ? AND used_at IS NULL",
-			},
-		},
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parsing the repository: %v", err)
 	}
-
-	for _, test := range tests {
-		t.Run(test.method, func(t *testing.T) {
-			literals := methodStringLiterals(t, path, test.method)
-			for _, fragment := range test.fragments {
-				if !strings.Contains(literals, fragment) {
-					t.Errorf("%s does not preserve the SQL contract %q", test.method, fragment)
-				}
-			}
-			for fragment, want := range test.counts {
-				if got := strings.Count(literals, fragment); got != want {
-					t.Errorf("%s contains %q %d times, want %d", test.method, fragment, got, want)
-				}
-			}
-		})
-	}
+	raw := map[string]bool{"ExecContext": true, "QueryContext": true, "QueryRowContext": true, "Exec": true, "Query": true, "QueryRow": true}
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if selector, ok := call.Fun.(*ast.SelectorExpr); ok && raw[selector.Sel.Name] {
+			t.Errorf("the repository issues a statement by hand: %s", expressionName(call.Fun))
+		}
+		return true
+	})
 }
 
 func TestSecondFactorRequiredChecksTheReadGrantBeforeDelegating(t *testing.T) {
@@ -271,26 +224,6 @@ func relative(root, path string) string {
 		return path
 	}
 	return name
-}
-
-func methodStringLiterals(t *testing.T, path, method string) string {
-	t.Helper()
-
-	function := methodDeclaration(t, path, method)
-	var literals []string
-	ast.Inspect(function.Body, func(node ast.Node) bool {
-		literal, ok := node.(*ast.BasicLit)
-		if !ok || literal.Kind != token.STRING {
-			return true
-		}
-		value, err := strconv.Unquote(literal.Value)
-		if err != nil {
-			t.Fatalf("unquoting a literal in %s: %v", method, err)
-		}
-		literals = append(literals, value)
-		return true
-	})
-	return strings.Join(strings.Fields(strings.Join(literals, " ")), " ")
 }
 
 func methodDeclaration(t *testing.T, path, method string) *ast.FuncDecl {

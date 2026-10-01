@@ -1,17 +1,18 @@
-// Package repositories holds persistence needed beyond ordinary model queries.
+// Package repositories holds the persistence a service shares with something
+// other than itself.
 package repositories
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/security"
 	twofactor "github.com/arandu-io/hesape/2fa"
+	"github.com/arandu-io/hesape/database"
+	"github.com/arandu-io/hesape/database/model"
 	"github.com/arandu-io/hesape/hashing"
 
 	"github.com/arandu-io/arandu/app/Models"
@@ -42,11 +43,22 @@ func recoveryCodeMaterial(code string) string {
 	return recoveryCodePrefix + twofactor.NormalizeCode(code)
 }
 
-// TwoFactorRepository owns only the atomic persistence operations that a Model
-// cannot express: replay protection and one-time recovery consumption.
+// TwoFactorRepository holds the second-factor writes that are decided by the
+// row they change: a time step spent only when it is higher than the last one,
+// an enrolment confirmed only while it is unconfirmed, a recovery code spent
+// only while it is unspent. Each is one conditional update through the model,
+// and the number of rows it changed is the answer -- which is what makes two
+// concurrent attempts produce exactly one winner.
+//
+// It is a type of its own rather than methods on the service because the
+// replay guard and the recovery store hand these writes to the native
+// two-factor package, each with the Grant it was given.
+//
+// Every method checks its Grant before the first query, and every query is
+// scoped by the model to the Grant's tenant.
 type TwoFactorRepository struct{ db *data.DB }
 
-// NewTwoFactorRepository returns the specialized second-factor store.
+// NewTwoFactorRepository returns the second-factor store.
 func NewTwoFactorRepository(db *data.DB) *TwoFactorRepository {
 	return &TwoFactorRepository{db: db}
 }
@@ -56,10 +68,14 @@ func (r *TwoFactorRepository) Find(ctx context.Context, grant security.Grant, us
 	if err := grant.Check(policies.ActionTwoFactorRead); err != nil {
 		return models.TwoFactor{}, err
 	}
-	row := r.db.QueryRowContext(ctx,
-		`SELECT user_id, tenant_id, secret, confirmed_at, last_used_step, created_at
-		 FROM user_two_factor WHERE user_id = ? AND tenant_id = ?`, userID, data.Tenant(grant))
-	return scanTwoFactor(row)
+	factor, err := models.TwoFactors(r.db).FindOrFail(ctx, grant, userID)
+	if errors.Is(err, model.ErrModelNotFound) {
+		return models.TwoFactor{}, ErrTwoFactorNotEnrolled
+	}
+	if err != nil {
+		return models.TwoFactor{}, err
+	}
+	return *factor, nil
 }
 
 // Enrol atomically replaces only an unfinished enrolment.
@@ -70,24 +86,27 @@ func (r *TwoFactorRepository) Enrol(ctx context.Context, grant security.Grant, f
 	if factor.Secret == "" {
 		return models.TwoFactor{}, fmt.Errorf("two-factor: refusing to store an empty secret")
 	}
-	tenant := data.Tenant(grant)
-	if _, err := r.db.ExecContext(ctx,
-		`DELETE FROM user_two_factor WHERE user_id = ? AND tenant_id = ? AND confirmed_at IS NULL`,
-		factor.UserID, tenant); err != nil {
+	if _, err := models.TwoFactors(r.db).WhereKey(factor.UserID).WhereNull("confirmed_at").
+		Delete(ctx, grant); err != nil {
 		return models.TwoFactor{}, err
 	}
-	factor.TenantID = tenant
-	factor.CreatedAt = time.Now().UTC()
-	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO user_two_factor (user_id, tenant_id, secret, confirmed_at, last_used_step, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?)`, factor.UserID, tenant, factor.Secret, nil, int64(0), factor.CreatedAt)
+	instance, err := models.TwoFactors(r.db).NewInstance(nil, false)
 	if err != nil {
-		if uniqueViolation(err) {
+		return models.TwoFactor{}, err
+	}
+	record := instance.Entity
+	record.UserID = factor.UserID
+	record.TenantID = data.Tenant(grant)
+	record.Secret = factor.Secret
+	if _, err := instance.Save(ctx, grant); err != nil {
+		// A confirmed enrolment survived the delete above, and the key is the
+		// account: the insert is refused rather than replacing a working factor.
+		if errors.Is(err, database.ErrUniqueViolation) {
 			return models.TwoFactor{}, ErrTwoFactorAlreadyEnabled
 		}
 		return models.TwoFactor{}, err
 	}
-	return factor, nil
+	return *record, nil
 }
 
 // Confirm stamps an unfinished enrolment and reports whether this call won.
@@ -95,10 +114,9 @@ func (r *TwoFactorRepository) Confirm(ctx context.Context, grant security.Grant,
 	if err := grant.Check(policies.ActionTwoFactorManage); err != nil {
 		return false, err
 	}
-	result, err := r.db.ExecContext(ctx,
-		`UPDATE user_two_factor SET confirmed_at = ?
-		 WHERE user_id = ? AND tenant_id = ? AND confirmed_at IS NULL`, at.UTC(), userID, data.Tenant(grant))
-	return changed(result, err, "confirm an enrolment")
+	changed, err := models.TwoFactors(r.db).WhereKey(userID).WhereNull("confirmed_at").
+		Update(ctx, grant, map[string]any{"confirmed_at": at.UTC()})
+	return changed == 1, err
 }
 
 // Required reports whether the account has a confirmed enrolment.
@@ -118,18 +136,14 @@ func (r *TwoFactorRepository) Disable(ctx context.Context, grant security.Grant,
 	if err := grant.Check(policies.ActionTwoFactorManage); err != nil {
 		return err
 	}
-	tenant := data.Tenant(grant)
-	if _, err := r.db.ExecContext(ctx,
-		`DELETE FROM user_recovery_codes WHERE user_id = ? AND tenant_id = ?`, userID, tenant); err != nil {
+	if _, err := models.RecoveryCodes(r.db).Where("user_id", "=", userID).Delete(ctx, grant); err != nil {
 		return err
 	}
-	result, err := r.db.ExecContext(ctx,
-		`DELETE FROM user_two_factor WHERE user_id = ? AND tenant_id = ?`, userID, tenant)
-	ok, err := changed(result, err, "disable an enrolment")
+	removed, err := models.TwoFactors(r.db).WhereKey(userID).Delete(ctx, grant)
 	if err != nil {
 		return err
 	}
-	if !ok {
+	if removed != 1 {
 		return ErrTwoFactorNotEnrolled
 	}
 	return nil
@@ -140,11 +154,9 @@ func (r *TwoFactorRepository) SpendStep(ctx context.Context, grant security.Gran
 	if err := grant.Check(policies.ActionTwoFactorManage); err != nil {
 		return false, err
 	}
-	result, err := r.db.ExecContext(ctx,
-		`UPDATE user_two_factor SET last_used_step = ?
-		 WHERE user_id = ? AND tenant_id = ? AND last_used_step < ?`,
-		int64(step), userID, data.Tenant(grant), int64(step))
-	return changed(result, err, "spend an authenticator time step")
+	changed, err := models.TwoFactors(r.db).WhereKey(userID).Where("last_used_step", "<", int64(step)).
+		Update(ctx, grant, map[string]any{"last_used_step": int64(step)})
+	return changed == 1, err
 }
 
 // ReplaceRecoveryCodes replaces the entire recovery set with password hashes.
@@ -152,23 +164,22 @@ func (r *TwoFactorRepository) ReplaceRecoveryCodes(ctx context.Context, grant se
 	if err := grant.Check(policies.ActionTwoFactorManage); err != nil {
 		return err
 	}
-	tenant := data.Tenant(grant)
-	if _, err := r.db.ExecContext(ctx,
-		`DELETE FROM user_recovery_codes WHERE user_id = ? AND tenant_id = ?`, userID, tenant); err != nil {
+	if _, err := models.RecoveryCodes(r.db).Where("user_id", "=", userID).Delete(ctx, grant); err != nil {
 		return err
 	}
-	now := time.Now().UTC()
+	tenant := data.Tenant(grant)
 	for _, hash := range hashes {
 		if hash == "" {
 			return fmt.Errorf("two-factor: refusing to store an empty recovery hash")
 		}
-		id, err := data.NewID()
+		instance, err := models.RecoveryCodes(r.db).NewInstance(nil, false)
 		if err != nil {
 			return err
 		}
-		if _, err := r.db.ExecContext(ctx,
-			`INSERT INTO user_recovery_codes (id, tenant_id, user_id, code_hash, used_at, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?)`, id, tenant, userID, hash, nil, now); err != nil {
+		instance.Entity.TenantID = tenant
+		instance.Entity.UserID = userID
+		instance.Entity.CodeHash = hash
+		if _, err := instance.Save(ctx, grant); err != nil {
 			return err
 		}
 	}
@@ -176,6 +187,11 @@ func (r *TwoFactorRepository) ReplaceRecoveryCodes(ctx context.Context, grant se
 }
 
 // ConsumeRecoveryCode atomically spends a matching unspent recovery hash.
+//
+// The hashes are compared here, one by one, because a password hash cannot be
+// looked up by value. The write that spends the match is conditional on the
+// code still being unspent, so of two concurrent redemptions of one code only
+// one changes the row.
 func (r *TwoFactorRepository) ConsumeRecoveryCode(ctx context.Context, grant security.Grant, userID, code string) (bool, error) {
 	if err := grant.Check(policies.ActionTwoFactorManage); err != nil {
 		return false, err
@@ -183,75 +199,18 @@ func (r *TwoFactorRepository) ConsumeRecoveryCode(ctx context.Context, grant sec
 	if twofactor.NormalizeCode(code) == "" {
 		return false, nil
 	}
-	tenant := data.Tenant(grant)
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, code_hash FROM user_recovery_codes
-		 WHERE user_id = ? AND tenant_id = ? AND used_at IS NULL`, userID, tenant)
+	unspent, err := models.RecoveryCodes(r.db).Where("user_id", "=", userID).WhereNull("used_at").
+		Get(ctx, grant, "id", "code_hash")
 	if err != nil {
 		return false, err
 	}
-	type candidate struct{ id, hash string }
-	var candidates []candidate
-	for rows.Next() {
-		var item candidate
-		if err := rows.Scan(&item.id, &item.hash); err != nil {
-			_ = rows.Close()
-			return false, err
-		}
-		candidates = append(candidates, item)
-	}
-	if err := rows.Err(); err != nil {
-		_ = rows.Close()
-		return false, err
-	}
-	if err := rows.Close(); err != nil {
-		return false, err
-	}
-	for _, item := range candidates {
-		if err := hashing.Check(recoveryCodeMaterial(code), item.hash); err != nil {
+	for _, candidate := range unspent {
+		if err := hashing.Check(recoveryCodeMaterial(code), candidate.CodeHash); err != nil {
 			continue
 		}
-		result, err := r.db.ExecContext(ctx,
-			`UPDATE user_recovery_codes SET used_at = ?
-			 WHERE id = ? AND tenant_id = ? AND used_at IS NULL AND user_id = ?`,
-			time.Now().UTC(), item.id, tenant, userID)
-		return changed(result, err, "spend a recovery code")
+		changed, err := models.RecoveryCodes(r.db).WhereKey(candidate.ID).Where("user_id", "=", userID).
+			WhereNull("used_at").Update(ctx, grant, map[string]any{"used_at": time.Now().UTC()})
+		return changed == 1, err
 	}
 	return false, nil
-}
-
-type rowScanner interface{ Scan(...any) error }
-
-func scanTwoFactor(row rowScanner) (models.TwoFactor, error) {
-	var factor models.TwoFactor
-	var confirmed sql.NullTime
-	var step int64
-	err := row.Scan(&factor.UserID, &factor.TenantID, &factor.Secret, &confirmed, &step, &factor.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return models.TwoFactor{}, ErrTwoFactorNotEnrolled
-	}
-	if err != nil {
-		return models.TwoFactor{}, err
-	}
-	factor.ConfirmedAt = confirmed.Time.UTC()
-	if step > 0 {
-		factor.LastUsedStep = uint64(step)
-	}
-	return factor, nil
-}
-
-func changed(result sql.Result, err error, operation string) (bool, error) {
-	if err != nil {
-		return false, err
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("two-factor: the driver cannot report whether it could %s: %w", operation, err)
-	}
-	return rows == 1, nil
-}
-
-func uniqueViolation(err error) bool {
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "unique") || strings.Contains(message, "duplicate") || strings.Contains(message, "23505")
 }

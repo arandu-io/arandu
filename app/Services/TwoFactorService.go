@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -75,6 +76,9 @@ func (e TwoFactorLockedError) Seconds() int {
 func (e TwoFactorLockedError) Error() string {
 	return ErrTwoFactorLocked.Error() + ", sign in again in " + strconv.Itoa(e.Seconds()) + " seconds"
 }
+
+// HTTPStatus is 429, which is what an action that returns this error answers.
+func (TwoFactorLockedError) HTTPStatus() int { return http.StatusTooManyRequests }
 
 // Unwrap exposes both sentinels the error stands for.
 func (e TwoFactorLockedError) Unwrap() []error {
@@ -404,8 +408,11 @@ func (s *TwoFactorService) findUser(ctx context.Context, grant security.Grant, u
 	if err := grant.Check(policies.ActionUserView); err != nil {
 		return models.User{}, err
 	}
-	user, err := models.Users(s.db).Where("id", "=", userID).First(ctx, grant)
-	return decodeUser(user, err)
+	user, err := models.Users(s.db).FindOrFail(ctx, grant, userID)
+	if err != nil {
+		return models.User{}, err
+	}
+	return *user, nil
 }
 
 func (s *TwoFactorService) record(ctx context.Context, grant security.Grant, name string, user models.User) error {

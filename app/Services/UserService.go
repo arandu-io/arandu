@@ -6,6 +6,7 @@ import (
 	"crypto/hmac"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/hesape/auth"
 	authusers "github.com/arandu-io/hesape/auth/users"
+	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/database/model"
 	"github.com/arandu-io/hesape/database/query"
 	"github.com/arandu-io/hesape/hashing"
@@ -26,9 +28,13 @@ import (
 )
 
 var (
-	// ErrUserNotFound means no user matched inside the grant's tenant.
-	ErrUserNotFound = errors.New("user: not found")
-	// ErrEmailTaken means an address already belongs to an account in this tenant.
+	// ErrUserNotFound means no user matched inside the grant's tenant. It is the
+	// model's own not-found sentinel, so every lookup's error matches it under
+	// errors.Is, and an action that returns it is answered 404.
+	ErrUserNotFound = model.ErrModelNotFound
+	// ErrEmailTaken means an address already belongs to an account in this
+	// tenant. The error a write returns for it also matches
+	// database.ErrUniqueViolation, so an action that returns it is answered 409.
 	ErrEmailTaken = errors.New("user: email already registered in this tenant")
 	// ErrVerificationAddressChanged refuses a code issued for an older address.
 	ErrVerificationAddressChanged = errors.New("user: verification was issued for a different address")
@@ -52,6 +58,9 @@ func (e TooManyAttemptsError) Seconds() int {
 func (e TooManyAttemptsError) Error() string {
 	return "user: too many attempts, try again in " + strconv.Itoa(e.Seconds()) + " seconds"
 }
+
+// HTTPStatus is 429, which is what an action that returns this error answers.
+func (TooManyAttemptsError) HTTPStatus() int { return http.StatusTooManyRequests }
 
 // UserService owns application user rules and persistence through Model[User].
 type UserService struct {
@@ -84,14 +93,6 @@ func (u *credentialUser) GetAuthPassword() string       { return u.Entity.Passwo
 func (*credentialUser) GetRememberToken() string        { return "" }
 func (*credentialUser) SetRememberToken(string)         {}
 func (*credentialUser) GetRememberTokenName() string    { return "" }
-
-func (u *credentialUser) domain() (models.User, error) {
-	user := *u.Entity
-	if err := user.DecodeRoles(); err != nil {
-		return models.User{}, fmt.Errorf("user: unreadable roles for %s: %w", user.ID, err)
-	}
-	return user, nil
-}
 
 // credentialProvider prevents the broad provider contract from introducing a
 // remember-token persistence path that this application does not own.
@@ -136,11 +137,7 @@ func (s *UserService) VerifyCredentials(ctx context.Context, tenant, email, pass
 		s.throttle.Refund(tenant, email, client)
 		return models.User{}, fmt.Errorf("user: credential provider returned %T", verified)
 	}
-	user, err := adapted.domain()
-	if err != nil {
-		s.throttle.Refund(tenant, email, client)
-		return models.User{}, err
-	}
+	user := *adapted.Entity
 	s.throttle.Clear(tenant, email, client)
 	observability.Log(ctx).Info("login credentials verified", "user", user)
 	return user, nil
@@ -151,7 +148,7 @@ func (s *UserService) Register(ctx context.Context, tenant, name, email, passwor
 	if strings.TrimSpace(name) == "" || NormalizeEmail(email) == "" || len(password) < security.MinPasswordLen {
 		return models.User{}, fmt.Errorf("user: invalid registration input")
 	}
-	candidate := models.User{TenantID: tenant, Name: strings.TrimSpace(name), Email: NormalizeEmail(email), Roles: []string{}}
+	candidate := models.User{TenantID: tenant, Name: strings.TrimSpace(name), Email: NormalizeEmail(email), Roles: models.Roles{}}
 	grant, err := security.Authorize(ctx, s.policy, security.Guest(tenant), policies.ActionUserCreate, candidate)
 	if err != nil {
 		return models.User{}, err
@@ -185,8 +182,11 @@ func (s *UserService) Lookup(ctx context.Context, tenant, email string) (models.
 	if err := grant.Check(policies.ActionUserView); err != nil {
 		return models.User{}, err
 	}
-	user, err := models.Users(s.db).Where("email", "=", NormalizeEmail(email)).First(ctx, grant)
-	return decodeUser(user, err)
+	user, err := models.Users(s.db).Where("email", "=", NormalizeEmail(email)).FirstOrFail(ctx, grant)
+	if err != nil {
+		return models.User{}, err
+	}
+	return *user, nil
 }
 
 // PublicNames resolves a tenant-scoped projection after policy authorization.
@@ -371,58 +371,41 @@ func (s *UserService) create(ctx context.Context, grant security.Grant, user mod
 	if user.Password == "" {
 		return models.User{}, fmt.Errorf("user: refusing to store an empty password hash")
 	}
-	roles, err := user.EncodeRoles()
-	if err != nil {
-		return models.User{}, err
-	}
-	if user.ID == "" {
-		user.ID, err = data.NewID()
-		if err != nil {
-			return models.User{}, err
-		}
-	}
 	instance, err := models.Users(s.db).NewInstance(nil, false)
 	if err != nil {
 		return models.User{}, err
 	}
 	// The fields are set on the entity rather than passed as a map: a map is
 	// filled, and filling never writes the tenant column. The tenant comes from
-	// the Grant, and the entity says so before the insert does.
+	// the Grant, and the entity says so before the insert does. The id is the
+	// model's to generate.
 	record := instance.Entity
 	*record = user
 	record.TenantID = data.Tenant(grant)
 	record.Email = NormalizeEmail(user.Email)
-	record.RoleData = roles
+	if record.Roles == nil {
+		record.Roles = models.Roles{}
+	}
 	if record.VerifiedAt != nil {
 		at := record.VerifiedAt.UTC()
 		record.VerifiedAt = &at
 	}
 	if _, err := instance.Save(ctx, grant); err != nil {
-		if isUniqueViolation(err) {
-			return models.User{}, ErrEmailTaken
+		if errors.Is(err, database.ErrUniqueViolation) {
+			return models.User{}, fmt.Errorf("%w: %w", ErrEmailTaken, err)
 		}
 		return models.User{}, err
 	}
-	return decodeUser(record, nil)
+	return *record, nil
 }
 
 func (s *UserService) find(ctx context.Context, grant security.Grant, action security.Action, id string) (models.User, error) {
 	if err := grant.Check(action); err != nil {
 		return models.User{}, err
 	}
-	user, err := models.Users(s.db).Where("id", "=", id).First(ctx, grant)
-	return decodeUser(user, err)
-}
-
-func decodeUser(user *models.User, err error) (models.User, error) {
+	user, err := models.Users(s.db).FindOrFail(ctx, grant, id)
 	if err != nil {
 		return models.User{}, err
-	}
-	if user == nil {
-		return models.User{}, ErrUserNotFound
-	}
-	if err := user.DecodeRoles(); err != nil {
-		return models.User{}, fmt.Errorf("user: unreadable roles for %s: %w", user.ID, err)
 	}
 	return *user, nil
 }
@@ -436,8 +419,3 @@ func (s *UserService) record(ctx context.Context, grant security.Grant, name str
 
 // NormalizeEmail is the single normalization used on user reads and writes.
 func NormalizeEmail(email string) string { return strings.ToLower(strings.TrimSpace(email)) }
-
-func isUniqueViolation(err error) bool {
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "unique") || strings.Contains(message, "duplicate") || strings.Contains(message, "23505")
-}

@@ -1,4 +1,7 @@
 // Package requests holds browser input contracts.
+//
+// ctx.Bind fills a request through its form tags, and only those: a key the
+// client sends that no field declares goes nowhere.
 package requests
 
 import (
@@ -13,9 +16,9 @@ const redactedPassword = "[redacted]"
 
 // LoginRequest is a password sign-in input.
 type LoginRequest struct {
-	Email    string
-	Password string
-	Remember bool
+	Email    string `form:"email"`
+	Password string `form:"password"`
+	Remember bool   `form:"remember"`
 }
 
 // Validate reports field errors without revealing account state.
@@ -46,10 +49,10 @@ func (r LoginRequest) LogValue() slog.Value {
 
 // RegisterRequest is a self-registration input and deliberately carries no roles.
 type RegisterRequest struct {
-	Name                 string
-	Email                string
-	Password             string
-	PasswordConfirmation string
+	Name                 string `form:"name"`
+	Email                string `form:"email"`
+	Password             string `form:"password"`
+	PasswordConfirmation string `form:"password_confirmation"`
 }
 
 // Validate reports the registration field errors.
@@ -90,7 +93,9 @@ func (r RegisterRequest) LogValue() slog.Value {
 }
 
 // EmailCodeRequest is a code bound to one email-code purpose and subject.
-type EmailCodeRequest struct{ Code string }
+type EmailCodeRequest struct {
+	Code string `form:"code"`
+}
 
 // Validate reports whether a code was supplied.
 func (r EmailCodeRequest) Validate() validation.Errors {
