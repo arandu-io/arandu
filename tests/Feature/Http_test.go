@@ -1,6 +1,7 @@
 package feature_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/arandu-io/arandu/tests"
 
+	"github.com/arandu-io/framework/arandutest"
 	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/framework/kernel"
@@ -54,6 +56,19 @@ func TestTheLandingPageRenders(t *testing.T) {
 	if !strings.Contains(body, "/_arandu/assets/") {
 		t.Error("the page does not reference the embedded assets")
 	}
+}
+
+// TestTheLandingPageGreetsWhoIsSignedIn: the page is public, and its route
+// carries the subject of a live session, so the controller greets by name
+// without loading the session itself.
+func TestTheLandingPageGreetsWhoIsSignedIn(t *testing.T) {
+	app := tests.Booted(t)
+	user, err := app.Users.Register(context.Background(), bootstrap.Tenant(), "Ana Lima", "ana@example.test", "a-long-enough-password")
+	if err != nil {
+		t.Fatalf("registering the account: %v", err)
+	}
+	tests.SignedIn(t, app, user.Subject()).Get("/").AssertOk().AssertSee("Ana Lima")
+	arandutest.NewClient(t, app.Kernel.Handler()).Get("/").OK().DontSee("Ana Lima")
 }
 
 // TestTheRootRouteDoesNotSwallowEveryPath guards a property of Go's router:

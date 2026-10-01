@@ -49,6 +49,70 @@ bundle, and authorization the compiler charges for: a repository call with no
   file itself: a generator that rewrites your wiring behind your back is a
   generator whose output nobody can account for.
 
+## The example resource
+
+A fresh project carries one small, complete resource, **notes**, so the first
+thing you read is a whole module that works rather than an empty directory. It
+was written by `aru make:module note --fields "title:string!,body:text,pinned:bool" --tenant`,
+`aru make:factory Note` and `aru make:seeder Note`, and then opened by hand
+where the generator stops: an author column, the policy rules, and the author
+set from the signed-in subject. It is the reference for the shape of every
+module you add:
+
+- `NoteController` reads who is asking with `ctx.User()` behind
+  `middleware.RequireAuth`, binds the form with `ctx.Bind` and returns every
+  error to the router, which answers validation with the form, a missing row
+  with 404 and a refusal with 403;
+- `NoteService` validates, asks `NotePolicy` for a `Grant`, and reads and writes
+  through `models.Notes(db)` with `FindOrFail`, `SimplePaginate` and `Save`;
+- `NotePolicy` lets anybody signed in to the tenant read and write notes, and
+  only a note's author change or delete it;
+- `tests/Feature/Notes_test.go` proves the whole path in a browser, including a
+  note of another tenant (404) and another member's note (403).
+
+`aru migrate` creates the table and `aru db:seed` writes six notes in
+development, by two accounts nobody can sign in as. To use it in a browser,
+publish the sign-in screens with `go run github.com/arandu-io/ui@latest auth`,
+make your own account with
+`aru db:seed UserSeeder -e you@example.com -p <a-long-password>`, sign in, and
+open `/notes`: the seeded notes are there to read, and refused to change,
+because you did not write them.
+
+### Removing it
+
+There is no command for it. Delete these files:
+
+```text
+.agents/skills/notes/SKILL.md
+app/Http/Controllers/NoteController.go
+app/Http/Requests/NoteRequest.go
+app/Models/Note.go
+app/Policies/NotePolicy.go
+app/Services/NoteService.go
+database/factories/NoteFactory.go
+database/migrations/2026_10_01_000001_create_notes_table.go
+database/seeders/NoteSeeder.go
+resources/views/notes/            (the directory, four views)
+storage/framework/views/notes/    (the directory, compiled output)
+tests/Feature/Notes_test.go
+tests/Unit/Note_test.go
+```
+
+and these lines, each marked with a comment naming this section:
+
+```text
+routes/web.go                       Note *controllers.NoteController
+routes/web.go                       r.Group("", middleware.RequireAuth(d.Sessions)).Resource("notes", d.Note)
+bootstrap/app.go                    Note: controllers.NewNoteController(services.NewNoteService(db)),
+database/seeders/seeders.go         NoteSeeder{},
+database/seeders/DatabaseSeeder.go  return NoteSeeder{}.Run(ctx, d)   (becomes: return nil)
+tests/Feature/TenantScope_test.go   "notes": "...",
+```
+
+A database that already ran the migration keeps the table: in development run
+`aru migrate:fresh` after deleting the files; anywhere else add a migration
+that drops `notes`. Then `aru view:build`, `go test ./...` and `aru doctor`.
+
 `aru doctor` checks this tree against the architecture rules — from a
 repository missing its policy to a tenant read off the request instead of the
 `Grant` — and CI runs it on every push, without `--strict`: an error fails the

@@ -15,6 +15,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -25,6 +26,8 @@ import (
 	"github.com/arandu-io/framework/data"
 	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
 	"github.com/arandu-io/framework/kernel"
+	"github.com/arandu-io/framework/security"
+	hesapetest "github.com/arandu-io/hesape/arandutest"
 	"github.com/arandu-io/hesape/config"
 	"github.com/arandu-io/hesape/database"
 
@@ -146,6 +149,14 @@ func File(t *testing.T, name string) string {
 // of them cannot see each other's rows. The file goes with t.TempDir.
 func App(t *testing.T) (*arandutest.Client, *data.DB) {
 	t.Helper()
+	app := Booted(t)
+	return arandutest.NewClient(t, app.Kernel.Handler()), app.DB
+}
+
+// Booted is what App boots, returned whole: the services, the session store and
+// the database, for a test that has to reach one of them as well as browse.
+func Booted(t *testing.T) bootstrap.App {
+	t.Helper()
 
 	t.Setenv("APP_ENV", "dev")
 	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
@@ -176,5 +187,36 @@ func App(t *testing.T) (*arandutest.Client, *data.DB) {
 	if err := app.Kernel.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
-	return arandutest.NewClient(t, app.Kernel.Handler()), db
+	return app
+}
+
+// SignedIn returns a browser for app whose requests carry a real session for
+// the subject, started by the same store the route guards read.
+//
+// The session is started the way the sign-in screen starts one, through
+// SessionStore.Start, so RequireAuth loads it and puts the subject on the
+// request exactly as it does for somebody who typed a password. The address it
+// is started on exists only in front of this client's handler: the
+// application has no such route.
+//
+// It is the browser hesape answers with, which speaks every verb a resource
+// registers -- PUT and DELETE as well as GET and POST -- and takes a header for
+// what a browser would send that a test has to say.
+func SignedIn(t *testing.T, app bootstrap.App, subject security.Subject) *hesapetest.Client {
+	t.Helper()
+	const signInHere = "/_tests/sign-in"
+	handler := app.Kernel.Handler()
+	client := hesapetest.NewClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != signInHere {
+			handler.ServeHTTP(w, r)
+			return
+		}
+		if _, err := app.Sessions.Start(r.Context(), w, subject); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	client.Get(signInHere).AssertStatus(http.StatusNoContent)
+	return client
 }

@@ -23,6 +23,10 @@ import (
 type Deps struct {
 	Home *controllers.HomeController
 
+	// Note is the example resource. Remove it with the list under "The example
+	// resource" in README.md.
+	Note *controllers.NoteController
+
 	// Sessions is what the route guards read: RequireAuth refuses a request
 	// without a session, and LoadSubject lets a public page know who is looking.
 	// Both put the subject on the request, and a handler reads it with
@@ -75,5 +79,10 @@ func Web(r *http.Router, d Deps) {
 	// arandu:begin custom
 	// The routes of this application go here. `aru make:module` appends to this
 	// block and leaves everything else in the file alone.
+
+	// The example resource, behind the sign-in guard: the controller reads who
+	// is asking from what the guard puts on the request. Remove it with the list
+	// under "The example resource" in README.md.
+	r.Group("", middleware.RequireAuth(d.Sessions)).Resource("notes", d.Note)
 	// arandu:end custom
 }

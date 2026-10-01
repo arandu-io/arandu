@@ -255,7 +255,7 @@ func seedFor(cfg appconfig.Config, app App) func(context.Context, string) error 
 // seedDeps is what every seeder is allowed to touch, built once for db:seed and
 // for migrate --seed alike.
 func seedDeps(cfg appconfig.Config, app App) seeders.Deps {
-	return seeders.Deps{Users: app.Users, DB: app.DB, Tenant: cfg.Auth.Tenant}
+	return seeders.Deps{Users: app.Users, DB: app.DB, Tenant: cfg.Auth.Tenant, Development: cfg.App.IsDev()}
 }
 
 // wipeFor is what migrate:fresh drops the schema with.

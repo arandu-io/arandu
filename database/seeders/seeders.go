@@ -28,6 +28,10 @@ type Deps struct {
 	// a factory. A factory stores through the model, and the model takes the
 	// Grant the seeder hands it.
 	DB *data.DB
+	// Development is true when APP_ENV is dev. The example rows are seeded only
+	// then: a production database is no place for invented content.
+	Development bool
+
 	// Tenant is the tenant seeded rows belong to. It comes from the application,
 	// never from the seeder: a seeder that picks its own tenant seeds data nobody
 	// can reach.
@@ -55,6 +59,9 @@ type Seeder = database.Seeder[Deps]
 var registry = []Seeder{
 	DatabaseSeeder{},
 	UserSeeder{},
+	// The example resource. Remove it with the list under "The example
+	// resource" in README.md.
+	NoteSeeder{},
 }
 
 // Run executes DatabaseSeeder, or the one named first on the command line, and

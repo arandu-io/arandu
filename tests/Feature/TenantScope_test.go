@@ -59,6 +59,9 @@ var scopedByTenant = map[string]string{
 	// updates and the deletes all carry tenant_id beside the batch id -- so a
 	// batch id guessed from another tenant matches no row rather than one.
 	"job_batches": "the batch list, and a batch id from another tenant matches nothing",
+	// The example resource. Remove it with the list under "The example
+	// resource" in README.md.
+	"notes": "the example resource: NoteService authorizes first and reads every note through the model's tenant scope",
 }
 
 func TestEveryTableWithATenantColumnIsOneThatFiltersByTenant(t *testing.T) {

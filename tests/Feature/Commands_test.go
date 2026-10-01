@@ -185,7 +185,8 @@ func TestTheSkeletonExposesTheCompleteQueueCommandSurface(t *testing.T) {
 // on UI that is published only into a generated application: migrate, create a
 // user through the explicitly named seeder, then verify indistinguishable
 // refusals and one successful credential lookup through the application-owned
-// service. The root seeder deliberately creates no account.
+// service. The root seeder deliberately creates no account anybody can sign in
+// as.
 func TestSeededCredentialsOnSQLite(t *testing.T) {
 	sqliteEnv(t)
 

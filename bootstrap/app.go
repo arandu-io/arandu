@@ -288,6 +288,9 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 		// and it has to be: two stores over one key would agree about the
 		// signature and disagree about which sessions exist.
 		Sessions: sessions,
+		// The example resource. Remove it with the list under "The example
+		// resource" in README.md.
+		Note: controllers.NewNoteController(services.NewNoteService(db)),
 	}
 
 	k := kernel.New(fw)
