@@ -1,13 +1,13 @@
 module github.com/arandu-io/arandu
 
-go 1.26
+go 1.26.0
 
 retract v0.10.0 // Requires retracted Kyse v0.15.1 and lacks method override in the default HTTP pipeline.
 
-require github.com/arandu-io/framework v0.48.0
+require github.com/arandu-io/framework v0.49.0
 
 require (
-	github.com/arandu-io/hesape v0.42.2
+	github.com/arandu-io/hesape v0.43.1
 	github.com/arandu-io/hesape/database/connectors/pgx v0.10.1
 	github.com/arandu-io/hesape/database/connectors/sqlite v0.10.1
 	github.com/arandu-io/hesape/redis v0.10.1
@@ -30,10 +30,10 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/crypto v0.55.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	modernc.org/libc v1.74.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
