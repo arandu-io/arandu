@@ -8,6 +8,7 @@ package routes
 
 import (
 	"github.com/arandu-io/framework/http"
+	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/framework/security"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
@@ -22,12 +23,10 @@ import (
 type Deps struct {
 	Home *controllers.HomeController
 
-	// Sessions is what the route guards read, and it is here before anything in
-	// this file uses it. The skeleton registers one public page, so there is
-	// nothing to guard yet -- but the first route somebody adds behind
-	// middleware.RequireAuth is the reason this is not a field they have to
-	// discover: it is already wired in bootstrap/app.go, so the guard needs the
-	// import above it and nothing else.
+	// Sessions is what the route guards read: RequireAuth refuses a request
+	// without a session, and LoadSubject lets a public page know who is looking.
+	// Both put the subject on the request, and a handler reads it with
+	// ctx.User() rather than loading the session again.
 	//
 	// A guard is not a second authorization path. It answers "is there a
 	// session" and stops; whether this subject may touch this record is the
@@ -44,8 +43,7 @@ type Deps struct {
 //	r.Get("/", handler).Name("home")
 //	r.Resource("invoices", invoiceController)      // the seven REST routes
 //
-// The guards live in github.com/arandu-io/framework/http/middleware, which this
-// file does not import yet because it registers nothing that needs one:
+// The guards live in github.com/arandu-io/framework/http/middleware:
 //
 //	r.Action("GET", "/dashboard", ctrl.Index, middleware.RequireAuth(d.Sessions)).Name("dashboard")
 //	admin := r.Group("/admin", middleware.RequireRole(d.Sessions, "admin"))
@@ -65,7 +63,10 @@ func Web(r *http.Router, d Deps) {
 	// it, so "GET /" would answer for /anything -- including the 404s, and
 	// including /_arandu/debug when the console is not mounted. The {$} anchors
 	// the match to the end of the path, which is what Route::get('/') means.
-	r.Action("GET", "/{$}", d.Home.Index).Name("home")
+	//
+	// LoadSubject and not RequireAuth: the page is public, and it greets
+	// somebody signed in by name.
+	r.Action("GET", "/{$}", d.Home.Index, middleware.LoadSubject(d.Sessions)).Name("home")
 
 	// The fixed favicon and brand names the browser asks for are embedded in the
 	// binary. Crawler discovery documents are registered by the native GEO module.

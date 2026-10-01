@@ -154,7 +154,12 @@ type App struct {
 func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	fw := cfg.Framework
 
-	csrf := security.NewCSRF(fw.App.Key, cfg.Session.CSRFTTL)
+	// The CSRF token is bound to the session, and a visitor without one is bound
+	// to a random id in a signed cookie of its own. That cookie carries Secure
+	// exactly when the session cookie does: over plain HTTP in development the
+	// browser would never send a Secure one back, and every form a guest
+	// submits would answer 419.
+	csrf := security.NewCSRF(fw.App.Key, cfg.Session.CSRFTTL).Secure(cfg.Session.Secure)
 
 	// Every cache store this application has, by name. CACHE_STORE names the
 	// one the lock below counts in; the session names one of its own, which is
@@ -275,11 +280,10 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// The controllers, built here and handed to the routes. A controller that
 	// constructed its own collaborators would be a controller no test can pin.
 	deps := routes.Deps{
-		Home: controllers.NewHomeController(cfg.App.Name, sessions, csrf, userService, cfg.Auth.Tenant),
-		// What the route guards read. The same store the pipeline and the
-		// controllers were given, and it has to be: two stores over one key
-		// would agree about the signature and disagree about which sessions
-		// exist.
+		Home: controllers.NewHomeController(cfg.App.Name, userService, cfg.Auth.Tenant),
+		// What the route guards read. The same store the pipeline was given,
+		// and it has to be: two stores over one key would agree about the
+		// signature and disagree about which sessions exist.
 		Sessions: sessions,
 	}
 
@@ -345,11 +349,15 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// adds HX-Refresh, without which somebody over the limit presses the
 			// button and the screen does not change.
 			//
-			// The key is unchanged, and it has to be: a counter in a shared
-			// store is keyed by the string KeyBySession returns, so a different
-			// one would hand every caller a fresh budget on deploy.
+			// The key is the session only while the store still holds it, and
+			// the address otherwise: a signed cookie proves only that its id was
+			// issued here once, and every expired id a client kept would be a
+			// fresh budget.
 			hmiddleware.Throttle(limiter, cache2.PerMinute(300),
-				middleware.KeyBySession(sessions.IDFromRequest), fhttp.Refuse),
+				middleware.KeyBySession(sessions), fhttp.Refuse),
+			// CSRFProtect checks every write and issues the token every page
+			// carries: view.New reads it off the request, so no controller
+			// issues one by hand.
 			middleware.CSRFProtect(csrf, sessions.IDFromRequest),
 			httpmiddleware.OverrideMethod(),
 		).

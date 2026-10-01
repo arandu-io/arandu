@@ -79,7 +79,7 @@ func TestTheRootRouteDoesNotSwallowEveryPath(t *testing.T) {
 // verbatim would put a literal {$} in every link to the landing page.
 func TestTheHomeRouteIsAddressableByName(t *testing.T) {
 	r := fhttp.NewRouter()
-	routes.Web(r, routes.Deps{Home: controllers.NewHomeController("test", nil, nil, nil, "")})
+	routes.Web(r, routes.Deps{Home: controllers.NewHomeController("test", nil, "")})
 
 	got, err := r.Table().URL("home")
 	if err != nil {
@@ -149,6 +149,60 @@ func TestSpoofedMethodReachesTheRouterAfterCSRF(t *testing.T) {
 	if response.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("spoofed DELETE status = %d, want 405; the router did not observe DELETE", response.Code)
 	}
+}
+
+// TestAGuestTokenIsBoundToThatGuest is the landing page drawn for somebody with
+// no session: the token on it comes from the middleware, through view.New, and
+// it is bound to a cookie of that visitor's own. Their write passes; the same
+// token without their cookie, or offered by another visitor, is refused.
+func TestAGuestTokenIsBoundToThatGuest(t *testing.T) {
+	k := tests.Kernel(t, config.EnvDev, methodProbeModule{})
+
+	visit := func() (string, []*http.Cookie) {
+		t.Helper()
+		page := httptest.NewRecorder()
+		k.Handler().ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/", nil))
+		if page.Code != http.StatusOK {
+			t.Fatalf("anonymous GET / = %d, want 200. Body:\n%s", page.Code, page.Body.String())
+		}
+		return csrfTokenFromPage(t, page.Body.String()), page.Result().Cookies()
+	}
+	post := func(token string, cookies []*http.Cookie) int {
+		t.Helper()
+		body := url.Values{"_token": {token}}
+		request := httptest.NewRequest(http.MethodPost, "/method-probe", strings.NewReader(body.Encode()))
+		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		for _, cookie := range cookies {
+			request.AddCookie(cookie)
+		}
+		rec := httptest.NewRecorder()
+		k.Handler().ServeHTTP(rec, request)
+		return rec.Code
+	}
+
+	token, cookies := visit()
+	if !hasCookie(cookies, "arandu_csrf_guest") {
+		t.Fatalf("the guest's first page set no binding cookie; it set %v", cookies)
+	}
+	if got := post(token, cookies); got != http.StatusNoContent {
+		t.Fatalf("a guest posting the token of its own page = %d, want 204", got)
+	}
+	if got := post(token, nil); got != middleware.StatusCSRFExpired {
+		t.Fatalf("the token without the guest cookie = %d, want %d", got, middleware.StatusCSRFExpired)
+	}
+	_, other := visit()
+	if got := post(token, other); got != middleware.StatusCSRFExpired {
+		t.Fatalf("one guest's token under another guest's cookie = %d, want %d", got, middleware.StatusCSRFExpired)
+	}
+}
+
+func hasCookie(cookies []*http.Cookie, name string) bool {
+	for _, cookie := range cookies {
+		if cookie.Name == name && cookie.Value != "" {
+			return true
+		}
+	}
+	return false
 }
 
 type methodProbeModule struct{}

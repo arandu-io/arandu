@@ -381,19 +381,29 @@ func (s *UserService) create(ctx context.Context, grant security.Grant, user mod
 			return models.User{}, err
 		}
 	}
-	attributes := map[string]any{
-		"id": user.ID, "tenant_id": data.Tenant(grant), "name": nullableString(user.Name),
-		"email": NormalizeEmail(user.Email), "password": user.Password, "roles": roles,
-		"verified_at": nullableTime(user.VerifiedAt),
-	}
-	created, err := models.Users(s.db).Create(ctx, grant, attributes)
+	instance, err := models.Users(s.db).NewInstance(nil, false)
 	if err != nil {
+		return models.User{}, err
+	}
+	// The fields are set on the entity rather than passed as a map: a map is
+	// filled, and filling never writes the tenant column. The tenant comes from
+	// the Grant, and the entity says so before the insert does.
+	record := instance.Entity
+	*record = user
+	record.TenantID = data.Tenant(grant)
+	record.Email = NormalizeEmail(user.Email)
+	record.RoleData = roles
+	if record.VerifiedAt != nil {
+		at := record.VerifiedAt.UTC()
+		record.VerifiedAt = &at
+	}
+	if _, err := instance.Save(ctx, grant); err != nil {
 		if isUniqueViolation(err) {
 			return models.User{}, ErrEmailTaken
 		}
 		return models.User{}, err
 	}
-	return decodeUser(created, nil)
+	return decodeUser(record, nil)
 }
 
 func (s *UserService) find(ctx context.Context, grant security.Grant, action security.Action, id string) (models.User, error) {
@@ -426,20 +436,6 @@ func (s *UserService) record(ctx context.Context, grant security.Grant, name str
 
 // NormalizeEmail is the single normalization used on user reads and writes.
 func NormalizeEmail(email string) string { return strings.ToLower(strings.TrimSpace(email)) }
-
-func nullableString(value string) any {
-	if value == "" {
-		return nil
-	}
-	return value
-}
-
-func nullableTime(value *time.Time) any {
-	if value == nil || value.IsZero() {
-		return nil
-	}
-	return value.UTC()
-}
 
 func isUniqueViolation(err error) bool {
 	message := strings.ToLower(err.Error())

@@ -29,14 +29,6 @@ type HomeController struct {
 	// controller that reads the environment is a controller no test can pin.
 	appName string
 
-	// sessions and csrf are what the chrome is drawn from: who is signed in, and
-	// the token every write of this session carries. They arrive through the
-	// constructor for the same reason appName does, and they are the same two
-	// every controller `aru make:module` writes takes -- a screen is allowed to
-	// know about a token and a cookie.
-	sessions *security.SessionStore
-	csrf     *security.CSRF
-
 	// people and tenant are how the id in a session becomes a name to greet. A
 	// session carries an id and not a name on purpose: a name kept in one stays
 	// wrong after somebody changes theirs.
@@ -53,15 +45,16 @@ type HomeController struct {
 // NewHomeController returns the controller. `bootstrap` builds it and hands it
 // to the routes.
 //
+// There is no session store and no CSRF issuer here: the route puts who is
+// signed in on the request, and the middleware that protects forms puts the
+// token there, so a screen reads both off the request it is answering.
+//
 // The starter kit replaces this file together with the layout and the pages
 // that extend it. Its publisher must keep this constructor aligned with
 // bootstrap/app.go, or regenerating authentication leaves the project unable to
 // compile.
-func NewHomeController(appName string, sessions *security.SessionStore, csrf *security.CSRF, people UserNames, tenant string) *HomeController {
-	return &HomeController{
-		appName: appName, sessions: sessions, csrf: csrf,
-		people: people, tenant: tenant,
-	}
+func NewHomeController(appName string, people UserNames, tenant string) *HomeController {
+	return &HomeController{appName: appName, people: people, tenant: tenant}
 }
 
 // Compile-time proof that this controller answers GET / the way Resource and the
@@ -74,25 +67,18 @@ var _ http.Indexer = (*HomeController)(nil)
 // anything else and the build fails, naming both sides -- which is the whole
 // reason the view is compiled instead of interpreted.
 //
-// view.Page is the chrome the layout draws, embedded rather than repeated. The
-// navigation draws a link only for what answers. The published authentication
-// UI owns the sign-in and sign-out routes; registration stays off until its
-// handler is published as well.
+// view.Page is the chrome the layout draws, embedded rather than repeated.
+// view.New fills the title, the flash and the CSRF token the middleware issued
+// for this request -- the token every write from this page carries, in the
+// sign-out form and in hx-headers. The navigation draws a link only for what
+// answers. The published authentication UI owns the sign-in and sign-out
+// routes; registration stays off until its handler is published as well.
 func (c *HomeController) Index(ctx *http.Context) error {
-	// Who is signed in, from the session cookie and never from the request. An
-	// error here is the anonymous case -- no cookie, a forged one, or a session
-	// that expired -- and the guest half of the navigation is what gets drawn.
-	subject, err := c.sessions.Load(ctx.Ctx(), ctx.Request)
-	signedIn := err == nil
-
-	// The token reaches the markup twice: the hidden field of the sign-out form
-	// and the hx-headers attribute on <body>. A page rendered without one answers
-	// 200 and then refuses the next write with 419, which reads like a broken
-	// session rather than a missing field.
-	token, err := c.csrf.Issue(c.sessions.IDFromRequest(ctx.Request))
-	if err != nil {
-		return err
-	}
+	// Who is signed in, put on the request by the route's LoadSubject from the
+	// session cookie and never from the request body. No subject is the
+	// anonymous case -- no cookie, a forged one, or a session that expired --
+	// and the guest half of the navigation is what gets drawn.
+	subject, signedIn := ctx.User()
 
 	// The name to greet, from the id the session carries. One lookup by primary
 	// key for the person who is signed in, and the id is the fallback: a header
@@ -107,17 +93,16 @@ func (c *HomeController) Index(ctx *http.Context) error {
 		}
 	}
 
+	page := view.New(ctx, c.appName)
+	page.AppName = c.appName
+	page.Authenticated = signedIn
+	page.UserName = name
+	page.HomeURL = "/"
+	page.LoginURL = "/auth/login"
+	page.LogoutURL = "/auth/logout"
+
 	return ctx.View("home", views.HomeData{
-		Page: view.Page{
-			Title:         c.appName,
-			AppName:       c.appName,
-			Token:         token,
-			Authenticated: signedIn,
-			UserName:      name,
-			HomeURL:       "/",
-			LoginURL:      "/auth/login",
-			LogoutURL:     "/auth/logout",
-		},
+		Page: page,
 		Name: "world",
 		Features: []views.Feature{
 			{
