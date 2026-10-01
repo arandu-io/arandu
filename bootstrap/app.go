@@ -320,6 +320,17 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// says what to do for a route that takes uploads.
 			httpmiddleware.ValidatePostSize(cfg.HTTP.MaxBodyBytes),
 			httpmiddleware.LimitBodySize(cfg.HTTP.MaxBodyBytes),
+			// The visitor's address, put back before anything keys on it: the
+			// request log, the throttle below and the sign-in throttle all read
+			// RemoteAddr. Behind a load balancer that is the balancer on every
+			// request, so the whole internet shares one budget and the first
+			// person locked out locks out everybody.
+			//
+			// X-Forwarded-For is believed only from a peer TRUSTED_PROXIES
+			// lists. The list is empty unless written, and then this does
+			// nothing: a header is a string the client chose, and believing it
+			// from anyone hands every visitor somebody else's counter.
+			httpmiddleware.TrustProxies(cfg.HTTP.TrustedProxies),
 			// k.Recorder() is the buffer behind /_arandu/debug. It is nil
 			// outside development, and passing nil records nothing -- which is
 			// what production does.
