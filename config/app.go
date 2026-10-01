@@ -1,4 +1,4 @@
-// Package config is this application's configuration, one file per domain: eleven
+// Package config is this application's configuration, one file per domain: twelve
 // files, named after what they configure.
 //
 // The difference is the one that matters: there is no config("app.name") lookup.
@@ -38,6 +38,7 @@ type Config struct {
 	Cache       Cache
 	Database    Database
 	Filesystems Filesystems
+	HTTP        HTTP
 	Logging     Logging
 	Mail        Mail
 	Queue       Queue
@@ -80,7 +81,7 @@ func Load() (Config, error) {
 // setting instead of constructing a partial configuration.
 //
 // It is separate from Load so a test can supply a valid framework configuration
-// directly and get the eleven application domains filled from their defaults.
+// directly and get the twelve application domains filled from their defaults.
 func From(base bootstrap.Configuration) (Config, error) {
 	if err := base.App.Validate(); err != nil {
 		return Config{}, fmt.Errorf("framework application configuration: %w", err)
@@ -95,6 +96,10 @@ func From(base bootstrap.Configuration) (Config, error) {
 		return Config{}, err
 	}
 	filesystems, err := loadFilesystems()
+	if err != nil {
+		return Config{}, err
+	}
+	httpConfig, err := loadHTTP()
 	if err != nil {
 		return Config{}, err
 	}
@@ -123,6 +128,7 @@ func From(base bootstrap.Configuration) (Config, error) {
 		Cache:       cache,
 		Database:    loadDatabase(base),
 		Filesystems: filesystems,
+		HTTP:        httpConfig,
 		Logging:     logging,
 		Mail:        mail,
 		Queue:       queue,

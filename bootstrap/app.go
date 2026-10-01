@@ -306,6 +306,20 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 		// a panic in any middleware below it escapes without a page.
 		Use(
 			exception.Recover(exceptions),
+			// The body limit, before anything below does work on the request:
+			// a body nobody bounded is read whole by the first form parse, and
+			// one POST with no credentials is enough to exhaust the process.
+			//
+			// Two layers, because a length is a header the client wrote.
+			// ValidatePostSize answers 413 to a body that declares itself too
+			// large, before the session is read or a CSRF token is checked.
+			// LimitBodySize covers the body that declares nothing -- a chunked
+			// one -- by refusing to read past the limit, whoever reads it.
+			//
+			// HTTP_MAX_BODY_BYTES is a ceiling for every route; config/http.go
+			// says what to do for a route that takes uploads.
+			httpmiddleware.ValidatePostSize(cfg.HTTP.MaxBodyBytes),
+			httpmiddleware.LimitBodySize(cfg.HTTP.MaxBodyBytes),
 			// k.Recorder() is the buffer behind /_arandu/debug. It is nil
 			// outside development, and passing nil records nothing -- which is
 			// what production does.
