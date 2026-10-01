@@ -78,11 +78,15 @@ the page.
 key is a blank space on a page that answered 200; a typo in a field name is a
 build error. `aru doctor` fails a map.
 
-**`{!! !!}` is for a call, not a value.** It is entitled to skip escaping only
-because a component function escaped everything it interpolated when it was
-generated. A field that already holds markup has been through nothing, and the
-first time one of them comes from a person it is stored cross-site scripting.
-Write `{{ x }}` or return it from a component.
+**`{!! !!}` accepts only a `template.HTML`, and the compiler enforces it.** The
+value is assigned to a `template.HTML` before it is written, so a component, an
+icon, a field typed as markup or a constant the view spells out compiles, and
+a `string` that arrived as data stops the build at the line of the `.kyse.go`.
+A component is entitled to skip escaping only because it escaped everything it
+interpolated when it was generated. Do not convert a string to `template.HTML`
+to get past the error: a value somebody typed has been through nothing, and the
+conversion is stored cross-site scripting. Write `{{ x }}` or return it from a
+component.
 
 **There is no Alpine, and no `x-` attribute does anything.** Alpine is not
 served, and pages run under `script-src 'self'` with no `unsafe-eval`, so an
