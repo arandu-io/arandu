@@ -1,73 +1,60 @@
-// Package factories builds domain objects with sensible values.
+// Package factories builds rows with plausible values, for seeders and tests.
 //
-// A seeder or a test says what it cares about and the factory fills the rest.
-// What is different is that nothing here touches the database. A factory
-// returns a value; storing it is a repository call, and a repository call
-// needs a Grant -- so a factory cannot become a back door around the policy
-// that guards the table.
+// A factory makes a row and stores nothing until Create is called, and Create
+// takes the Grant every write takes: the tenant comes off it, and a factory is
+// no way around the policy that guards the table.
 package factories
 
 import (
-	"fmt"
+	"strings"
 	"time"
 
-	"github.com/arandu-io/arandu/app/Models"
+	"github.com/arandu-io/framework/data"
+	factory "github.com/arandu-io/hesape/database/model/factories"
+	"github.com/arandu-io/hesape/faker"
+
+	models "github.com/arandu-io/arandu/app/Models"
 )
 
-// UserFactory builds users.
+// UnusablePassword is the password column of an account made by the factory.
+// It is no hash of anything, so no password signs in as the account: a seeded
+// database holds people to look at, and nobody to sign in as by accident.
+// A test that needs to sign in sets a real hash with a State.
+const UnusablePassword = "!"
+
+// verifiedFrom and verifiedUntil bound the verification time a made account
+// carries. Fixed rather than relative to now, so the same seed draws the same
+// rows on every run.
+var (
+	verifiedFrom  = time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	verifiedUntil = time.Date(2026, time.June, 30, 0, 0, 0, 0, time.UTC)
+)
+
+// UserFactory returns the factory of users over db.
 //
-// The zero value is usable: the defaults below apply, and every field is
-// overridable through the With methods.
-type UserFactory struct {
-	tenant string
-	email  string
-	roles  []string
-}
-
-// NewUserFactory returns a factory for one tenant.
+//	authors, err := factories.UserFactory(db).Count(3).Create(ctx, g)
 //
-// The tenant is required rather than defaulted. A factory that picks its own
-// would build rows nobody can reach, and the failure would only show up when
-// somebody tried to log in.
-func NewUserFactory(tenant string) UserFactory {
-	return UserFactory{tenant: tenant, roles: []string{models.RoleMember}}
+// Every account is an ordinary member with a verified address at a domain
+// reserved for documentation, so a seeded database cannot mail a stranger. The
+// values come from a seeded faker -- the same rows on every run, so a failure
+// reproduces -- and the id is drawn by the model when a row is stored.
+func UserFactory(db *data.DB) *factory.Factory[models.User] {
+	return factory.For(models.Users(db), func(f faker.Faker) models.User {
+		// The faker's handles repeat across rows, and an address is unique in
+		// its tenant: a fragment of a drawn id keeps a batch apart.
+		handle := f.UserName() + "." + strings.SplitN(f.UUID(), "-", 2)[0]
+		verified := f.Time(verifiedFrom, verifiedUntil)
+		return models.User{
+			Name:       f.Name(),
+			Email:      handle + "@example.test",
+			Password:   UnusablePassword,
+			Roles:      models.Roles{models.RoleMember},
+			VerifiedAt: &verified,
+		}
+	})
 }
 
-// WithEmail sets the address instead of generating one.
-func (f UserFactory) WithEmail(email string) UserFactory {
-	f.email = email
-	return f
-}
-
-// WithRoles sets the roles.
-func (f UserFactory) WithRoles(roles ...string) UserFactory {
-	f.roles = roles
-	return f
-}
-
-// Make returns one user, numbered so a batch has distinct addresses.
-//
-// The Password field is left empty on purpose. A factory that produced a hash
-// would need the hashing parameters, and a factory that produced a plaintext
-// password would put one in a fixture. The service hashes; this builds the rest.
-func (f UserFactory) Make(n int) models.User {
-	email := f.email
-	if email == "" {
-		email = fmt.Sprintf("user%d@example.test", n)
-	}
-	return models.User{
-		TenantID:  f.tenant,
-		Email:     email,
-		Roles:     append([]string(nil), f.roles...),
-		CreatedAt: time.Now().UTC(),
-	}
-}
-
-// MakeMany returns n users.
-func (f UserFactory) MakeMany(n int) []models.User {
-	out := make([]models.User, 0, n)
-	for i := 1; i <= n; i++ {
-		out = append(out, f.Make(i))
-	}
-	return out
-}
+// arandu:begin custom
+// Named states go here, and survive regeneration: a factory with one thing
+// said about it, built on the one above.
+// arandu:end custom

@@ -141,7 +141,7 @@ func seedCommands(cfg appconfig.Config, app App) []console.Command {
 			if name != "" {
 				args = append([]string{name}, args...)
 			}
-			return seeders.Run(ctx, seeders.Deps{Users: app.Users, Tenant: cfg.Auth.Tenant}, args)
+			return seeders.Run(ctx, seedDeps(cfg, app), args)
 		},
 		Environment: string(cfg.App.Env),
 		SeederPath:  filepath.Join("database", "seeders"),
@@ -247,9 +247,15 @@ func seedFor(cfg appconfig.Config, app App) func(context.Context, string) error 
 		if name != "" {
 			args = []string{name}
 		}
-		_, err := seeders.Run(ctx, seeders.Deps{Users: app.Users, Tenant: cfg.Auth.Tenant}, args)
+		_, err := seeders.Run(ctx, seedDeps(cfg, app), args)
 		return err
 	}
+}
+
+// seedDeps is what every seeder is allowed to touch, built once for db:seed and
+// for migrate --seed alike.
+func seedDeps(cfg appconfig.Config, app App) seeders.Deps {
+	return seeders.Deps{Users: app.Users, DB: app.DB, Tenant: cfg.Auth.Tenant}
 }
 
 // wipeFor is what migrate:fresh drops the schema with.

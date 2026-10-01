@@ -109,6 +109,9 @@ type App struct {
 	// Kernel is the composed application: configuration, modules, the global
 	// middleware pipeline and the router.
 	Kernel *kernel.Kernel
+	// DB is the application database every service was built over. It is
+	// returned for the seeders, which create rows through factories over it.
+	DB *data.DB
 	// Users is the application-owned account service. Seeders receive this same
 	// value instead of reaching through a framework module.
 	Users *services.UserService
@@ -428,7 +431,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	k.Register(sched)
 
 	return App{
-		Kernel: k, Users: userService, TwoFactor: twoFactorService,
+		Kernel: k, DB: db, Users: userService, TwoFactor: twoFactorService,
 		EmailCodes: emailCodes, Sessions: sessions, Scheduler: sched,
 		Relay: relay, Queue: queueStore, Mail: mailer, Cache: stores.Connection(),
 	}, nil

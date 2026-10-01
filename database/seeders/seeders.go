@@ -10,6 +10,7 @@ package seeders
 import (
 	"context"
 
+	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/hesape/database"
 
 	"github.com/arandu-io/arandu/app/Services"
@@ -19,7 +20,14 @@ import (
 // reason the rest of the wiring is: a seeder that can reach anything is a seeder
 // nobody can review.
 type Deps struct {
+	// Users is the account service, for the seeders that create an account a
+	// person signs in as: those go through its rules, the hash and the
+	// normalised address included.
 	Users *services.UserService
+	// DB is the application database, for the seeders that create rows through
+	// a factory. A factory stores through the model, and the model takes the
+	// Grant the seeder hands it.
+	DB *data.DB
 	// Tenant is the tenant seeded rows belong to. It comes from the application,
 	// never from the seeder: a seeder that picks its own tenant seeds data nobody
 	// can reach.
