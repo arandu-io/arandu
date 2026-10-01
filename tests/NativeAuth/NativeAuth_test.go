@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	frameevents "github.com/arandu-io/framework/events"
 	"github.com/arandu-io/framework/security"
 	twofactor "github.com/arandu-io/hesape/2fa"
+	"github.com/arandu-io/hesape/cache"
 	hedatabase "github.com/arandu-io/hesape/database"
 	_ "github.com/arandu-io/hesape/database/connectors/sqlite"
 	dbmigrations "github.com/arandu-io/hesape/database/migrations"
@@ -220,7 +222,7 @@ func TestConcurrentAuthenticatorVerificationHasExactlyOneWinner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generating an authenticator code: %v", err)
 	}
-	service, err := services.NewTwoFactorService(db.app, appKey)
+	service, err := services.NewTwoFactorService(db.app, appKey, cache.NewArrayStore())
 	if err != nil {
 		t.Fatalf("creating the second-factor service: %v", err)
 	}
@@ -228,7 +230,9 @@ func TestConcurrentAuthenticatorVerificationHasExactlyOneWinner(t *testing.T) {
 	errs := raceCalls(16, func() error {
 		return service.VerifyAuthenticator(context.Background(), "tenant-a", "user-a", code)
 	})
-	assertOneWinner(t, errs, twofactor.ErrReplayed)
+	// Sixteen at once is more than the challenge budget, so some are refused
+	// as locked before they reach the replay guard. Either refusal is a loser.
+	assertOneWinner(t, errs, twofactor.ErrReplayed, services.ErrTwoFactorLocked)
 }
 
 func TestConcurrentRecoveryRedemptionHasExactlyOneWinner(t *testing.T) {
@@ -252,14 +256,14 @@ func TestConcurrentRecoveryRedemptionHasExactlyOneWinner(t *testing.T) {
 		t.Fatalf("seeding the recovery code: %v", err)
 	}
 
-	service, err := services.NewTwoFactorService(db.app, appKey)
+	service, err := services.NewTwoFactorService(db.app, appKey, cache.NewArrayStore())
 	if err != nil {
 		t.Fatalf("creating the second-factor service: %v", err)
 	}
 	errs := raceCalls(16, func() error {
 		return service.ConsumeRecovery(context.Background(), "tenant-a", "user-a", code)
 	})
-	assertOneWinner(t, errs, services.ErrInvalidRecoveryCode)
+	assertOneWinner(t, errs, services.ErrInvalidRecoveryCode, services.ErrTwoFactorLocked)
 }
 
 type nativeAuthDatabase struct {
@@ -345,17 +349,17 @@ func raceCalls(count int, call func() error) []error {
 	return errs
 }
 
-func assertOneWinner(t *testing.T, errs []error, loser error) {
+func assertOneWinner(t *testing.T, errs []error, losers ...error) {
 	t.Helper()
 
 	winners := 0
 	for _, err := range errs {
-		switch {
-		case err == nil:
+		if err == nil {
 			winners++
-		case errors.Is(err, loser):
-		default:
-			t.Errorf("concurrent attempt returned %v, want %v", err, loser)
+			continue
+		}
+		if !slices.ContainsFunc(losers, func(loser error) bool { return errors.Is(err, loser) }) {
+			t.Errorf("concurrent attempt returned %v, want one of %v", err, losers)
 		}
 	}
 	if winners != 1 {

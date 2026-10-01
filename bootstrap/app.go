@@ -255,7 +255,10 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	})
 
 	userService := services.NewUserService(db)
-	twoFactorService, err := services.NewTwoFactorService(db, fw.App.Key)
+	// The sign-in challenge counts the codes each account offers in the store
+	// the rate limit counts in, for the reason the limit does: a count per
+	// replica is a budget multiplied by the number of replicas.
+	twoFactorService, err := services.NewTwoFactorService(db, fw.App.Key, limitStore.GetStore())
 	if err != nil {
 		return App{}, fmt.Errorf("bootstrap: build two-factor service: %w", err)
 	}

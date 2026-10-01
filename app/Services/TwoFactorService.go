@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/arandu-io/framework/data"
@@ -10,6 +12,7 @@ import (
 	"github.com/arandu-io/framework/observability"
 	"github.com/arandu-io/framework/security"
 	twofactor "github.com/arandu-io/hesape/2fa"
+	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/encryption"
 	"github.com/arandu-io/hesape/otp"
 
@@ -26,7 +29,57 @@ var (
 	ErrTwoFactorAlreadyEnabled = repositories.ErrTwoFactorAlreadyEnabled
 	// ErrInvalidRecoveryCode deliberately unwraps to the native invalid-code sentinel.
 	ErrInvalidRecoveryCode = fmt.Errorf("%w: recovery code is wrong or already spent", twofactor.ErrInvalidCode)
+	// ErrTwoFactorLocked means the account offered too many codes to the
+	// sign-in challenge. The pending sign-in is spent: the person signs in
+	// again once the window has passed.
+	ErrTwoFactorLocked = errors.New("two-factor: too many codes offered to the sign-in challenge")
 )
+
+const (
+	// ChallengeAttempts is how many codes one account may offer to the sign-in
+	// challenge within ChallengeWindow, authenticator and recovery codes
+	// together.
+	//
+	// The count belongs to the account and not to the pending sign-in that
+	// carries the attempt. A budget per pending sign-in is a budget per
+	// password entry, and whoever has the password can sign in as often as
+	// they like; the second factor is the one thing they do not have.
+	ChallengeAttempts = 5
+
+	// ChallengeWindow is how long the count lasts, from the first code offered.
+	// It outlasts the pending sign-in, so a challenge refused for too many codes
+	// cannot be resumed when the count expires: the person has to sign in
+	// again.
+	ChallengeWindow = 15 * time.Minute
+)
+
+// TwoFactorLockedError reports that the sign-in challenge refused a code
+// because the account spent its attempts, and the longest it may have to wait
+// before trying again.
+//
+// It matches ErrTwoFactorLocked and twofactor.ErrInvalidCode under errors.Is,
+// so a caller that only knows how to refuse a wrong code still refuses this
+// one; a caller that knows the difference sends the person back to sign in.
+type TwoFactorLockedError struct{ RetryAfter time.Duration }
+
+// Seconds is the retry delay rounded up for an HTTP Retry-After header.
+func (e TwoFactorLockedError) Seconds() int {
+	seconds := int((e.RetryAfter + time.Second - 1) / time.Second)
+	if seconds < 1 {
+		return 1
+	}
+	return seconds
+}
+
+// Error implements error.
+func (e TwoFactorLockedError) Error() string {
+	return ErrTwoFactorLocked.Error() + ", sign in again in " + strconv.Itoa(e.Seconds()) + " seconds"
+}
+
+// Unwrap exposes both sentinels the error stands for.
+func (e TwoFactorLockedError) Unwrap() []error {
+	return []error{ErrTwoFactorLocked, twofactor.ErrInvalidCode}
+}
 
 // TwoFactorService owns enrolment and verification of application users.
 type TwoFactorService struct {
@@ -36,17 +89,26 @@ type TwoFactorService struct {
 	userPolicy policies.UserPolicy
 	encrypter  *encryption.Encrypter
 	outbox     *frameevents.Outbox
+	attempts   cache.Store
 }
 
 // NewTwoFactorService returns the service with secrets encrypted by appKey.
-func NewTwoFactorService(db *data.DB, appKey []byte) (*TwoFactorService, error) {
+//
+// attempts is the store the codes each account offers to the sign-in challenge
+// are counted in. It is required: without it a pending sign-in could be tried
+// against every code for as long as it lives. Pass the store the request
+// throttle counts in, so every replica spends one budget per account.
+func NewTwoFactorService(db *data.DB, appKey []byte, attempts cache.Store) (*TwoFactorService, error) {
+	if attempts == nil {
+		return nil, errors.New("two-factor: the sign-in challenge needs a cache store to count attempts in")
+	}
 	encrypter, err := encryption.NewEncrypter(appKey, encryption.AES256GCM)
 	if err != nil {
 		return nil, err
 	}
 	return &TwoFactorService{
 		db: db, repository: repositories.NewTwoFactorRepository(db),
-		encrypter: encrypter, outbox: frameevents.NewOutbox(db),
+		encrypter: encrypter, outbox: frameevents.NewOutbox(db), attempts: attempts,
 	}, nil
 }
 
@@ -201,7 +263,18 @@ func (s *TwoFactorService) RegenerateRecoveryCodes(ctx context.Context, actor se
 }
 
 // VerifyAuthenticator checks and atomically spends a confirmed TOTP time step.
+//
+// It is the sign-in challenge, so it spends one of the account's
+// ChallengeAttempts before the code is looked at, and returns a
+// TwoFactorLockedError once they are gone -- even for the right code. A
+// success gives the budget back.
 func (s *TwoFactorService) VerifyAuthenticator(ctx context.Context, tenant, userID, code string) error {
+	return s.challenge(ctx, tenant, userID, func() error {
+		return s.verifyAuthenticator(ctx, tenant, userID, code)
+	})
+}
+
+func (s *TwoFactorService) verifyAuthenticator(ctx context.Context, tenant, userID, code string) error {
 	//arandu:system-grant a signed pending sign-in has no session subject; its tenant and user ID bind this authenticator read
 	read := security.SystemGrant(policies.ActionTwoFactorRead, tenant)
 	enrolment, err := s.repository.Find(ctx, read, userID)
@@ -222,7 +295,17 @@ func (s *TwoFactorService) VerifyAuthenticator(ctx context.Context, tenant, user
 }
 
 // ConsumeRecovery atomically spends one recovery code of a confirmed factor.
+//
+// It draws on the same ChallengeAttempts as VerifyAuthenticator: a budget per
+// kind of code would be two budgets, and alternating between them would double
+// it.
 func (s *TwoFactorService) ConsumeRecovery(ctx context.Context, tenant, userID, code string) error {
+	return s.challenge(ctx, tenant, userID, func() error {
+		return s.consumeRecovery(ctx, tenant, userID, code)
+	})
+}
+
+func (s *TwoFactorService) consumeRecovery(ctx context.Context, tenant, userID, code string) error {
 	//arandu:system-grant a signed pending sign-in has no session subject; its tenant and user ID bind this recovery-factor read
 	read := security.SystemGrant(policies.ActionTwoFactorRead, tenant)
 	required, err := s.repository.Required(ctx, read, userID)
@@ -254,6 +337,58 @@ func (s *TwoFactorService) ConsumeRecovery(ctx context.Context, tenant, userID, 
 	}
 	observability.Log(ctx).Warn("recovery code used", "user", user)
 	return nil
+}
+
+// challenge spends one of the account's sign-in challenge attempts, then runs
+// verify.
+//
+// The attempt is counted before the code is checked, never after: a count
+// taken after the answer lets every request that arrives in between through,
+// and parallel requests are exactly how a budget is outrun. The attempt that
+// spends the last of the budget on a wrong code already refuses as locked, so
+// the caller can end the pending sign-in on that same request.
+//
+// The count is a counter in the store and not a rate limiter's window. A
+// limiter's windows are fixed to the clock, so a budget spent a second before
+// one closes would be whole again a second later, with the same pending
+// sign-in still valid. The counter's expiry is set by the first attempt and
+// never moved, which is what makes ChallengeWindow a promise.
+//
+// A store that cannot count refuses the attempt. The request throttle fails
+// open because it guards capacity; this guards an account.
+func (s *TwoFactorService) challenge(ctx context.Context, tenant, userID string, verify func() error) error {
+	key := challengeKey(tenant, userID)
+	attempt, err := s.attempts.Increment(ctx, key, 1, ChallengeWindow)
+	if err != nil {
+		return fmt.Errorf("two-factor: counting the challenge attempt: %w", err)
+	}
+	if attempt > ChallengeAttempts {
+		return TwoFactorLockedError{RetryAfter: ChallengeWindow}
+	}
+
+	if err := verify(); err != nil {
+		if attempt == ChallengeAttempts {
+			observability.Log(ctx).Warn("second-factor challenge locked after too many codes",
+				"tenant", tenant, "user_id", userID)
+			return TwoFactorLockedError{RetryAfter: ChallengeWindow}
+		}
+		return err
+	}
+
+	// The code was right and is spent. Failing to give the budget back costs
+	// the person nothing they did not already have, so it is reported and the
+	// sign-in goes ahead.
+	if err := s.attempts.Forget(ctx, key); err != nil {
+		observability.Log(ctx).Warn("clearing the second-factor challenge attempts", "error", err)
+	}
+	return nil
+}
+
+// challengeKey names the counter of one account. The tenant is part of it
+// because a user id is only unique inside its tenant, and both are quoted so no
+// pair of ids can spell the other's key.
+func challengeKey(tenant, userID string) string {
+	return "two-factor-challenge:" + strconv.Quote(tenant) + ":" + strconv.Quote(userID)
 }
 
 func (s *TwoFactorService) self(ctx context.Context, actor security.Subject) (models.User, error) {
