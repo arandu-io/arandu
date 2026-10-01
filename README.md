@@ -119,8 +119,9 @@ repository missing its policy to a tenant read off the request instead of the
 build, a warning stays the to-do it is, and a new project is never red for code
 the generator wrote.
 
-3,337 lines of production code and 3,085 of test, across 20 test files —
-small on purpose: it is what a project starts from, not what it grows into.
+6,973 lines of production code and 9,593 of test, across 49 test files, the
+example resource included — small on purpose: it is what a project starts
+from, not what it grows into.
 
 ## The rest of Arandu
 

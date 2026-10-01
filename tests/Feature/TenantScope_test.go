@@ -44,8 +44,8 @@ const tenantColumn = "tenant_id"
 // to be the step that makes a person look.
 var scopedByTenant = map[string]string{
 	"users":               "the application UserService authorizes first and scopes every model query with its Grant",
-	"user_two_factor":     "the specialized application repository takes a Grant and pairs user_id with its tenant in every statement",
-	"user_recovery_codes": "the specialized application repository scopes every recovery-code read and conditional spend by tenant and user",
+	"user_two_factor":     "the second-factor repository checks its Grant and reads and writes through the model, which scopes every query by the Grant's tenant",
+	"user_recovery_codes": "the second-factor repository reads and spends recovery codes through the model, scoped by the Grant's tenant and the user",
 	"outbox":              "the domain events, sealed with the Grant that produced them",
 	"jobs":                "the queue, whose rows carry the tenant they were enqueued for",
 	// Read before the claim was written, which is what the claim is for. Every

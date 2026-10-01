@@ -24,8 +24,9 @@ documented, the unsafe path is absent.
 
 **1. The Policy decides; `security.Authorize` issues.** A policy is a
 `security.Policy[T]`, and its only method is `Can`: it returns `nil` to allow and
-an error to deny. It never builds a Grant. `app/Policies/UserPolicy.go` is the
-model to follow:
+an error to deny. It never builds a Grant. `app/Policies/NotePolicy.go`, the
+example resource, is the model to follow for a rule about the row — only a
+note's author may change it; this is the shape:
 
 ```go
 const (
@@ -64,12 +65,10 @@ func (s *InvoiceService) Get(ctx context.Context, actor security.Subject, id str
 	if err != nil {
 		return nil, err
 	}
-	found, err := models.Invoices(s.db).NewQuery().WhereKey(id).First(ctx, g)
+	// A missing row is model.ErrModelNotFound, which the router answers 404.
+	found, err := models.Invoices(s.db).FindOrFail(ctx, g, id)
 	if err != nil {
 		return nil, err
-	}
-	if found == nil {
-		return nil, models.ErrInvoiceNotFound
 	}
 	// The row is authorized too, now that it is in hand.
 	if _, err := security.Authorize(ctx, s.policy, actor, policies.ActionInvoiceView, *found); err != nil {
@@ -83,6 +82,9 @@ func (s *InvoiceService) Get(ctx context.Context, actor security.Subject, id str
 caller look at invoices at all". The second, with the record in hand, answers
 "may this caller look at *this* invoice". Skipping it means any user of the same
 tenant sees the row, and `aru doctor` reports it as `resource-not-reauthorized`.
+A write asks about the row it read, never about what the request says the row
+is: `NoteService.Update` reads the note, then authorizes `NoteUpdate` against
+that stored note, so the owner the policy compares is the stored one.
 
 **4. Reads are not exempt.** `List`, `Find`, a read model, a projection, a
 report, a dashboard and an export all require a Grant and all filter by the

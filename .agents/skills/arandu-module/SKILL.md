@@ -18,6 +18,21 @@ produces a service container, a fillable model, a facade — none of which exist
 A specification is small enough to be right, and a wrong one fails validation
 instead of becoming Go that does not compile.
 
+## The reference
+
+The project ships one module built this way, **notes**, and it is the shape to
+copy when in doubt: `app/Models/Note.go`, `app/Policies/NotePolicy.go`,
+`app/Services/NoteService.go`, `app/Http/Controllers/NoteController.go`,
+`app/Http/Requests/NoteRequest.go`, `resources/views/notes/`,
+`database/factories/NoteFactory.go`, `database/seeders/NoteSeeder.go` and
+`tests/Feature/Notes_test.go`. It is marked as an example in every file, and
+README.md lists what to delete when the project no longer wants it.
+
+What it shows that the generator alone does not: an ownership rule in the
+policy's custom block, the author set in the service from the subject and never
+from the form, and feature tests that sign somebody in and prove a cross-tenant
+read is 404 and another member's change is 403.
+
 ## The procedure
 
 **1. Read the schema.** It is generated from the validator's own constants, so
@@ -74,10 +89,25 @@ flags instead of a file — `aru make:module invoice --fields
 the flags have no way to say `permissions` or a description, so use the
 specification when the module needs either.
 
-**5. Wire it.** The generator prints the lines to paste: the controller field and
-`r.Resource(...)` in `routes/web.go`, and the import and constructor in
-`bootstrap/app.go`. It edits neither file, on purpose: a generator that changes the wiring
-behind you is a generator whose output nobody can explain.
+**5. Wire it.** The generator prints three lines to paste: the controller field
+in `routes.Deps`, the routes behind the sign-in guard in the custom block of
+`routes/web.go` —
+
+```go
+r.Group("", middleware.RequireAuth(d.Sessions)).Resource("invoices", d.Invoice)
+```
+
+— and the constructor in the `routes.Deps` literal of `bootstrap/app.go`:
+
+```go
+Invoice: controllers.NewInvoiceController(services.NewInvoiceService(db)),
+```
+
+For a `tenant: true` module it also prints the line that claims the table in
+`tests/Feature/TenantScope_test.go`; that suite is red until somebody has read
+the queries and added it. The generator edits none of these files, on purpose:
+a generator that changes the wiring behind you is a generator whose output
+nobody can explain.
 
 **6. Run the gates.**
 
@@ -118,9 +148,18 @@ language.
 
 - Every service method takes the acting `security.Subject` and asks the Policy
   through `security.Authorize` before it touches a row, and every Model read and
-  write — `First`, `Get`, `Value`, `Save`, `Delete` — takes the `security.Grant`
-  that call issued. Removing it to make something compile is removing the only
-  thing that makes the query safe.
+  write — `FindOrFail`, `First`, `Get`, `SimplePaginate`, `Save`, `Delete` —
+  takes the `security.Grant` that call issued. Removing it to make something
+  compile is removing the only thing that makes the query safe.
+- The controller takes the service and nothing else. Who is asking is
+  `ctx.User()`, which the route guard put on the request; the input is
+  `ctx.Bind` into the request struct's `form` tags; a page's chrome and its CSRF
+  token are `view.New(ctx, title)`. No controller loads the session or issues a
+  token.
+- An action returns its error and the router answers it: `validation.Errors`
+  back to the form, a missing row 404, a refusal 403, a duplicate key 409, and
+  an error with an `HTTPStatus() int` method that status. Do not map them by
+  hand.
 - The tenant comes from `data.Tenant(g)`. Never from a path segment, a body, a
   query or a header.
 - The generated policy denies every action, with no allow-everything branch to

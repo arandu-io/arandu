@@ -56,6 +56,20 @@ var _ view.Layout = InvoicesData{}
 The build tag is what keeps the compiler out of the file. Everything before the
 first tag is Go the compiler would reject; the tag is why it never sees it.
 
+`resources/views/notes/` is the example resource's four screens — a listing
+through the `DataTable` component, a record, and the create and edit forms
+built from `Field`, `Textarea` and `Checkbox` — and the place to look for a
+working page of each kind.
+
+## The page the controller hands over
+
+The controller fills `view.Page` with `view.New(ctx, title)`: the title, the
+messages and the typed input a rejected form left behind, and the CSRF token
+the middleware issued for this request. `@csrf` and the layout's `hx-headers`
+read that token off the page. A controller never issues one itself; a page
+drawn outside the middleware that protects forms is the only one that needs
+`WithToken`.
+
 ## The procedure
 
 1. Write the `.kyse.go`.
