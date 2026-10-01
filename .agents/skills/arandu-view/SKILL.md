@@ -1,6 +1,6 @@
 ---
 name: arandu-view
-description: Write or change a page, layout, template, HTML fragment or component usage in an Arandu (Go) application — anything under resources/views. Use when the request is to "add a page", "change the layout", "make a form", "render a list", "style this", or when an HTMX fragment is involved. The templates are .kyse.go files compiled to Go, and the syntax, the escaping rules and the Content-Security-Policy constraints are not the ones any other template engine uses. Covers @extends, @section, @foreach, the typed data struct, escaped versus raw interpolation, and why an inline style or an Alpine shorthand will not work.
+description: Write or change a page, layout, template, HTML fragment or component usage in an Arandu (Go) application — anything under resources/views. Use when the request is to "add a page", "change the layout", "make a form", "render a list", "style this", or when an HTMX fragment is involved. The templates are .kyse.go files compiled to Go, and the syntax, the escaping rules and the Content-Security-Policy constraints are not the ones any other template engine uses. Covers @extends, @section, @foreach, the typed data struct, escaped versus raw interpolation, and why an inline style or an Alpine attribute will not work.
 license: MIT
 ---
 
@@ -17,16 +17,27 @@ gitignored. An error points at the line you wrote, not at generated code.
 
 package views
 
-import "github.com/arandu-io/kyse/components"
+import (
+	"github.com/arandu-io/hesape/view"
+	"github.com/arandu-io/kyse/components"
+)
 
 @go
-// InvoiceData is what the controller hands this page.
-type InvoiceData struct {
+// InvoicesData is what the controller hands this page.
+type InvoicesData struct {
 	view.Page
 
-	// Invoices is what the table draws.
-	Invoices []models.Invoice
+	// Invoices is what the list draws, already formatted by the controller.
+	Invoices []InvoiceRow
 }
+
+// InvoiceRow is one invoice, as the page shows it.
+type InvoiceRow struct {
+	Reference string
+}
+
+// Compile-time proof that this page fits the layout it extends.
+var _ view.Layout = InvoicesData{}
 @endgo
 
 @extends('layouts.app')
@@ -73,14 +84,20 @@ generated. A field that already holds markup has been through nothing, and the
 first time one of them comes from a person it is stored cross-site scripting.
 Write `{{ x }}` or return it from a component.
 
-**`@` starts a directive, so Alpine's `@click` shorthand does not work.** Write
-`x-on:click`. The compiler refuses the shorthand rather than guessing.
+**There is no Alpine, and no `x-` attribute does anything.** Alpine is not
+served, and pages run under `script-src 'self'` with no `unsafe-eval`, so an
+`x-on:click`, an `x-data` or an `@click` would be dead markup at best. `@` also
+starts a directive, so the compiler refuses the `@click` shorthand outright.
+Client behaviour comes from `ui.js`, which is bound once on `document` and
+dispatches on `data-*` attributes: the attribute carries data or the name of a
+registered behaviour (`data-kyse-behavior`, `data-kyse-on-click`), never code.
 
-**No expression goes inside `x-on:`, `x-bind:`, `:` or `x-data`.** Dynamic data
-travels in an ordinary `data-*` attribute, where the escaper can see it. This is
-what keeps the escaping guaranteed, and it is also what the security policy
-requires: pages are served under `script-src 'self'`, so a string compiled into
-a function at run time would not execute.
+**No expression goes into an attribute the browser runs.** An event handler
+(`on*`), `hx-on*` and the `x-`/`:` families hold code, and the compiler refuses
+interpolation into them. Dynamic data travels in an ordinary `data-*`
+attribute, where the escaper can see it. This is what keeps the escaping
+guaranteed, and it is also what the security policy requires: a string compiled
+into a function at run time would not execute.
 
 **A style attribute is refused too.** `style-src 'self'` drops `style="..."` as
 surely as it drops an inline script. Use a class.

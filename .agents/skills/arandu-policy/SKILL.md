@@ -1,50 +1,82 @@
 ---
 name: arandu-policy
-description: Authorization in an Arandu (Go) application. Use when writing or changing who may read or change a record, when a repository call will not compile, when something asks for a security.Grant, or when the request mentions "permissions", "roles", "who can access", "authorize", "multi-tenant", "tenant isolation", or "this method needs a Grant". Also use when tempted to remove a parameter to make code compile — here that parameter is the only thing making the query safe. Covers Policy, Grant, data.Tenant, re-authorizing the row, and SystemGrant.
+description: Authorization in an Arandu (Go) application. Use when writing or changing who may read or change a record, when a Model or service call will not compile, when something asks for a security.Grant, or when the request mentions "permissions", "roles", "who can access", "authorize", "multi-tenant", "tenant isolation", or "this method needs a Grant". Also use when tempted to remove a parameter to make code compile — here that parameter is the only thing making the query safe. Covers Policy, Grant, data.Tenant, re-authorizing the row, and SystemGrant.
 license: MIT
 ---
 
 # Authorization, and why it will not compile without it
 
-`security.Grant` has only unexported fields. Nothing outside the `security`
-package can build one. Every repository method takes one before the id:
+`security.Grant` has only unexported fields. Nothing outside the package that
+defines it can build one. Every read and write through a Model takes one — the
+query terminals `First`, `Get`, `Value` and the entity's `Save` and `Delete`
+all ask for it:
 
 ```go
-func (r *InvoiceRepository) Find(
-	ctx context.Context,
-	g   security.Grant,   // no Grant, no compile
-	id  string,
-) (*models.Invoice, error) {
-	tenant := data.Tenant(g)   // never from the path, the body or a header
-	...
-}
+found, err := models.Invoices(s.db).NewQuery().WhereKey(id).First(ctx, g) // no Grant, no compile
 ```
 
-So a handler that reaches the database without asking a Policy has nothing to
-pass. That is the whole design: the safe path is not documented, the unsafe path
-is absent.
+and the tenant is read off it with `data.Tenant(g)` — never from the path, the
+body or a header. So a service that reaches the database without asking a
+Policy has nothing to pass. That is the whole design: the safe path is not
+documented, the unsafe path is absent.
 
 ## The procedure
 
-**1. The Policy decides and issues.** It is the only thing that produces a Grant.
+**1. The Policy decides; `security.Authorize` issues.** A policy is a
+`security.Policy[T]`, and its only method is `Can`: it returns `nil` to allow and
+an error to deny. It never builds a Grant. `app/Policies/UserPolicy.go` is the
+model to follow:
 
 ```go
-func (p *InvoicePolicy) View(ctx context.Context, s security.Subject, id string) (security.Grant, error) {
-	if !s.HasRole("member") {
-		return security.Grant{}, security.ErrForbidden
+const (
+	ActionInvoiceView security.Action = "invoice.view"
+	ActionInvoiceList security.Action = "invoice.list"
+)
+
+type InvoicePolicy struct{}
+
+var _ security.Policy[models.Invoice] = InvoicePolicy{}
+
+func (InvoicePolicy) Can(_ context.Context, s security.Subject, a security.Action, inv models.Invoice) error {
+	// Tenant isolation comes first and applies to every action.
+	if inv.ID != "" && inv.TenantID != s.Tenant {
+		return fmt.Errorf("invoice belongs to another tenant")
 	}
-	return security.Authorize(s, "invoice.view", id)
+	switch a {
+	case ActionInvoiceView, ActionInvoiceList:
+		if s.HasRole("member") {
+			return nil
+		}
+	}
+	return fmt.Errorf("no rule allows %s on invoice", a)
 }
 ```
 
-**2. The handler asks, then reads.**
+Actions are constants, tenant isolation is the first check, and there is no
+default branch that allows — the function denies by falling through.
+
+**2. The service asks, then reads.** `security.Authorize(ctx, policy, subject,
+action, resource)` runs `Can` and, only when it returns `nil`, issues the Grant:
 
 ```go
-g, err := p.policy.View(ctx, subject, id)
-if err != nil {
-	return err
+func (s *InvoiceService) Get(ctx context.Context, actor security.Subject, id string) (*models.Invoice, error) {
+	g, err := security.Authorize(ctx, s.policy, actor, policies.ActionInvoiceView, models.Invoice{})
+	if err != nil {
+		return nil, err
+	}
+	found, err := models.Invoices(s.db).NewQuery().WhereKey(id).First(ctx, g)
+	if err != nil {
+		return nil, err
+	}
+	if found == nil {
+		return nil, models.ErrInvoiceNotFound
+	}
+	// The row is authorized too, now that it is in hand.
+	if _, err := security.Authorize(ctx, s.policy, actor, policies.ActionInvoiceView, *found); err != nil {
+		return nil, err
+	}
+	return found, nil
 }
-invoice, err := p.repo.Find(ctx, g, id)
 ```
 
 **3. Authorize the row as well as the action.** The first call answers "may this
@@ -61,7 +93,7 @@ with a technical name.
 
 You are missing a Grant, and the answer is never to remove the parameter.
 
-- **In a handler**: ask the Policy first.
+- **In a handler**: call the service, and let the service ask the Policy first.
 - **In a test**: build the subject and go through the Policy, so the test proves
   the refusal as well as the success.
 - **In a scheduler, a migration or a queue worker**: there is no subject, and
@@ -76,7 +108,7 @@ instead of working around it.
 
 `SystemGrant` exists. What catches a handler using it is a lint, not the type
 system, and that distinction is stated on the project's own site rather than
-hidden. Everything else — a repository reachable with no Grant, a tenant chosen
+hidden. Everything else — a Model query reachable with no Grant, a tenant chosen
 by the caller — is a build that does not complete.
 
 ## The generated policy denies everything

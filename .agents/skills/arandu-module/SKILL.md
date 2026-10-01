@@ -1,14 +1,16 @@
 ---
 name: arandu-module
-description: Add an entity, resource, model, table or CRUD feature to an Arandu (Go) application. Use when the request is to "create a model", "add a resource", "scaffold CRUD", "add invoices", "make a posts table", "generate a module", or any new domain object with a database table and rules about who may touch it. In Arandu the model writes a YAML specification and a deterministic generator writes the Go — never write the entity, repository, policy or migration by hand. Covers aru schema, aru generate, the ten column types, the five actions, and the custom blocks that survive regeneration.
+description: Add an entity, resource, model, table or CRUD feature to an Arandu (Go) application. Use when the request is to "create a model", "add a resource", "scaffold CRUD", "add invoices", "make a posts table", "generate a module", or any new domain object with a database table and rules about who may touch it. In Arandu the model writes a YAML specification and a deterministic generator writes the Go — never write the entity, policy, service or migration by hand. Covers aru schema, aru generate, aru make:module, the ten column types, the five actions, and the custom blocks that survive regeneration.
 license: MIT
 ---
 
 # Adding a module to an Arandu application
 
 You do not write the Go. You write a specification and a deterministic generator
-writes the entity, the policy, the repository, the service, the request, the
-routes and the tests.
+writes the model (the entity and its `Model` constructor, whose query terminals
+take a Grant), the policy, the service, the request, the controller, the
+migration, the screens and the tests. It writes no repository and no routes: the
+route lines and the wiring are **printed** for you to paste.
 
 This is not a preference. A new framework is in nobody's training set, so a
 model asked for Go here fills the gap with the frameworks it does know and
@@ -65,8 +67,16 @@ again.
 aru generate invoice.yaml
 ```
 
-**5. Wire it.** The generator prints the lines to paste into `bootstrap/app.go`.
-It does not edit that file, on purpose: a generator that changes the wiring
+The specification is saved beside the code it produced, in `database/specs/`,
+so regenerating reads it back. `aru make:module` is the same generator driven by
+flags instead of a file — `aru make:module invoice --fields
+"reference:string!,total:money" --tenant [--force]` — and writes the same tree;
+the flags have no way to say `permissions` or a description, so use the
+specification when the module needs either.
+
+**5. Wire it.** The generator prints the lines to paste: the controller field and
+`r.Resource(...)` in `routes/web.go`, and the import and constructor in
+`bootstrap/app.go`. It edits neither file, on purpose: a generator that changes the wiring
 behind you is a generator whose output nobody can explain.
 
 **6. Run the gates.**
@@ -106,12 +116,15 @@ language.
 
 ## What the generated code guarantees, and you must not undo
 
-- Every repository method takes `security.Grant` before the id. Removing it to
-  make something compile is removing the only thing that makes the query safe.
+- Every service method takes the acting `security.Subject` and asks the Policy
+  through `security.Authorize` before it touches a row, and every Model read and
+  write — `First`, `Get`, `Value`, `Save`, `Delete` — takes the `security.Grant`
+  that call issued. Removing it to make something compile is removing the only
+  thing that makes the query safe.
 - The tenant comes from `data.Tenant(g)`. Never from a path segment, a body, a
   query or a header.
 - The generated policy denies every action, with no allow-everything branch to
   delete later. Open it deliberately, one action at a time.
 
-If you find yourself wanting to reach a repository without a Grant, stop. There
-is no correct way to do it, and the compiler is what says so.
+If you find yourself wanting to query a Model without a Grant, stop. There is no
+correct way to do it, and the compiler is what says so.

@@ -68,9 +68,11 @@ zero.
 **`retired-module`** — an import names a module that no longer exists. The line
 says what replaced it.
 
-The last three checks run only under `--profile=performance`. What they report
-is correct code on the conventional profile, and each says so in its own first
-lines.
+Three more checks run only under `--profile=performance`:
+`profile-not-declared`, `join-across-aggregates` and
+`transaction-across-aggregates`. What they report is correct code on the
+conventional profile, and each says so in its own first lines. The ones above
+run on every profile.
 
 ## What it cannot see, and why that matters
 
