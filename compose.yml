@@ -2,6 +2,22 @@
 #
 # This is a file, not a product. `go run` already runs the application, so the
 # only thing missing locally is the data stores.
+#
+# A new project needs neither: it runs on SQLite with its cache and sessions in
+# the process, and its binary links no client for these two. Starting them is
+# half of using them; the other half is linking each client, a `go get` and a
+# blank import in bootstrap/app.go beside the SQLite one:
+#
+#   postgres  go get github.com/arandu-io/hesape/database/connectors/pgx
+#             _ "github.com/arandu-io/hesape/database/connectors/pgx"
+#             DATABASE_URL=postgres://arandu:arandu@127.0.0.1:5432/arandu
+#
+#   redis     go get github.com/arandu-io/hesape/redis
+#             _ "github.com/arandu-io/hesape/redis"
+#             CACHE_STORE=redis and/or SESSION_DRIVER=redis, REDIS_URL=redis://127.0.0.1:6379
+#
+# A setting that names one of them before its import is in stops the boot and
+# prints both lines.
 
 services:
   postgres:
