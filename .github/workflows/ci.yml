@@ -12,23 +12,16 @@ jobs:
   check:
     runs-on: ubuntu-latest
 
-    # The session and the rate limit are proved by running two instances over one
-    # store and showing they agree. That proof needs a real RESP server: a fake
-    # inside the process would demonstrate the opposite of what is being claimed.
+    # No services block, and no server of any kind. The project links SQLite and
+    # nothing else, so there is no RESP client in this binary to point at one:
+    # the tests check the wiring behind the Redis connector with a connector of
+    # their own, and what a real server does under it -- two processes sharing a
+    # session, a rate limit counted across replicas -- is proved where the
+    # connector is, in github.com/arandu-io/hesape/redis, against a real server.
     #
-    # Without this block the tests that carry the proof call t.Skip, because
-    # ubuntu-latest ships no redis-server -- and a proof that skips is worse than
-    # one that fails, since the run stays green while proving nothing.
-    services:
-      redis:
-        image: redis:8
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
+    # A project that links the connector with a blank import and wants that
+    # proof in its own CI adds a redis service here and runs the connector's
+    # tests with REDIS_ADDRESS set.
 
     steps:
       - uses: actions/checkout@v7
@@ -92,16 +85,11 @@ jobs:
       - name: test layout
         run: bash tests/test-layout-guard.sh
 
-      # These tests need no database: database/sql connects lazily, so the wiring,
-      # the pipeline and every route are exercised without a server.
-      #
-      # They do need the RESP server declared above, and only for the two tests
-      # that prove a session and a rate limit are shared across instances. Those
-      # skip without it rather than fail, so REDIS_ADDRESS is what makes them run.
+      # These tests need no server: the database is SQLite in a temporary
+      # directory, and database/sql connects lazily, so the wiring, the pipeline
+      # and every route are exercised with nothing installed.
       - name: test
         run: go test -race ./...
-        env:
-          REDIS_ADDRESS: 127.0.0.1:6379
 
       - name: build
         run: go build -o /tmp/app .

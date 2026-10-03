@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/arandu-io/arandu/bootstrap"
 )
@@ -32,23 +31,26 @@ func countedRequest(t *testing.T, handler http.Handler) *httptest.ResponseRecord
 	return rec
 }
 
-// TestTwoInstancesOverOneStoreAreOneBudget.
+// TestTheBudgetIsCountedInTheStoreTheConnectorOpened.
 //
 // The whole reason the counter moved out of the process. Counting in memory
 // meant N replicas allowed N times the limit, on the endpoints a limit is put
 // there for -- and nothing about the deployment said so, because each replica
 // was enforcing the number it was configured with.
 //
-// One instance spends the budget and the other is the one refused. There is no
-// weaker version of this: a single instance going over its own limit passes
-// just as well against a counter that never left the process.
-func TestTwoInstancesOverOneStoreAreOneBudget(t *testing.T) {
-	address := respServer(t)
+// Two instances are built over one endpoint, each opening the store for itself,
+// and one spends the budget while the other is the one refused. With the
+// in-process store each would count apart and the second would answer 200, so
+// this cannot pass against a counter that never left the process. That the
+// server counts atomically across processes is the connector's claim, proved
+// against a real server by TestTheLimiterCountsAcrossProcesses in
+// github.com/arandu-io/hesape/redis.
+func TestTheBudgetIsCountedInTheStoreTheConnectorOpened(t *testing.T) {
+	server := borrowRESP(t)
 
 	sqliteEnv(t)
 	t.Setenv("CACHE_STORE", "redis")
-	t.Setenv("REDIS_URL", "redis://"+address)
-	t.Setenv("CACHE_PREFIX", "arandu-test-"+strconv.FormatInt(time.Now().UnixNano(), 36)+":")
+	t.Setenv("REDIS_URL", server.url())
 
 	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)

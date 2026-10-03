@@ -21,7 +21,10 @@ const (
 	// CacheMemory keeps entries in the process. Right for development and for a
 	// single replica; behind a load balancer, half the requests miss.
 	CacheMemory CacheStore = "memory"
-	// CacheRedis speaks RESP, which is Dragonfly, Redis, Valkey or KeyDB.
+	// CacheRedis speaks RESP, which is Dragonfly, Redis, Valkey or KeyDB. Its
+	// client is a connector the binary links by a blank import of
+	// github.com/arandu-io/hesape/redis, so a project that never names it does
+	// not compile it; naming it without the import stops the boot saying so.
 	CacheRedis CacheStore = "redis"
 )
 

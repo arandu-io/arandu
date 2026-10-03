@@ -2,15 +2,14 @@ package feature_test
 
 import (
 	"context"
-	"net"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/arandu-io/framework/security"
 
 	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
@@ -23,90 +22,18 @@ import (
 // bootstrap built the in-process backend whatever it said. A deployment that
 // asked for shared sessions got one session store per replica, reported itself
 // healthy, and signed half its visitors out on every request. So what is
-// checked below is behaviour: two applications over one store, and a boot that
-// refuses the configurations that cannot deliver one.
-
-// respServer is the RESP endpoint the two-instance proof counts in.
+// checked below is behaviour: the session lands in the store the connector
+// opened, and the boot refuses the configurations that cannot deliver one.
 //
-// REDIS_ADDRESS names a server that is already running; without it the test
-// starts redis-server itself, on a port the operating system chose, and stops
-// it afterwards. There is no third option and no fake: what is being proved is
-// that two processes read one store, and a store that lives inside the test
-// process proves the opposite of the thing.
-func respServer(t *testing.T) string {
-	t.Helper()
-
-	if addr := os.Getenv("REDIS_ADDRESS"); addr != "" {
-		return addr
-	}
-
-	binary, err := exec.LookPath("redis-server")
-	if err != nil {
-		t.Skip("no RESP server: set REDIS_ADDRESS to one, or install redis-server so this test can start its own")
-	}
-
-	// A port the operating system picked and then released, so two runs of the
-	// suite never land on each other.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserving a port: %v", err)
-	}
-	address := listener.Addr().String()
-	_, port, err := net.SplitHostPort(address)
-	if err != nil {
-		t.Fatalf("reading the reserved port: %v", err)
-	}
-	if err := listener.Close(); err != nil {
-		t.Fatalf("releasing the reserved port: %v", err)
-	}
-
-	// Persistence off in both forms. Nothing written here outlives the test, and
-	// a server left to snapshot would drop a dump file into whatever directory
-	// `go test` happened to be run from.
-	server := exec.Command(binary, "--bind", "127.0.0.1", "--port", port, "--save", "", "--appendonly", "no")
-	if err := server.Start(); err != nil {
-		t.Skipf("redis-server is on the path and did not start: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = server.Process.Kill()
-		_ = server.Wait()
-	})
-
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", address, 200*time.Millisecond)
-		if err == nil {
-			_ = conn.Close()
-			return address
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("redis-server did not answer on %s within ten seconds", address)
-	return ""
-}
-
-// sharedSessionEnv points the session at a RESP endpoint while leaving the
-// cache in the process.
-//
-// That combination is the one this file exists for. The two settings are
-// independent: what a cache loses to a restart is work, and what the sessions
-// lose is everybody who was signed in, so a deployment that shares one and not
-// the other is making a choice rather than a mistake.
-func sharedSessionEnv(t *testing.T, address string) {
-	t.Helper()
-
-	sqliteEnv(t)
-	t.Setenv("CACHE_STORE", "memory")
-	t.Setenv("SESSION_DRIVER", "redis")
-	t.Setenv("REDIS_URL", "redis://"+address)
-	// A prefix per run, so a server that outlives one test -- the one
-	// REDIS_ADDRESS names -- never answers this test with the last run's keys.
-	t.Setenv("CACHE_PREFIX", "arandu-test-"+strconv.FormatInt(time.Now().UnixNano(), 36)+":")
-}
+// That two processes over one real server read one session is the connector's
+// claim, and it is proved where the connector is, against a real server:
+// TestSessionRoundTrip and TestSigningOutASubjectSpansReplicasAndStopsAtTheTenant
+// in github.com/arandu-io/hesape/redis, with the byte-for-byte compatibility of
+// the handler this application is given in TestBothHandlersStoreTheGoldenBytes.
 
 // bootedInstance builds and boots one instance of the application.
 //
-// One instance, built the way the commands build it, and the test builds two of
+// One instance, built the way the commands build it, and a test may build two of
 // them: everything that is per-process -- the session backend among it -- is
 // separate between the two, and everything they share, they share through the
 // stores the configuration named.
@@ -125,16 +52,24 @@ func bootedInstance(t *testing.T) bootstrap.App {
 	return app
 }
 
-// TestASessionWrittenByOneInstanceIsReadByTheOther.
+// TestTheSessionIsKeptByTheStoreTheConnectorOpened.
 //
-// The proof the whole wiring exists for, and the only one that could not pass
-// while the defect was there: two applications, one store, a rotation on the
-// first, and the second one loading that identity. UI calls this exact Rotate
-// seam only after every factor succeeds; keeping the storage proof here avoids
-// making the bare skeleton depend on UI that is published later.
-func TestASessionWrittenByOneInstanceIsReadByTheOther(t *testing.T) {
-	address := respServer(t)
-	sharedSessionEnv(t, address)
+// SESSION_DRIVER=redis beside CACHE_STORE=memory, which is the combination this
+// wiring exists for: the two settings are independent, because what a cache
+// loses to a restart is work and what the sessions lose is everybody who was
+// signed in.
+//
+// A rotation on one instance has to land in the shared store -- as the record
+// the store's own handler keeps, payload still encoded, tenant and subject
+// beside it -- and a second instance has to read it from there rather than
+// from a backend of its own. Each instance opens the store for itself, so the
+// only thing the two have in common is the server the endpoint names.
+func TestTheSessionIsKeptByTheStoreTheConnectorOpened(t *testing.T) {
+	server := borrowRESP(t)
+	sqliteEnv(t)
+	t.Setenv("CACHE_STORE", "memory")
+	t.Setenv("SESSION_DRIVER", "redis")
+	t.Setenv("REDIS_URL", server.url())
 
 	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
@@ -152,6 +87,9 @@ func TestASessionWrittenByOneInstanceIsReadByTheOther(t *testing.T) {
 		t.Fatalf("registering: %v", err)
 	}
 
+	// UI calls this exact Rotate seam only after every factor succeeds; keeping
+	// the storage proof here avoids making the bare skeleton depend on UI that
+	// is published later.
 	response := httptest.NewRecorder()
 	id, err := first.Sessions.Rotate(context.Background(), response, "", user.Subject())
 	if err != nil {
@@ -160,11 +98,27 @@ func TestASessionWrittenByOneInstanceIsReadByTheOther(t *testing.T) {
 	if id == "" {
 		t.Fatal("the first instance returned an empty session id")
 	}
+
+	stored, err := server.sessions.Read(context.Background(), id)
+	if err != nil {
+		t.Fatalf("the session is not in the shared store, so no other replica can read it: %v", err)
+	}
+	if stored.Tenant != user.TenantID || stored.SubjectID != user.ID {
+		t.Errorf("the shared store indexes the session under %s in %s, want %s in %s",
+			stored.SubjectID, stored.Tenant, user.ID, user.TenantID)
+	}
+	var subject security.Subject
+	if err := json.Unmarshal(stored.Payload, &subject); err != nil {
+		t.Fatalf("the stored payload is not the subject as JSON: %v (%s)", err, stored.Payload)
+	}
+	if subject.ID != user.ID || subject.Tenant != user.TenantID {
+		t.Errorf("the stored subject is %s in %s, want %s in %s", subject.ID, subject.Tenant, user.ID, user.TenantID)
+	}
+
 	cookies := response.Result().Cookies()
 	if len(cookies) == 0 {
 		t.Fatal("the first instance wrote no session cookie")
 	}
-
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	for _, cookie := range cookies {
 		request.AddCookie(cookie)
@@ -186,16 +140,16 @@ func TestASessionWrittenByOneInstanceIsReadByTheOther(t *testing.T) {
 // wanted none had nothing to use.
 //
 // It is read off the health check because that is where a resolved store
-// becomes visible from outside: the endpoint does not answer, and a probe that
+// becomes visible from outside: the server does not answer, and a probe that
 // stayed green would be a probe reporting a deployment that is not the one
 // running.
 func TestTheSessionReachesItsStoreWhateverTheCacheDefaultsTo(t *testing.T) {
+	address, _ := unansweredRESP(t)
+
 	sqliteEnv(t)
 	t.Setenv("CACHE_STORE", "memory")
 	t.Setenv("SESSION_DRIVER", "redis")
-	// Port 1 is reserved and nothing listens on it, so the connection is refused
-	// at once rather than left to time out.
-	t.Setenv("REDIS_URL", "redis://127.0.0.1:1")
+	t.Setenv("REDIS_URL", "redis://"+address)
 
 	migrateBeforeTheSessionIsPointedAtIt(t)
 
@@ -210,7 +164,7 @@ func TestTheSessionReachesItsStoreWhateverTheCacheDefaultsTo(t *testing.T) {
 	t.Cleanup(func() { _ = app.Kernel.Shutdown() })
 
 	if app.Cache == nil {
-		t.Fatal("no connection was opened: the session named the shared store and nothing resolved it")
+		t.Fatal("no store was opened: the session named the shared store and nothing resolved it")
 	}
 
 	rec := httptest.NewRecorder()
@@ -227,9 +181,9 @@ func TestTheSessionReachesItsStoreWhateverTheCacheDefaultsTo(t *testing.T) {
 // still in the process.
 //
 // Every migration command takes a lock, and the lock lives in the shared store
-// as soon as one is named -- so a migrate against an endpoint that does not
-// answer is correctly refused. What this test is about is which store the
-// session named, and it needs a migrated database to boot against rather than a
+// as soon as one is named -- so a migrate against a server that does not answer
+// is correctly refused. What this test is about is which store the session
+// named, and it needs a migrated database to boot against rather than a
 // migration.
 func migrateBeforeTheSessionIsPointedAtIt(t *testing.T) {
 	t.Helper()
@@ -256,7 +210,11 @@ func migrateBeforeTheSessionIsPointedAtIt(t *testing.T) {
 // It has to refuse rather than fall back. An in-process backend satisfies the
 // type it is handed to and none of what was asked for, and the deployment it
 // produces reports itself healthy.
+//
+// A connector is linked first, so the boot gets past the question of whether
+// one is in the binary and reaches the question this test asks.
 func TestASessionOverAStoreThisProcessKeepsToItselfIsRefusedAtTheBoot(t *testing.T) {
+	linkRESP()
 	sqliteEnv(t)
 	t.Setenv("CACHE_STORE", "memory")
 	t.Setenv("REDIS_URL", "")
@@ -270,6 +228,32 @@ func TestASessionOverAStoreThisProcessKeepsToItselfIsRefusedAtTheBoot(t *testing
 		for _, want := range []string{"SESSION_DRIVER", `"redis"`, "REDIS_URL"} {
 			if !strings.Contains(err.Error(), want) {
 				t.Errorf("the refusal does not name %s, and whoever reads it has to guess which two settings disagree: %v", want, err)
+			}
+		}
+	}
+}
+
+// TestASharedStoreThatKeepsNoSessionsIsRefusedAtTheBoot.
+//
+// The connector is what decides whether the shared store keeps sessions, and a
+// store that keeps none leaves nowhere to put them but this process -- the
+// failure SESSION_DRIVER=redis was written to avoid. So the boot refuses, naming
+// the setting, rather than starting with the in-process backend.
+func TestASharedStoreThatKeepsNoSessionsIsRefusedAtTheBoot(t *testing.T) {
+	server := borrowRESP(t)
+	server.keepNoSessions()
+	sqliteEnv(t)
+	t.Setenv("CACHE_STORE", "memory")
+	t.Setenv("SESSION_DRIVER", "redis")
+	t.Setenv("REDIS_URL", server.url())
+
+	cfg, db, _ := openForTest(t)
+	if _, err := bootstrap.Build(cfg, db); err == nil {
+		t.Fatal("the application started with its sessions in a store that cannot keep them")
+	} else {
+		for _, want := range []string{"SESSION_DRIVER", `"redis"`, "cannot keep sessions"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("the refusal does not name %s: %v", want, err)
 			}
 		}
 	}

@@ -17,8 +17,6 @@ import (
 	"github.com/arandu-io/hesape/database/console/seeds"
 	"github.com/arandu-io/hesape/database/migrations"
 	"github.com/arandu-io/hesape/database/schema"
-	hredis "github.com/arandu-io/hesape/redis"
-	"github.com/arandu-io/hesape/redis/connections"
 
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/database/seeders"
@@ -297,11 +295,11 @@ func wipeFor(_ appconfig.Config, db *data.DB) func(context.Context, string) erro
 // would report itself isolated while N of them migrated at once. The old
 // spelling of this was an --isolated flag that refused the same case, and it
 // refused only when somebody remembered to pass it.
-func migrationLocks(store *connections.Connection) *cache.Locks {
+func migrationLocks(store cache.SharedStore) *cache.Locks {
 	if store == nil {
 		return cache.NewLocks(cache.NewArrayStore())
 	}
-	return cache.NewLocks(hredis.NewRedisStore(store))
+	return cache.NewLocks(store)
 }
 
 // devOnly are the commands this application refuses to run outside development.
@@ -345,7 +343,7 @@ var devOnly = map[string]bool{
 // The two refusals are ordered narrowest first, and both are this application's
 // policy rather than the component's -- the component runs the command it is
 // given, with the lock it was handed.
-func refuseCommand(cfg appconfig.Config, c console.Command, store *connections.Connection) error {
+func refuseCommand(cfg appconfig.Config, c console.Command, store cache.SharedStore) error {
 	if devOnly[c.Name] && !cfg.App.IsDev() {
 		// It names migrate:rollback, because somebody typing one of these
 		// against production is usually undoing a release rather than emptying a

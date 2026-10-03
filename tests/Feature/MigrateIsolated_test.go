@@ -1,11 +1,7 @@
 package feature_test
 
 import (
-	"bufio"
 	"context"
-	"io"
-	"net"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -34,9 +30,16 @@ import (
 // happen and no error -- the schema is being changed by whoever got there
 // first, and this process carries on and lets the application start. Reporting
 // it as a failure would fail the deployment the lock exists to serve.
+//
+// "Another process holds it" is a single answer no real store can be asked to
+// give on demand, so the store is the fake connector's and it is told to give
+// it. What the lock store does with SET NX across processes is the connector's
+// claim, proved against a real server in github.com/arandu-io/hesape/redis.
 func TestTheReplicaThatDidNotGetTheLockAppliesNothingAndSucceeds(t *testing.T) {
+	server := borrowRESP(t)
+	server.holdLock()
 	sqliteEnv(t)
-	useStore(t, startStore(t, lockHeldByAnother))
+	useStore(t, server.address)
 
 	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("a replica that did not take the lock reported a failure: %v", err)
@@ -49,8 +52,9 @@ func TestTheReplicaThatDidNotGetTheLockAppliesNothingAndSucceeds(t *testing.T) {
 // TestTheReplicaThatGotTheLockMigrates: the other side of the same run, so that
 // "applies nothing" is not passing because nothing ever migrates.
 func TestTheReplicaThatGotTheLockMigrates(t *testing.T) {
+	server := borrowRESP(t)
 	sqliteEnv(t)
-	useStore(t, startStore(t, lockFree))
+	useStore(t, server.address)
 
 	if err := bootstrap.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
@@ -66,10 +70,9 @@ func TestTheReplicaThatGotTheLockMigrates(t *testing.T) {
 // this is N replicas altering one schema at once, which is the failure the lock
 // exists to prevent and the one that cannot be undone.
 func TestNothingIsAppliedWhenTheLockCannotBeReached(t *testing.T) {
+	address, _ := unansweredRESP(t)
 	sqliteEnv(t)
-	// Port 1 is reserved and nothing listens on it, so the connection is
-	// refused at once rather than left to time out.
-	useStore(t, "127.0.0.1:1")
+	useStore(t, address)
 
 	err := bootstrap.Dispatch("migrate", nil)
 	if err == nil {
@@ -229,7 +232,7 @@ func TestRollbackStillRunsInProduction(t *testing.T) {
 	}
 
 	t.Setenv("APP_ENV", "prod")
-	useStore(t, startStore(t, lockFree))
+	useStore(t, borrowRESP(t).address)
 
 	if err := bootstrap.Dispatch("migrate:rollback", nil); err != nil {
 		t.Fatalf("migrate:rollback was refused in production: %v", err)
@@ -259,134 +262,4 @@ func tableExists(t *testing.T, name string) bool {
 		t.Fatalf("reading the schema: %v", err)
 	}
 	return count > 0
-}
-
-// Whether the store answers that the lock was free or that somebody else has
-// it. They are the two outcomes an isolated run has, and the second one is the
-// one the design is about.
-const (
-	lockFree           = true
-	lockHeldByAnother  = false
-	respNil            = "$-1\r\n"
-	respOK             = "+OK\r\n"
-	respUnknownCommand = "-ERR unknown command\r\n"
-)
-
-// startStore runs a key-value store that answers what a lock asks and nothing
-// else, and returns its address.
-//
-// A server of this test's own rather than one the machine has to be running:
-// the suite installs nothing, and the answer to "the lock was already taken" is
-// a single reply that no real store can be asked to give on demand.
-func startStore(t *testing.T, free bool) string {
-	t.Helper()
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
-
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				return
-			}
-			go serveStore(conn, free)
-		}
-	}()
-
-	return listener.Addr().String()
-}
-
-func serveStore(conn net.Conn, free bool) {
-	defer func() { _ = conn.Close() }()
-
-	reader := bufio.NewReader(conn)
-	for {
-		command, err := readCommand(reader)
-		if err != nil {
-			return
-		}
-		if _, err := conn.Write([]byte(replyTo(command, free))); err != nil {
-			return
-		}
-	}
-}
-
-// readCommand reads one command and answers its first word, lowercased.
-//
-// Only the name is kept: what the reply is does not depend on the arguments in
-// any case this serves, and a parser that decoded them would be a second
-// implementation of RESP to keep correct.
-func readCommand(reader *bufio.Reader) (string, error) {
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	line = strings.TrimRight(line, "\r\n")
-
-	if !strings.HasPrefix(line, "*") {
-		// An inline command, which is what a client sends before it knows what
-		// it is talking to.
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			return "", nil
-		}
-		return strings.ToLower(fields[0]), nil
-	}
-
-	count, err := strconv.Atoi(line[1:])
-	if err != nil {
-		return "", err
-	}
-
-	name := ""
-	for i := 0; i < count; i++ {
-		header, err := reader.ReadString('\n')
-		if err != nil {
-			return "", err
-		}
-		size, err := strconv.Atoi(strings.TrimRight(header, "\r\n")[1:])
-		if err != nil {
-			return "", err
-		}
-		// The two trailing bytes are the terminator, and they are read so that
-		// the next command starts where it should.
-		body := make([]byte, size+2)
-		if _, err := io.ReadFull(reader, body); err != nil {
-			return "", err
-		}
-		if i == 0 {
-			name = strings.ToLower(string(body[:size]))
-		}
-	}
-	return name, nil
-}
-
-func replyTo(command string, free bool) string {
-	switch command {
-	case "hello":
-		// Answered the way a server that predates it answers, which is what
-		// makes the client fall back rather than give up.
-		return respUnknownCommand
-	case "ping":
-		return "+PONG\r\n"
-	case "set":
-		// The only reply that matters. NX writes the token and answers OK when
-		// the key was free, and answers nothing at all when it was not.
-		if free {
-			return respOK
-		}
-		return respNil
-	case "get":
-		return respNil
-	case "exec":
-		return "*0\r\n"
-	case "del":
-		return ":1\r\n"
-	default:
-		return respOK
-	}
 }

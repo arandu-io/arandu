@@ -70,19 +70,19 @@ func migrateWithoutTheStore(t *testing.T) {
 // A configuration nothing reads leaves the probe green while every replica runs
 // on its own, which is the outage that reports itself as healthy.
 func TestTheSharedStoreIsOnTheHealthCheck(t *testing.T) {
+	address, _ := unansweredRESP(t)
+
 	sqliteEnv(t)
 	t.Setenv("CACHE_STORE", "redis")
-	// Port 1 is reserved and nothing listens on it, so the connection is refused
-	// at once rather than left to time out.
-	t.Setenv("REDIS_URL", "redis://127.0.0.1:1")
+	t.Setenv("REDIS_URL", "redis://"+address)
 
 	rec := probeHealth(t)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503: the configured store does not answer, and nothing said so", rec.Code)
 	}
-	// The name is the one the bootstrap registers the connection under. It has
-	// to appear: a 503 that does not say which module is down sends whoever is
-	// on call to read every one of them.
+	// The name is the one the bootstrap registers the store under. It has to
+	// appear: a 503 that does not say which module is down sends whoever is on
+	// call to read every one of them.
 	if !strings.Contains(rec.Body.String(), "cache") {
 		t.Errorf("the failing module is not named in %q", rec.Body.String())
 	}
@@ -91,16 +91,25 @@ func TestTheSharedStoreIsOnTheHealthCheck(t *testing.T) {
 // TestTheInProcessStoreOpensNoConnection.
 //
 // The other half of the same guarantee. CACHE_STORE=memory is the single
-// replica caching inside itself, and a connection opened anyway would fail a
-// probe over a server the deployment never asked for -- with REDIS_URL set,
-// because the session configuration reads the same variable.
+// replica caching inside itself, and a store opened anyway would fail a probe
+// over a server the deployment never asked for -- with REDIS_URL set, because
+// the session configuration reads the same variable.
 func TestTheInProcessStoreOpensNoConnection(t *testing.T) {
+	address, server := unansweredRESP(t)
+
 	sqliteEnv(t)
 	t.Setenv("CACHE_STORE", "memory")
-	t.Setenv("REDIS_URL", "redis://127.0.0.1:1")
+	t.Setenv("REDIS_URL", "redis://"+address)
 
 	rec := probeHealth(t)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200. Body:\n%s", rec.Code, rec.Body.String())
+	}
+	// And nothing was opened at all, which the status alone cannot say: a store
+	// opened and left off the probe would answer 200 too.
+	if server != nil {
+		if opened := server.opened(); len(opened) != 0 {
+			t.Errorf("the shared store was opened %d times by a deployment whose stores are all in-process", len(opened))
+		}
 	}
 }

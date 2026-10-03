@@ -10,7 +10,6 @@ import (
 	"github.com/arandu-io/hesape/queue"
 	qconsole "github.com/arandu-io/hesape/queue/console"
 	"github.com/arandu-io/hesape/queue/failed"
-	hredis "github.com/arandu-io/hesape/redis"
 )
 
 // The queue commands are the component's, not this file's.
@@ -55,7 +54,7 @@ func newQueueDeps(app App, db *data.DB) queueDeps {
 	// inside this process, and let `aru queue:pause` report success against a
 	// worker that never sees it.
 	if app.Cache != nil {
-		manager = manager.SetCache(hredis.NewRedisStore(app.Cache))
+		manager = manager.SetCache(app.Cache)
 	}
 
 	return queueDeps{

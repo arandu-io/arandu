@@ -38,9 +38,8 @@ import (
 	httpmiddleware "github.com/arandu-io/hesape/http/middleware"
 	"github.com/arandu-io/hesape/onetime"
 	"github.com/arandu-io/hesape/queue"
-	hredis "github.com/arandu-io/hesape/redis"
-	"github.com/arandu-io/hesape/redis/connections"
 	hmiddleware "github.com/arandu-io/hesape/routing/middleware"
+	"github.com/arandu-io/hesape/session"
 	"github.com/arandu-io/hesape/view"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
@@ -79,18 +78,32 @@ import (
 	// here, and a view nobody can reach says so at the first request rather
 	// than never.
 
-	// The engines this binary can speak. Each is its own module, so removing an
-	// import removes the driver from the build, from go.sum and from the
-	// vulnerability surface -- which is the whole reason they are separate.
+	// The engines this binary can speak, and it speaks no other. Each connector
+	// is its own module and registers itself from init(), so the import is what
+	// links the driver: one that is not imported is not in the build, in go.sum
+	// or in the vulnerability surface -- which is the whole reason they are
+	// separate.
 	//
-	// SQLite is the development default and needs no cgo. Adding MySQL is
-	// `go get github.com/arandu-io/hesape/database/connectors/mysql` plus a line
-	// here.
+	// SQLite is the one a new project links, because it is the one that needs
+	// nothing installed: a file, no server and no cgo. Every other engine is two
+	// lines, a `go get` and a blank import beside this one:
+	//
+	//	Postgres, for DATABASE_URL=postgres://...
+	//	    go get github.com/arandu-io/hesape/database/connectors/pgx
+	//	    _ "github.com/arandu-io/hesape/database/connectors/pgx"
+	//
+	//	Redis, Valkey, Dragonfly or KeyDB, for CACHE_STORE=redis and SESSION_DRIVER=redis
+	//	    go get github.com/arandu-io/hesape/redis
+	//	    _ "github.com/arandu-io/hesape/redis"
+	//
+	// MySQL is github.com/arandu-io/hesape/database/connectors/mysql, the same
+	// way. A setting that names an engine this binary does not link stops the
+	// boot and prints both lines, so the environment cannot ask for a driver the
+	// build left out and get something else instead.
 	//
 	// They are in bootstrap rather than in main because bootstrap is what
 	// composes the application, and the tests compose it too: with them in main
 	// every feature test opened a connection to a driver nobody had registered.
-	_ "github.com/arandu-io/hesape/database/connectors/pgx"
 	_ "github.com/arandu-io/hesape/database/connectors/sqlite"
 
 	_ "github.com/arandu-io/arandu/storage/framework/views"
@@ -135,13 +148,14 @@ type App struct {
 	// sends is built outside this function and reaching back in for the mailer
 	// later is the hidden coupling the explicit wiring exists to avoid.
 	Mail *mail.Mailer
-	// Cache is the RESP connection, and nil when no store resolved one.
+	// Cache is the store every replica sees, and nil when no setting resolved
+	// one.
 	//
-	// It is returned as well as used because `migrate --isolated` takes its
-	// lock, and the migration commands are built outside this function. Nil is
-	// what that command refuses on: a lock inside one process isolates nothing
-	// from the replica beside it.
-	Cache *connections.Connection
+	// It is returned as well as used because the isolated commands take their
+	// lock in it, and the migration commands are built outside this function.
+	// Nil is what those commands refuse on outside development: a lock inside
+	// one process isolates nothing from the replica beside it.
+	Cache cache2.SharedStore
 }
 
 // Build wires the application and returns it ready to boot.
@@ -163,6 +177,14 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// browser would never send a Secure one back, and every form a guest
 	// submits would answer 419.
 	csrf := security.NewCSRF(fw.App.Key, cfg.Session.CSRFTTL).Secure(cfg.Session.Secure)
+
+	// A setting that names the RESP store is a setting that needs its connector
+	// in this binary, and asking here is what puts a missing import in the boot
+	// with the two lines that add it -- rather than in the first request, as a
+	// store that was never built.
+	if err := requireSharedStoreConnector(cfg); err != nil {
+		return App{}, err
+	}
 
 	// Every cache store this application has, by name. CACHE_STORE names the
 	// one the lock below counts in; the session names one of its own, which is
@@ -404,17 +426,17 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// `aru make:module` adds the next modules here.
 		)
 
-	// The RESP connection reports itself on the health check and gives its pool
-	// back at shutdown. Without the module, "the store is down" arrives as a
-	// class of request failures somebody has to correlate by hand.
+	// The shared store reports itself on the health check and gives its
+	// connection back at shutdown. Without the module, "the store is down"
+	// arrives as a class of request failures somebody has to correlate by hand.
 	//
-	// It is registered whenever a store resolved a connection, which is what
+	// It is registered whenever a setting resolved the store, which is what
 	// makes the probe follow the deployment rather than one setting: a process
 	// whose cache is in-process and whose sessions live over RESP depends on
 	// that server for every request, and a probe that stayed green because
 	// CACHE_STORE said memory would be reporting half of it.
-	if conn := stores.Connection(); conn != nil {
-		k.Register(kernel.NewCacheModule("cache", conn))
+	if shared := stores.SharedStore(); shared != nil {
+		k.Register(kernel.NewCacheModule("cache", shared))
 	}
 
 	// The scheduler goes last, because it collects the tasks the modules above
@@ -436,18 +458,46 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	return App{
 		Kernel: k, DB: db, Users: userService, TwoFactor: twoFactorService,
 		EmailCodes: emailCodes, Sessions: sessions, Scheduler: sched,
-		Relay: relay, Queue: queueStore, Mail: mailer, Cache: stores.Connection(),
+		Relay: relay, Queue: queueStore, Mail: mailer, Cache: stores.SharedStore(),
 	}, nil
+}
+
+// requireSharedStoreConnector refuses the boot when CACHE_STORE or
+// SESSION_DRIVER names the RESP store and no connector for it is linked into
+// this binary.
+//
+// The error is the connector registry's, unchanged: it names the setting that
+// asked, the `go get` and the blank import, and a sentence of this file's own
+// around it would be a second wording of the one fix there is.
+//
+// The two settings are asked separately because either can name the store
+// alone -- sessions shared across replicas over a cache kept in each process
+// is a deployment, not a mistake -- and the error has to name the line that was
+// actually written.
+func requireSharedStoreConnector(cfg appconfig.Config) error {
+	if cfg.Cache.Store == appconfig.CacheRedis {
+		if err := cache2.Linked("CACHE_STORE", respStore); err != nil {
+			return err
+		}
+	}
+	if cfg.Session.Driver == appconfig.SessionRedis {
+		if err := cache2.Linked("SESSION_DRIVER", respStore); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // The names this application's cache stores are known by, and the driver the
 // shared one is built by.
 //
 // The names are the values CACHE_STORE takes, so the word in the environment
-// and the word in the wiring are one word. The driver is a name of the
-// manager's own: it builds array, file, database, null and failover and no
-// RESP store, because that store ships in a module of its own so its driver
-// stays out of the binaries that do not use it.
+// and the word in the wiring are one word -- and the RESP one is also the name
+// its connector registers under, which is what cache.Linked and cache.Open are
+// asked for. The driver is a name of the manager's own: it builds array, file,
+// database, null and failover and no RESP store, because that store ships in a
+// module of its own so its client stays out of the binaries that do not import
+// it.
 const (
 	memoryStore = string(appconfig.CacheMemory)
 	respStore   = string(appconfig.CacheRedis)
@@ -474,20 +524,21 @@ type cacheStores struct {
 	manager  *cache2.CacheManager
 	settings appconfig.Cache
 
-	// conn is the RESP connection, opened the first time a store resolves it
-	// and nil until then. It is kept because three consumers are written
-	// against the connection rather than against the store: the health module
-	// reports it, the queue writes the flag `aru queue:pause` sets through it,
-	// and the session handler is built over it.
+	// shared is the RESP store, opened the first time a store resolves it and
+	// nil until then. It is kept because four consumers are written against it
+	// rather than against the manager: the health module reports it, the
+	// isolated commands take their lock in it, the queue writes the flag `aru
+	// queue:pause` sets through it, and the session handler is the one it
+	// keeps.
 	//
 	// Opened on resolution rather than at wiring, so a deployment whose stores
-	// are all in-process dials nothing even when REDIS_URL is still set from a
+	// are all in-process opens nothing even when REDIS_URL is still set from a
 	// configuration it has moved off.
 	//
 	// It is written while the application is being composed, by one goroutine,
 	// and read afterwards. Nothing resolves a store once Build has returned:
 	// the manager is not reachable from App.
-	conn *connections.Connection
+	shared cache2.SharedStore
 }
 
 // newCacheStores defines the stores the configuration describes.
@@ -511,16 +562,16 @@ func newCacheStores(cfg appconfig.Cache) *cacheStores {
 		Stores:  defined,
 	})
 
-	// Registering the driver is what puts the RESP store in this binary. The
-	// creator closes over the connection rather than reading one out of the
-	// store's configuration, because a StoreConfig carries a database
-	// connection and has nowhere to put this one.
+	// Registering the driver is what lets the manager build the RESP store. The
+	// creator closes over the store the connector opened rather than reading
+	// one out of the store's configuration, because a StoreConfig carries a
+	// database connection and has nowhere to put this one.
 	out.manager.Extend(respDriver, func(m *cache2.CacheManager, store cache2.StoreConfig) (*cache2.Repository, error) {
-		conn, err := out.connect()
+		shared, err := out.connect()
 		if err != nil {
 			return nil, err
 		}
-		return m.Repository(hredis.NewRedisStore(conn), store), nil
+		return m.Repository(shared, store), nil
 	})
 
 	return out
@@ -546,8 +597,8 @@ func (c *cacheStores) IsShared(name string) bool {
 	return name == respStore && c.settings.Address != ""
 }
 
-// Shared returns the connection behind the named store, and refuses when that
-// store is one this process keeps to itself.
+// Shared returns the store every replica sees behind the named one, and refuses
+// when that store is one this process keeps to itself.
 //
 // The refusal is the point of the method. A caller reaching for it wants state
 // every replica can read -- a session, an isolation lock -- and the in-process
@@ -556,9 +607,9 @@ func (c *cacheStores) IsShared(name string) bool {
 // settings, instead of in production, where it looks like people being signed
 // out at random.
 //
-// It goes through the store rather than around it, so the connection it hands
-// back is the one the named store is built over and not a second one beside it.
-func (c *cacheStores) Shared(name string) (*connections.Connection, error) {
+// It goes through the manager rather than around it, so the store it hands back
+// is the one the named repository is built over and not a second one beside it.
+func (c *cacheStores) Shared(name string) (cache2.SharedStore, error) {
 	if !c.IsShared(name) {
 		return nil, fmt.Errorf("the cache store %q is kept inside this process, and what is asked of it here is state every replica can read: "+
 			"REDIS_URL is what names a store they all see", name)
@@ -566,42 +617,65 @@ func (c *cacheStores) Shared(name string) (*connections.Connection, error) {
 	if _, err := c.Store(name); err != nil {
 		return nil, err
 	}
-	return c.conn, nil
+	return c.shared, nil
 }
 
-// Connection returns the RESP connection when a store resolved one, and nil
-// when none did.
-func (c *cacheStores) Connection() *connections.Connection { return c.conn }
+// SharedStore returns the RESP store when a setting resolved it, and nil when
+// none did.
+//
+// The nil is an untyped one: the field is the interface itself, so a caller's
+// comparison with nil answers what it asks.
+func (c *cacheStores) SharedStore() cache2.SharedStore { return c.shared }
 
-// connect opens the RESP connection, once.
+// connect opens the RESP store, once.
 //
-// It does not talk to the server. A connection that dialled here would make the
-// application refuse to start because the cache is down, which is the opposite
-// of what a cache is for; the health check is what reports it.
+// It does not talk to the server: the connector dials nothing, and a store that
+// dialled here would make the application refuse to start because the cache is
+// down, which is the opposite of what a cache is for. The health check is what
+// reports it.
 //
-// What it does do at the boot is read the files the configuration named, and a
-// file that is named and cannot be read stops it -- see cacheTLS.
-func (c *cacheStores) connect() (*connections.Connection, error) {
-	if c.conn != nil {
-		return c.conn, nil
+// What it does do at the boot is read the files the configuration named, before
+// the connector is asked for anything, and a file that is named and cannot be
+// read stops it -- see cacheTLS.
+func (c *cacheStores) connect() (cache2.SharedStore, error) {
+	if c.shared != nil {
+		return c.shared, nil
 	}
 	if c.settings.Address == "" {
 		return nil, fmt.Errorf("the RESP store was asked for and REDIS_URL names no endpoint")
 	}
 
-	encryption, err := cacheTLS(c.settings)
+	endpoint, err := respEndpoint(c.settings)
 	if err != nil {
 		return nil, err
 	}
+	shared, err := cache2.Open(respStore, endpoint)
+	if err != nil {
+		return nil, err
+	}
+	c.shared = shared
+	return shared, nil
+}
 
-	c.conn = connections.Connect(connections.Config{
-		Address:  c.settings.Address,
-		Password: c.settings.Password,
-		Database: c.settings.Database,
-		Prefix:   c.settings.Prefix,
+// respEndpoint is where the RESP server is and how to reach it, as the
+// connectors take it.
+//
+// A function of its own rather than a literal in connect, because the endpoint
+// is the server and not the cache: whatever else talks to that server is
+// described by the same settings, and two translations of REDIS_URL are two
+// answers the day one of them learns a field the other has not.
+func respEndpoint(cfg appconfig.Cache) (cache2.Endpoint, error) {
+	encryption, err := cacheTLS(cfg)
+	if err != nil {
+		return cache2.Endpoint{}, err
+	}
+	return cache2.Endpoint{
+		Address:  cfg.Address,
+		Password: cfg.Password,
+		Database: cfg.Database,
+		Prefix:   cfg.Prefix,
 		TLS:      encryption,
-	})
-	return c.conn, nil
+	}, nil
 }
 
 // sessionBackend builds the session backend SESSION_DRIVER named.
@@ -618,11 +692,13 @@ func (c *cacheStores) connect() (*connections.Connection, error) {
 // its visitors out on every request because the replica beside it never saw the
 // login.
 //
-// The handler is built over the connection and not over the store's repository,
-// which is what keeps the session from changing the prefix or the connection
+// The handler is the one the shared store keeps, and not one built over the
+// store's repository, which is what keeps the session from changing the prefix
 // the cache is using: there is nothing shared between them to change. The keys
 // it writes are its own -- session and session-index -- so the two occupy one
-// server without meeting.
+// server without meeting. The store hands the payload over still encoded,
+// because it was linked without knowing this application's subject type, and
+// session.Decode is where that type is named.
 func sessionBackend(cfg appconfig.Session, stores *cacheStores) (security.SessionBackend, error) {
 	switch cfg.Driver {
 	case appconfig.SessionMemory:
@@ -631,11 +707,18 @@ func sessionBackend(cfg appconfig.Session, stores *cacheStores) (security.Sessio
 		return security.NewMemoryBackend(), nil
 
 	case appconfig.SessionRedis:
-		conn, err := stores.Shared(respStore)
+		shared, err := stores.Shared(respStore)
 		if err != nil {
 			return nil, fmt.Errorf("SESSION_DRIVER %q names the cache store %q: %w", cfg.Driver, respStore, err)
 		}
-		return security.NewSessionBackend(hredis.NewCacheBasedSessionHandler[security.Subject](conn)), nil
+		// Refused rather than skipped: a shared store that keeps no sessions
+		// leaves nowhere to put them but this process, which is the failure
+		// the setting was written to avoid.
+		keeper, ok := shared.(session.Keeper)
+		if !ok {
+			return nil, fmt.Errorf("SESSION_DRIVER %q names it, and the cache store %q is shared and cannot keep sessions", cfg.Driver, respStore)
+		}
+		return security.NewSessionBackend(session.Decode[security.Subject](keeper.Sessions())), nil
 
 	default:
 		// Unreachable through Load, which refuses the value first. It is here
@@ -659,26 +742,21 @@ func sessionBackend(cfg appconfig.Session, stores *cacheStores) (security.Sessio
 // The interface is left nil rather than filled with a nil pointer: an interface
 // holding a typed nil is not nil, and both would call through it.
 //
-// A shared store that cannot hold a lock is refused rather than skipped. No
-// store defined here is in that position, and it is checked because the
-// alternative to checking is the failure this shape exists to end -- a
-// scheduler that declares a Singleton task and runs it on every replica.
+// A shared store that cannot hold a lock does not exist to be refused: holding
+// one is part of what cache.SharedStore is, so a connector that could not would
+// not compile. That is the failure this shape exists to end -- a scheduler that
+// declares a Singleton task and runs it on every replica.
 func cacheLocker(stores *cacheStores, cfg appconfig.Cache) (kernel.Locker, error) {
 	name := string(cfg.Store)
 	if !stores.IsShared(name) {
 		return nil, nil
 	}
 
-	store, err := stores.Store(name)
+	shared, err := stores.Shared(name)
 	if err != nil {
 		return nil, err
 	}
-	locking, ok := store.GetStore().(cache2.Locking)
-	if !ok {
-		return nil, fmt.Errorf("the cache store %q is shared by every replica and cannot hold a lock, "+
-			"so a Singleton task would run on all of them", name)
-	}
-	return kernel.NewLocker(cache2.NewLocks(locking)), nil
+	return kernel.NewLocker(cache2.NewLocks(shared)), nil
 }
 
 // cacheTLS turns the file paths the configuration carries into the settings the

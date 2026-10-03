@@ -16,9 +16,9 @@ import (
 
 	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/kernel"
+	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/console"
 	"github.com/arandu-io/hesape/database"
-	"github.com/arandu-io/hesape/redis/connections"
 
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/routes"
@@ -165,7 +165,7 @@ func Dispatch(command string, args []string) error {
 // even when it is nil: nil is the answer that makes an isolated command say the
 // cache cannot isolate it, and a lock held inside this process would satisfy
 // every type here and isolate nothing.
-func runComponentCommand(ctx context.Context, cfg appconfig.Config, c console.Command, args []string, store *connections.Connection) error {
+func runComponentCommand(ctx context.Context, cfg appconfig.Config, c console.Command, args []string, store cache.SharedStore) error {
 	if err := refuseCommand(cfg, c, store); err != nil {
 		return err
 	}

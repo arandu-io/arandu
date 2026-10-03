@@ -41,6 +41,13 @@ import (
 // pipeline and every route can be exercised without a server running -- which is
 // what makes this a useful smoke test to keep in a project skeleton.
 //
+// The database it is given is one that cannot be opened: a SQLite file under a
+// path whose parent is a regular file, so no connection ever succeeds and the
+// health check has a dead database to report. SQLite because it is the engine
+// every project links -- a dialect whose connector is not imported has no
+// database/sql driver to hand the pool, and the test would stop at sql.Open
+// rather than at the request it is about.
+//
 // The extra modules are registered before boot, which is the only moment a
 // module can be added. They are for a test that needs a route the application
 // does not have -- one that fails on purpose, to see what the pipeline answers.
@@ -68,12 +75,8 @@ func Kernel(t *testing.T, env config.Env, extra ...kernel.Module) *kernel.Kernel
 			Key:      []byte("0123456789abcdef0123456789abcdef"),
 		},
 		Database: database.Config{
-			Connection: data.DialectPostgres,
-			Host:       "127.0.0.1",
-			Port:       "1",
-			Database:   "does-not-exist",
-			Username:   "user",
-			Password:   "pass",
+			Connection: data.DialectSQLite,
+			Database:   unopenableSQLite(t),
 		},
 		Observability: fwbootstrap.Observability{
 			LogLevel: slog.LevelError,
@@ -107,6 +110,19 @@ func Kernel(t *testing.T, env config.Env, extra ...kernel.Module) *kernel.Kernel
 		t.Fatalf("Boot: %v", err)
 	}
 	return k
+}
+
+// unopenableSQLite answers a SQLite path no connection can open: its parent is a
+// regular file, so the driver cannot create the database and nothing can create
+// the directory first. A path that merely did not exist yet would be created by
+// the first connection, and the database would answer.
+func unopenableSQLite(t *testing.T) string {
+	t.Helper()
+	parent := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(parent, nil, 0o600); err != nil {
+		t.Fatalf("writing the file that stands where a directory should: %v", err)
+	}
+	return filepath.Join(parent, "test.sqlite")
 }
 
 // Root is the project root, from inside a suite directory.

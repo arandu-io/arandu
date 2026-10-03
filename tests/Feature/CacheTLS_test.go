@@ -1,55 +1,62 @@
 package feature_test
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"io"
 	"math/big"
-	"net"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/arandu-io/hesape/cache"
+
 	"github.com/arandu-io/arandu/bootstrap"
 )
 
 // Encryption is asked for by the scheme of the URL and by nothing else, and the
 // certificates a self-hosted server needs are file paths the process reads once,
-// where the client is built.
+// before the connector is asked for a store.
 //
 // Both halves fail quietly if they are wrong -- a connection that was meant to
 // be encrypted and is not looks exactly like one that was not, and a certificate
 // that was not loaded is a server that trusts anybody. So both are checked
-// against what reaches the wire, not against what the configuration says.
+// against what the connector is handed, not against what the configuration
+// says; and what the connector puts on the wire for what it is handed is
+// checked where the connector is, against a listener of its own:
+// TestOpenHandsTheEndpointToTheConnection in github.com/arandu-io/hesape/redis,
+// and TestPingSucceedsOverTLSSignedByAPrivateAuthority and
+// TestPingFailsWithoutTLSAgainstAServerThatSpeaksIt in its connections package.
 
 // TestTheSchemeIsWhatTurnsEncryptionOn.
 //
-// A TLS connection opens with a handshake record, byte 0x16; a RESP connection
-// opens with the first command, which begins with an asterisk. Reading the first
-// byte the application put on the wire is the only check that cannot pass while
-// the traffic is in the clear.
+// rediss:// hands the connector a TLS configuration, with the floor this
+// application sets, and redis:// hands it none. Reading the endpoint the
+// connector was opened over is the only check that cannot pass while the
+// configuration says one thing and the store is opened with another.
 func TestTheSchemeIsWhatTurnsEncryptionOn(t *testing.T) {
 	for _, c := range []struct {
-		name   string
-		scheme string
-		first  byte
+		name      string
+		scheme    string
+		encrypted bool
 	}{
-		{"rediss opens with a handshake", "rediss", 0x16},
-		{"redis opens with a command", "redis", '*'},
+		{"rediss hands over a TLS configuration", "rediss", true},
+		{"redis hands over none", "redis", false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if first := firstByteOnTheWire(t, c.scheme); first != c.first {
-				t.Errorf("the connection opened with %#x, want %#x: %s:// put the wrong thing on the wire",
-					first, c.first, c.scheme)
+			e := endpointOpenedFor(t, c.scheme)
+			if (e.TLS != nil) != c.encrypted {
+				t.Fatalf("%s:// opened the store with TLS %v, want encryption %t", c.scheme, e.TLS, c.encrypted)
+			}
+			if c.encrypted && e.TLS.MinVersion != tls.VersionTLS12 {
+				t.Errorf("the TLS floor is %#x, want TLS 1.2: a connection carrying the password and every session id "+
+					"is not where to accept an older version", e.TLS.MinVersion)
 			}
 		})
 	}
@@ -62,9 +69,18 @@ func TestTheSchemeIsWhatTurnsEncryptionOn(t *testing.T) {
 func TestTheNamedCertificatesAreLoaded(t *testing.T) {
 	certFile, keyFile := writeCertificate(t)
 
+	// The real connector, when the project links one, dials nothing at the
+	// boot, so a port nothing listens on is enough for it; the fake keeps a
+	// record of what it was handed, which is what is read below.
+	address, server := "127.0.0.1:1", (*fakeRESP)(nil)
+	if linkRESP() {
+		server = startRESP(t)
+		address = server.address
+	}
+
 	sqliteEnv(t)
 	t.Setenv("CACHE_STORE", "redis")
-	t.Setenv("REDIS_URL", "rediss://127.0.0.1:1")
+	t.Setenv("REDIS_URL", "rediss://"+address)
 	t.Setenv("REDIS_CA_FILE", certFile)
 	t.Setenv("REDIS_CERT_FILE", certFile)
 	t.Setenv("REDIS_KEY_FILE", keyFile)
@@ -73,6 +89,28 @@ func TestTheNamedCertificatesAreLoaded(t *testing.T) {
 	if err := bootstrap.Dispatch("routes", nil); err != nil {
 		t.Fatalf("the application refused to start with certificates it can read: %v", err)
 	}
+	if server == nil {
+		return
+	}
+
+	opened := server.opened()
+	if len(opened) == 0 {
+		t.Fatal("the store was never opened, so nothing below was handed to anybody")
+	}
+	encryption := opened[len(opened)-1].TLS
+	if encryption == nil {
+		t.Fatal("rediss:// and three certificate files, and the store was opened in the clear")
+	}
+	if encryption.RootCAs == nil {
+		t.Error("REDIS_CA_FILE was named and the connector was handed no private authority")
+	}
+	if len(encryption.Certificates) != 1 {
+		t.Errorf("REDIS_CERT_FILE and REDIS_KEY_FILE were named and the connector was handed %d client certificates, want 1",
+			len(encryption.Certificates))
+	}
+	if encryption.ServerName != "cache.example.test" {
+		t.Errorf("the server name is %q, want what REDIS_TLS_SERVER_NAME says", encryption.ServerName)
+	}
 }
 
 // TestACertificateThatCannotBeUsedStopsTheBoot.
@@ -80,7 +118,8 @@ func TestTheNamedCertificatesAreLoaded(t *testing.T) {
 // The alternative to refusing is a process that starts with encryption off, or
 // without the client certificate the server is going to ask for, after being
 // told to use both. Neither is visible from outside, which is why the refusal
-// has to name the variable.
+// has to name the variable -- and why it comes before the connector is asked
+// for anything.
 func TestACertificateThatCannotBeUsedStopsTheBoot(t *testing.T) {
 	certFile, keyFile := writeCertificate(t)
 	absent := filepath.Join(t.TempDir(), "absent.pem")
@@ -92,42 +131,42 @@ func TestACertificateThatCannotBeUsedStopsTheBoot(t *testing.T) {
 
 	for _, c := range []struct {
 		name   string
-		url    string
+		scheme string
 		files  map[string]string
 		names  string
 		reason string
 	}{
 		{
 			name:   "an authority that is not there",
-			url:    "rediss://127.0.0.1:1",
+			scheme: "rediss",
 			files:  map[string]string{"REDIS_CA_FILE": absent},
 			names:  "REDIS_CA_FILE",
 			reason: "the connection cannot verify the server without it",
 		},
 		{
 			name:   "an authority that is not a certificate",
-			url:    "rediss://127.0.0.1:1",
+			scheme: "rediss",
 			files:  map[string]string{"REDIS_CA_FILE": notPEM},
 			names:  "REDIS_CA_FILE",
 			reason: "a file that holds no certificate trusts nobody",
 		},
 		{
 			name:   "a certificate without its key",
-			url:    "rediss://127.0.0.1:1",
+			scheme: "rediss",
 			files:  map[string]string{"REDIS_CERT_FILE": certFile},
 			names:  "REDIS_KEY_FILE",
 			reason: "half a pair proves nothing",
 		},
 		{
 			name:   "a key without its certificate",
-			url:    "rediss://127.0.0.1:1",
+			scheme: "rediss",
 			files:  map[string]string{"REDIS_KEY_FILE": keyFile},
 			names:  "REDIS_CERT_FILE",
 			reason: "half a pair is sent to nobody",
 		},
 		{
 			name:   "a pair that does not go together",
-			url:    "rediss://127.0.0.1:1",
+			scheme: "rediss",
 			files:  map[string]string{"REDIS_CERT_FILE": certFile, "REDIS_KEY_FILE": notPEM},
 			names:  "REDIS_KEY_FILE",
 			reason: "a key the certificate does not match authenticates nobody",
@@ -136,16 +175,18 @@ func TestACertificateThatCannotBeUsedStopsTheBoot(t *testing.T) {
 			// The one that is not an unreadable file: the certificates are
 			// fine and the URL carries no encryption to use them with.
 			name:   "certificates for a connection that carries none",
-			url:    "redis://127.0.0.1:1",
+			scheme: "redis",
 			files:  map[string]string{"REDIS_CA_FILE": certFile},
 			names:  "rediss",
 			reason: "believing the traffic is encrypted while it is not is worse than knowing it is not",
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			address, server := unansweredRESP(t)
+
 			sqliteEnv(t)
 			t.Setenv("CACHE_STORE", "redis")
-			t.Setenv("REDIS_URL", c.url)
+			t.Setenv("REDIS_URL", c.scheme+"://"+address)
 			for name, path := range c.files {
 				t.Setenv(name, path)
 			}
@@ -157,75 +198,42 @@ func TestACertificateThatCannotBeUsedStopsTheBoot(t *testing.T) {
 			if !strings.Contains(err.Error(), c.names) {
 				t.Errorf("the refusal does not name %s: %v", c.names, err)
 			}
+			if server != nil && len(server.opened()) != 0 {
+				t.Error("the connector was asked for a store before the files it would be handed were read")
+			}
 		})
 	}
 }
 
-// firstByteOnTheWire boots the application against a listener of this test's
-// own and answers the first byte the connection carried.
-//
-// The listener closes as soon as it has read that byte, so the client fails at
-// once instead of waiting out its read timeout.
-func firstByteOnTheWire(t *testing.T, scheme string) byte {
+// endpointOpenedFor boots the application with the shared store at a server of
+// the fake connector's, reached by scheme, and answers the endpoint the store
+// was opened over.
+func endpointOpenedFor(t *testing.T, scheme string) cache.Endpoint {
 	t.Helper()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
-
-	first := make(chan byte, 1)
-	go func() {
-		conn, err := listener.Accept()
-		if err != nil {
-			return
-		}
-		defer func() { _ = conn.Close() }()
-
-		var opening [1]byte
-		if _, err := io.ReadFull(conn, opening[:]); err != nil {
-			return
-		}
-		first <- opening[0]
-	}()
-
+	server := borrowRESP(t)
 	sqliteEnv(t)
 
-	// The schema is built before the store is pointed at the listener, and not
-	// by a command run against it: every migration command takes a lock through
-	// the cache, and this listener reads one byte and stops answering. A command
-	// that waited on it would wait out its timeout and report a failure, which
-	// is correct of it and not what is being measured here.
+	// The schema is built before the store is named, for the reason the health
+	// tests build it that way: this test is about what the store is opened
+	// over, and needs a migrated database rather than a migration.
 	migrateWithoutTheStore(t)
 
 	t.Setenv("CACHE_STORE", "redis")
-	t.Setenv("REDIS_URL", scheme+"://"+listener.Addr().String())
+	t.Setenv("REDIS_URL", scheme+"://"+server.address)
 
-	// Building the application is what opens the connection, and opening it is
-	// what puts the first byte on the wire.
+	// Building the application is what opens the store: the rate limit
+	// resolves the store CACHE_STORE named while the pipeline is assembled.
 	cfg, db, _ := openForTest(t)
-	app, err := bootstrap.Build(cfg, db)
-	if err != nil {
+	if _, err := bootstrap.Build(cfg, db); err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := app.Kernel.Boot(context.Background()); err != nil {
-		t.Fatalf("Boot: %v", err)
-	}
-	t.Cleanup(func() { _ = app.Kernel.Shutdown() })
 
-	// The health check is what dials: it asks every module whether it is
-	// reachable, and the key-value module answers by pinging.
-	rec := httptest.NewRecorder()
-	app.Kernel.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/_arandu/health", nil))
-
-	select {
-	case opening := <-first:
-		return opening
-	case <-time.After(10 * time.Second):
-		t.Fatalf("nothing connected to the listener; the health check answered %d", rec.Code)
-		return 0
+	opened := server.opened()
+	if len(opened) == 0 {
+		t.Fatal("the application was built with CACHE_STORE=redis and never opened the store")
 	}
+	return opened[len(opened)-1]
 }
 
 // writeCertificate writes a self-signed certificate and its key, and answers the

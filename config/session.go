@@ -24,7 +24,9 @@ const (
 	// replica that never saw the login.
 	SessionMemory SessionDriver = "memory"
 	// SessionRedis keeps sessions over RESP, shared by every replica.
-	// It names the Redis store independently of CACHE_STORE.
+	// It names the Redis store independently of CACHE_STORE, and that store is
+	// a connector the binary links by a blank import: without it the boot stops
+	// naming the import to add.
 	SessionRedis SessionDriver = "redis"
 )
 
