@@ -87,6 +87,7 @@ There is no command for it. Delete these files:
 app/Http/Controllers/NoteController.go
 app/Http/Requests/NoteRequest.go
 app/Models/Note.go
+app/Models/NoteQuery.go           (generated; aru model:build also removes it once Note.go is gone)
 app/Policies/NotePolicy.go
 app/Services/NoteService.go
 database/factories/NoteFactory.go
