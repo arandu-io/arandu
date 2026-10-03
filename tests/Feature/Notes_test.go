@@ -32,7 +32,7 @@ func newNotesFixture(t *testing.T) notesFixture {
 	t.Helper()
 	app := tests.Booted(t)
 	tenant := bootstrap.Tenant()
-	members, err := factories.UserFactory(app.DB).Count(2).
+	members, err := factories.Users(app.DB).Count(2).
 		Create(context.Background(), security.SystemGrant(policies.ActionUserCreate, tenant))
 	if err != nil {
 		t.Fatalf("creating the members: %v", err)
@@ -138,7 +138,7 @@ func TestAnotherMembersNoteIsReadButNotChanged(t *testing.T) {
 func TestANoteOfAnotherTenantIsNotFound(t *testing.T) {
 	f := newNotesFixture(t)
 	const elsewhere = "22222222-2222-4222-8222-222222222222"
-	theirs, err := factories.NoteFactory(f.app.DB).State(func(n *models.Note) {
+	theirs, err := factories.Notes(f.app.DB).State(func(n *models.Note) {
 		n.Title = "Another tenant's secret"
 		n.UserID = f.anaID
 	}).CreateOne(context.Background(), security.SystemGrant(policies.NoteCreate, elsewhere))
@@ -183,7 +183,7 @@ func TestTheExampleNotesAreSeededInDevelopmentOnly(t *testing.T) {
 	ctx := context.Background()
 	notes := func() []*models.Note {
 		t.Helper()
-		found, err := models.Notes(db).NewQuery().Get(ctx, security.SystemGrant(policies.NoteList, bootstrap.Tenant()))
+		found, err := models.Notes(db).Get(ctx, security.SystemGrant(policies.NoteList, bootstrap.Tenant()))
 		if err != nil {
 			t.Fatalf("reading the seeded notes: %v", err)
 		}

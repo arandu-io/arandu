@@ -24,7 +24,7 @@ func TestTheUserFactoryMakesMembersNobodyCanSignInAs(t *testing.T) {
 	ctx := context.Background()
 	tenant := bootstrap.Tenant()
 
-	made, err := factories.UserFactory(db).Count(3).Create(ctx, security.SystemGrant(policies.ActionUserCreate, tenant))
+	made, err := factories.Users(db).Count(3).Create(ctx, security.SystemGrant(policies.ActionUserCreate, tenant))
 	if err != nil {
 		t.Fatalf("creating users through the factory: %v", err)
 	}

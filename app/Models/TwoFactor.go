@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/hesape/database/model"
 )
 
@@ -16,7 +15,12 @@ const redactedSecret = "[redacted]"
 // ConfirmedAt is nil until the first code proves the enrolment. It is a pointer
 // because the column is NULL then, and the conditional writes ask for exactly
 // that: a zero time would be stored as a date and match nothing.
+//
+// TwoFactors, TwoFactorQuery and TwoFactorCollection are generated beside this
+// file, in TwoFactorQuery.go, by aru model:build.
 type TwoFactor struct {
+	model.Model
+
 	UserID       string     `db:"user_id"`
 	TenantID     string     `db:"tenant_id"`
 	Secret       string     `db:"secret"`
@@ -25,18 +29,18 @@ type TwoFactor struct {
 	CreatedAt    time.Time  `db:"created_at"`
 }
 
-// TwoFactors returns the model for the user_two_factor table.
+// twoFactorTable is the table TwoFactor is a row of: user_two_factor.
 //
 // The key is the account's id: one enrolment per account, written by the
-// application and never generated.
-func TwoFactors(db *data.DB) *model.Model[TwoFactor] {
-	m := model.NewModel[TwoFactor]("user_two_factor", db, db.GetQueryGrammar(), db.GetPostProcessor())
-	m.PrimaryKey = "user_id"
-	m.KeyType = "string"
-	m.Incrementing = false
-	m.UpdatedAtColumn = ""
-	return m
-}
+// application and never generated, which is what ManualKey says. The table has
+// no updated_at column.
+var twoFactorTable = model.NewTable(model.TableSpec{
+	Name:            "user_two_factor",
+	New:             func() model.Entity { return new(TwoFactor) },
+	PrimaryKey:      "user_id",
+	ManualKey:       true,
+	UpdatedAtColumn: model.NoColumn,
+})
 
 // Enabled reports whether the enrolment was proved with its first code.
 func (t TwoFactor) Enabled() bool { return t.ConfirmedAt != nil && !t.ConfirmedAt.IsZero() }
@@ -77,7 +81,12 @@ func (t TwoFactor) String() string {
 
 // RecoveryCode is one single-use recovery code of an enrolment, stored as a
 // password hash. UsedAt is nil until the code is spent.
+//
+// RecoveryCodes, RecoveryCodeQuery and RecoveryCodeCollection are generated
+// beside this file, in RecoveryCodeQuery.go, by aru model:build.
 type RecoveryCode struct {
+	model.Model
+
 	ID        string     `db:"id"`
 	TenantID  string     `db:"tenant_id"`
 	UserID    string     `db:"user_id"`
@@ -86,13 +95,15 @@ type RecoveryCode struct {
 	CreatedAt time.Time  `db:"created_at"`
 }
 
-// RecoveryCodes returns the model for the user_recovery_codes table. The id is
-// text the model generates on insert.
-func RecoveryCodes(db *data.DB) *model.Model[RecoveryCode] {
-	m := model.NewModel[RecoveryCode]("user_recovery_codes", db, db.GetQueryGrammar(), db.GetPostProcessor()).UseUniqueIDs()
-	m.UpdatedAtColumn = ""
-	return m
-}
+// recoveryCodeTable is the table RecoveryCode is a row of: user_recovery_codes.
+// The id is text the model generates on insert, and the table has no
+// updated_at column.
+var recoveryCodeTable = model.NewTable(model.TableSpec{
+	Name:            "user_recovery_codes",
+	New:             func() model.Entity { return new(RecoveryCode) },
+	UniqueIDs:       true,
+	UpdatedAtColumn: model.NoColumn,
+})
 
 // MarshalJSON keeps the hash out of responses and debug dumps.
 func (c RecoveryCode) MarshalJSON() ([]byte, error) {

@@ -90,15 +90,14 @@ func (r *TwoFactorRepository) Enrol(ctx context.Context, grant security.Grant, f
 		Delete(ctx, grant); err != nil {
 		return models.TwoFactor{}, err
 	}
-	instance, err := models.TwoFactors(r.db).NewInstance(nil, false)
+	record, err := models.TwoFactors(r.db).New()
 	if err != nil {
 		return models.TwoFactor{}, err
 	}
-	record := instance.Entity
 	record.UserID = factor.UserID
 	record.TenantID = data.Tenant(grant)
 	record.Secret = factor.Secret
-	if _, err := instance.Save(ctx, grant); err != nil {
+	if _, err := record.Save(ctx, grant); err != nil {
 		// A confirmed enrolment survived the delete above, and the key is the
 		// account: the insert is refused rather than replacing a working factor.
 		if errors.Is(err, database.ErrUniqueViolation) {
@@ -172,14 +171,14 @@ func (r *TwoFactorRepository) ReplaceRecoveryCodes(ctx context.Context, grant se
 		if hash == "" {
 			return fmt.Errorf("two-factor: refusing to store an empty recovery hash")
 		}
-		instance, err := models.RecoveryCodes(r.db).NewInstance(nil, false)
+		record, err := models.RecoveryCodes(r.db).New()
 		if err != nil {
 			return err
 		}
-		instance.Entity.TenantID = tenant
-		instance.Entity.UserID = userID
-		instance.Entity.CodeHash = hash
-		if _, err := instance.Save(ctx, grant); err != nil {
+		record.TenantID = tenant
+		record.UserID = userID
+		record.CodeHash = hash
+		if _, err := record.Save(ctx, grant); err != nil {
 			return err
 		}
 	}

@@ -58,20 +58,20 @@ var (
 // Index renders the listing, one page at a time.
 func (c *NoteController) Index(ctx *fhttp.Context) error {
 	who, _ := ctx.User()
-	found, err := c.svc.List(ctx.Ctx(), who, pagination.ResolveCurrentPage(ctx.Request.URL, ""))
+	found, page, err := c.svc.List(ctx.Ctx(), who, pagination.ResolveCurrentPage(ctx.Request.URL, ""))
 	if err != nil {
 		return err
 	}
 
-	rows := make([]views.NoteRow, 0, found.Count())
-	for _, n := range found.Items() {
+	rows := make([]views.NoteRow, 0, len(found))
+	for _, n := range found {
 		rows = append(rows, c.row(ctx, n))
 	}
 	return ctx.View("notes.index", views.NotesIndexData{
 		Page:    view.New(ctx, "Notes"),
 		Notes:   rows,
 		NewURL:  ctx.URL("notes.create"),
-		NextURL: found.SetPath(ctx.URL("notes.index")).NextPageURL(),
+		NextURL: page.SetPath(ctx.URL("notes.index")).NextPageURL(),
 	})
 }
 

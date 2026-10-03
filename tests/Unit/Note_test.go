@@ -16,14 +16,18 @@ import (
 )
 
 // notePersistent is the Model-first persistence boundary this module
-// depends on. The proof below fails at compile time if the generated entity
-// stops embedding the Hesape model or if CRUD grows a second persistence path.
+// depends on. The proofs below fail at compile time if the entity stops
+// embedding the Hesape model -- nothing else satisfies model.Entity -- or if its
+// generated query can be run without a Grant.
 type notePersistent interface {
+	model.Entity
 	Save(context.Context, security.Grant) (bool, error)
-	NewQuery() *model.Builder[models.Note]
 }
 
-var _ notePersistent = (*models.Note)(nil)
+var (
+	_ notePersistent                                                                                  = (*models.Note)(nil)
+	_ func(*models.NoteQuery, context.Context, security.Grant, ...any) (models.NoteCollection, error) = (*models.NoteQuery).Get
+)
 
 // TestEveryNoteReadRequiresAuthorization needs no database: the service
 // authorizes each read before it asks the Model for a query. A nil handle turns
@@ -39,7 +43,7 @@ func TestEveryNoteReadRequiresAuthorization(t *testing.T) {
 			return err
 		},
 		"List": func() error {
-			_, err := svc.List(ctx, anonymous, 1)
+			_, _, err := svc.List(ctx, anonymous, 1)
 			return err
 		},
 		"Delete": func() error {

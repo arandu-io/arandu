@@ -51,11 +51,10 @@ func (s *NoteService) Create(ctx context.Context, actor security.Subject, in req
 		return nil, err
 	}
 
-	instance, err := models.Notes(s.db).NewInstance(nil, false)
+	record, err := models.Notes(s.db).New()
 	if err != nil {
 		return nil, err
 	}
-	record := instance.Entity
 	s.fill(record, in)
 	// The tenant comes from the Grant, never from the request or the subject
 	// directly. The model writes the same value over the insert attributes.
@@ -93,11 +92,12 @@ func (s *NoteService) Get(ctx context.Context, actor security.Subject, id string
 	return found, nil
 }
 
-// List returns one page of notes, newest first.
-func (s *NoteService) List(ctx context.Context, actor security.Subject, page int) (*pagination.Paginator[*models.Note], error) {
+// List returns one page of notes, newest first, and where the
+// previous and the next page are.
+func (s *NoteService) List(ctx context.Context, actor security.Subject, page int) (models.NoteCollection, *pagination.Page, error) {
 	g, err := security.Authorize(ctx, s.policy, actor, policies.NoteList, models.Note{})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	return models.Notes(s.db).Latest().OrderBy("id").
 		SimplePaginate(ctx, g, notePerPage, page, pagination.Options{})

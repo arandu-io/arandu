@@ -37,18 +37,18 @@ func (NoteSeeder) Name() string { return "NoteSeeder" }
 // table that already has rows is left as it is, which is what makes a second
 // run safe.
 func (NoteSeeder) Run(ctx context.Context, d Deps) error {
-	seeded, err := models.Notes(d.DB).NewQuery().Exists(ctx, security.SystemGrant(policies.NoteList, d.Tenant))
+	seeded, err := models.Notes(d.DB).Exists(ctx, security.SystemGrant(policies.NoteList, d.Tenant))
 	if err != nil || seeded {
 		return err
 	}
 	// arandu:begin custom
 	// Rows the factory's defaults do not describe go here: a fixed record, a
 	// state applied to some of them.
-	authors, err := factories.UserFactory(d.DB).Count(2).Create(ctx, security.SystemGrant(policies.ActionUserCreate, d.Tenant))
+	authors, err := factories.Users(d.DB).Count(2).Create(ctx, security.SystemGrant(policies.ActionUserCreate, d.Tenant))
 	if err != nil {
 		return err
 	}
-	byAuthor := factories.NoteFactory(d.DB).Count(6).
+	byAuthor := factories.Notes(d.DB).Count(6).
 		Sequence(factories.WrittenBy(authors[0].ID), factories.WrittenBy(authors[1].ID))
 	// arandu:end custom
 

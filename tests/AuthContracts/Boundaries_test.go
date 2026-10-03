@@ -118,11 +118,11 @@ func TestApplicationCodeDoesNotNameSessionGuard(t *testing.T) {
 }
 
 // TestSecondFactorPersistenceGoesThroughTheModel keeps the second factor on
-// the one data path: every read and write through Model[T], scoped by the
-// Grant's tenant, and no statement written by hand beside it. A raw statement
-// is a query the tenant scope never sees. What the conditional writes decide,
-// and that each stays inside its tenant, is proved by running them, in
-// tests/NativeAuth.
+// the one data path: every read and write through the generated query of the
+// model, scoped by the Grant's tenant, and no statement written by hand beside
+// it. A raw statement is a query the tenant scope never sees. What the
+// conditional writes decide, and that each stays inside its tenant, is proved
+// by running them, in tests/NativeAuth.
 func TestSecondFactorPersistenceGoesThroughTheModel(t *testing.T) {
 	path := filepath.Join(projectRoot(t), "app", "Repositories", "TwoFactorRepository.go")
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)

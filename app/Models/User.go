@@ -10,13 +10,22 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/hesape/database/model"
+	"github.com/arandu-io/hesape/database/query"
 )
 
 // User is an account owned by this application.
+//
+// It embeds the model, so a row returned by a query carries the connection and
+// can be saved again. Build a new row with Users(db).New(): a struct literal
+// has no connection and its write methods return model.ErrUnwired.
+//
+// Users, UserQuery and UserCollection are generated beside this file, in
+// UserQuery.go, by aru model:build.
 type User struct {
+	model.Model
+
 	ID       string `db:"id"`
 	TenantID string `db:"tenant_id"`
 	Name     string `db:"name"`
@@ -40,15 +49,17 @@ const (
 	RoleMember = "member"
 )
 
-// Users returns the model for the application-owned users table.
+// userTable is the table User is a row of: the application-owned users table.
 //
-// The primary key is text the model generates on insert, so nothing writes an
-// id by hand. The table has no updated_at column.
-func Users(db *data.DB) *model.Model[User] {
-	m := model.NewModel[User]("users", db, db.GetQueryGrammar(), db.GetPostProcessor()).UseUniqueIDs()
-	m.UpdatedAtColumn = ""
-	return m
-}
+// UniqueIDs makes the primary key text the model generates on insert, so
+// nothing writes an id by hand. The table has no updated_at column. The tenant
+// scope is left at its tenant_id default.
+var userTable = model.NewTable(model.TableSpec{
+	Name:            "users",
+	New:             func() model.Entity { return new(User) },
+	UniqueIDs:       true,
+	UpdatedAtColumn: model.NoColumn,
+})
 
 // Roles is the set of roles an account carries, stored as a JSON array of text.
 //
@@ -136,3 +147,17 @@ func (u User) MarshalJSON() ([]byte, error) {
 func (u User) LogValue() slog.Value {
 	return slog.GroupValue(slog.String("id", u.ID), slog.String("tenant", u.TenantID))
 }
+
+// arandu:begin custom
+// Local scopes are methods on *UserQuery, relations are registered on
+// userTable in an init function, and anything else about this entity goes
+// here too.
+
+// GetQuery returns the statement under the query, without the model around
+// it: the users table and the clauses added so far, whose rows come back as
+// query.Record. It is what the native user provider reads accounts through,
+// because it fills the account it hands to the guard itself. Its terminals
+// take a Grant and are filtered by the Grant's tenant, like the model's.
+func (q *UserQuery) GetQuery() *query.Builder { return q.Base().GetQuery() }
+
+// arandu:end custom
