@@ -9,13 +9,17 @@ import (
 type QueueConnection string
 
 // The supported connections. Both implement the same queue.Queue contract, so
-// moving between them changes this value and nothing else.
+// the worker, the handlers and every queue command are the same whichever one
+// this value names.
 const (
 	// QueueDatabase stores jobs in a table of the application's own database,
 	// which is what makes a job commitable by the same transaction as the row it
 	// is about.
 	QueueDatabase QueueConnection = "database"
-	// QueueRedis stores them over RESP, for volume beyond a table.
+	// QueueRedis stores them over RESP, for volume beyond a table. Its client
+	// is a connector the binary links by a blank import of
+	// github.com/arandu-io/hesape/queue/connectors/redis; naming it without the
+	// import stops the boot saying which one to add.
 	QueueRedis QueueConnection = "redis"
 )
 

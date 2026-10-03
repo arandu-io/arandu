@@ -124,7 +124,7 @@ func Dispatch(command string, args []string) error {
 		// and listed from one slice: what `aru` forwards and what this binary
 		// answers were two lists, and thirteen names were in the first and in
 		// neither the switch above nor anything below.
-		queue := newQueueDeps(app, db)
+		queue := newQueueDeps(cfg.Queue, app, db)
 		componentCommands := append(append(migrationCommands(cfg, db, app), seedCommands(cfg, app)...), databaseCommands(cfg, db)...)
 		componentCommands = append(componentCommands, queue.commands()...)
 		for _, c := range componentCommands {

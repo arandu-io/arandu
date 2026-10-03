@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/arandu-io/hesape/cache"
+	"github.com/arandu-io/hesape/queue"
 	"github.com/arandu-io/hesape/session"
 
 	"github.com/arandu-io/arandu/bootstrap"
@@ -49,6 +50,9 @@ var (
 	// connector below. It is false when the project has linked the real one:
 	// registering a second connector under a taken name panics, by design.
 	fakeRESPLinked bool
+
+	linkRESPQueueOnce   sync.Once
+	fakeRESPQueueLinked bool
 )
 
 // linkRESP registers the fake cache connector unless a real one is linked, and
@@ -91,6 +95,22 @@ func unansweredRESP(t *testing.T) (string, *fakeRESP) {
 	server := startRESP(t)
 	server.fail()
 	return server.address, server
+}
+
+// borrowRESPQueue links the fake queue connector, or skips when a real one is
+// linked.
+func borrowRESPQueue(t *testing.T) {
+	t.Helper()
+	linkRESPQueueOnce.Do(func() {
+		if queue.Linked("QUEUE_CONNECTION", respDriver) == nil {
+			return
+		}
+		queue.Register(respQueueConnector{})
+		fakeRESPQueueLinked = true
+	})
+	if !fakeRESPQueueLinked {
+		t.Skip("the RESP queue is linked to the real connector here, and this test reads what the fake one was handed")
+	}
 }
 
 // respServers is every server a test started, by address. Opening an address no
@@ -299,6 +319,25 @@ func (s *respStore) Sessions() session.Handler[json.RawMessage] { return s.serve
 // promotes its methods and nothing else, so Sessions is not among them.
 type sharedOnly struct{ cache.SharedStore }
 
+// respQueueConnector is the queue connector the fake registers as "redis".
+type respQueueConnector struct{}
+
+func (respQueueConnector) Driver() string { return respDriver }
+
+func (respQueueConnector) Open(e cache.Endpoint) (queue.Queue, error) {
+	if e.Address == "" {
+		return nil, errors.New("the endpoint names no address, so there is no server to queue on")
+	}
+	return &respQueue{endpoint: e}, nil
+}
+
+// respQueue is the queue the fake opens: one that holds nothing, and remembers
+// what it was opened over.
+type respQueue struct {
+	queue.NullQueue
+	endpoint cache.Endpoint
+}
+
 // TestTheSharedStoreIsOpenedOverTheEndpointTheEnvironmentNames.
 //
 // Every field of REDIS_URL is a setting somebody wrote down, and one that stops
@@ -385,4 +424,49 @@ func TestTheQueuePauseIsWrittenWhereTheWorkerReadsIt(t *testing.T) {
 			t.Fatal("queue:pause reported a pause with no store any worker can read")
 		}
 	})
+}
+
+// TestQueueConnectionRedisIsTheQueueTheConnectorOpened.
+//
+// QUEUE_CONNECTION=redis was accepted, validated, and then ignored: the queue
+// was the table whatever it said. Now the setting is what decides, and the RESP
+// queue is opened over the endpoint the shared store is -- the same server,
+// read from the same settings -- and registered under the name the setting
+// holds, so `aru queue:monitor redis:default` reaches it.
+func TestQueueConnectionRedisIsTheQueueTheConnectorOpened(t *testing.T) {
+	borrowRESPQueue(t)
+	sqliteEnv(t)
+	t.Setenv("QUEUE_CONNECTION", "redis")
+	t.Setenv("REDIS_URL", "rediss://:secret@queue.example.test:6380/3")
+	t.Setenv("CACHE_PREFIX", "shop:cache:")
+
+	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	cfg, db, _ := openForTest(t)
+	app, err := bootstrap.Build(cfg, db)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	opened, ok := app.Queue.(*respQueue)
+	if !ok {
+		t.Fatalf("the application queues over a %T, and QUEUE_CONNECTION named the RESP queue", app.Queue)
+	}
+	e := opened.endpoint
+	if e.Address != "queue.example.test:6380" || e.Password != "secret" || e.Database != 3 || e.Prefix != "shop:cache:" {
+		t.Errorf("the queue was opened over address=%q password=%q database=%d prefix=%q, want what REDIS_URL and CACHE_PREFIX say",
+			e.Address, e.Password, e.Database, e.Prefix)
+	}
+	if e.TLS == nil {
+		t.Error("rediss:// asked for encryption and the queue was opened without it")
+	}
+
+	if err := bootstrap.Dispatch("queue:monitor", []string{"redis:default"}); err != nil {
+		t.Errorf("queue:monitor does not reach the queue under the name QUEUE_CONNECTION gives it: %v", err)
+	}
+	if err := bootstrap.Dispatch("queue:monitor", []string{"database:default"}); err == nil {
+		t.Error("queue:monitor found a database queue in an application that queues over RESP")
+	}
 }

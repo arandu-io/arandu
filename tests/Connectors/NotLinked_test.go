@@ -7,6 +7,7 @@ import (
 
 	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/database"
+	"github.com/arandu-io/hesape/queue"
 
 	"github.com/arandu-io/arandu/bootstrap"
 )
@@ -115,6 +116,21 @@ func TestSessionDriverRedisWithoutItsConnectorStopsTheBoot(t *testing.T) {
 
 	err := boot(t, map[string]string{"SESSION_DRIVER": "redis", "REDIS_URL": "redis://127.0.0.1:6379"})
 	assertRefused(t, err, notLinked("SESSION_DRIVER", "redis", "none", "github.com/arandu-io/hesape/redis"))
+}
+
+// TestQueueConnectionRedisWithoutItsConnectorStopsTheBoot.
+//
+// The setting used to be accepted and ignored, and the queue was the table
+// whatever it said. Ignoring it silently was the defect; refusing it without
+// the import is what honouring it means in a binary that does not carry the
+// client.
+func TestQueueConnectionRedisWithoutItsConnectorStopsTheBoot(t *testing.T) {
+	if queue.Linked("QUEUE_CONNECTION", "redis") == nil {
+		t.Skip("this binary links the RESP queue connector, so there is no missing import to report")
+	}
+
+	err := boot(t, map[string]string{"QUEUE_CONNECTION": "redis", "REDIS_URL": "redis://127.0.0.1:6379"})
+	assertRefused(t, err, notLinked("QUEUE_CONNECTION", "redis", "none", "github.com/arandu-io/hesape/queue/connectors/redis"))
 }
 
 // TestDatabaseURLPostgresWithoutItsConnectorStopsTheBoot.

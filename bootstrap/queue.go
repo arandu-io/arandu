@@ -10,6 +10,8 @@ import (
 	"github.com/arandu-io/hesape/queue"
 	qconsole "github.com/arandu-io/hesape/queue/console"
 	"github.com/arandu-io/hesape/queue/failed"
+
+	appconfig "github.com/arandu-io/arandu/config"
 )
 
 // The queue commands are the component's, not this file's.
@@ -21,13 +23,6 @@ import (
 // commands a second time -- the same move the migration commands made.
 //
 // None of them runs at boot, and none is reachable from the start-up path.
-
-// queueConnection is the name this application's one queue is registered under.
-//
-// It is the name the component's database driver already answers to, so
-// `aru queue:pause database:default` names the connection the worker drains and
-// not a second spelling of it.
-const queueConnection = "database"
 
 // queueDeps are the queue's collaborators, built once.
 //
@@ -43,8 +38,13 @@ type queueDeps struct {
 }
 
 // newQueueDeps wires them against this application's database and cache.
-func newQueueDeps(app App, db *data.DB) queueDeps {
-	manager := queue.NewQueueManager().Extend(queueConnection, app.Queue)
+//
+// The one queue is registered under the value QUEUE_CONNECTION holds, which is
+// also the name the component's drivers answer to -- so `aru queue:pause
+// database:default`, or `redis:default`, names the connection the worker
+// drains and not a second spelling of it.
+func newQueueDeps(cfg appconfig.Queue, app App, db *data.DB) queueDeps {
+	manager := queue.NewQueueManager().Extend(string(cfg.Connection), app.Queue)
 
 	// The pause flag and the restart signal are written to the cache, and the
 	// worker is another process reading it -- so the store has to be one both

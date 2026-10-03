@@ -44,6 +44,7 @@ require (
 //
 //	go get github.com/arandu-io/hesape/database/connectors/pgx     Postgres
 //	go get github.com/arandu-io/hesape/redis                       CACHE_STORE and SESSION_DRIVER over RESP
+//	go get github.com/arandu-io/hesape/queue/connectors/redis      QUEUE_CONNECTION over RESP
 //
 // So a driver nobody uses is not in the build, in go.sum or in the
 // vulnerability surface, which is what ADR 0014 bought; and a setting that

@@ -96,6 +96,10 @@ import (
 	//	    go get github.com/arandu-io/hesape/redis
 	//	    _ "github.com/arandu-io/hesape/redis"
 	//
+	//	the same server, for QUEUE_CONNECTION=redis
+	//	    go get github.com/arandu-io/hesape/queue/connectors/redis
+	//	    _ "github.com/arandu-io/hesape/queue/connectors/redis"
+	//
 	// MySQL is github.com/arandu-io/hesape/database/connectors/mysql, the same
 	// way. A setting that names an engine this binary does not link stops the
 	// boot and prints both lines, so the environment cannot ask for a driver the
@@ -142,8 +146,10 @@ type App struct {
 	// of its own would pass over an application that wires none, and an
 	// application that wires none writes rows nothing ever reads.
 	Relay *events.Relay
-	// Queue is the job store `aru queue:work` drains.
-	Queue *queue.DatabaseQueue
+	// Queue is the job store `aru queue:work` drains: the table in the
+	// application's own database, or the RESP queue when QUEUE_CONNECTION
+	// names it.
+	Queue queue.Queue
 	// Mail is what sends. It is returned as well as used, because a job that
 	// sends is built outside this function and reaching back in for the mailer
 	// later is the hidden coupling the explicit wiring exists to avoid.
@@ -226,11 +232,11 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 		return App{}, fmt.Errorf("bootstrap: build email code store: %w", err)
 	}
 
-	// The queue over the application's own database, which is what makes a job
-	// commitable by the same transaction as the row it is about. For volume
-	// beyond a table, github.com/arandu-io/hesape/queue/connectors/redis is the
-	// same contract over RESP -- same Worker, same handlers, one line here.
-	queueStore := queue.NewDatabaseQueue(db)
+	// The queue QUEUE_CONNECTION named. See openQueue.
+	queueStore, err := openQueue(cfg, db)
+	if err != nil {
+		return App{}, err
+	}
 
 	// The relay that empties the outbox, and the listener it hands events to.
 	//
@@ -486,6 +492,49 @@ func requireSharedStoreConnector(cfg appconfig.Config) error {
 		}
 	}
 	return nil
+}
+
+// openQueue builds the queue QUEUE_CONNECTION named.
+//
+// The database one keeps its jobs in a table of the application's own
+// database, which is what makes a job commitable by the same transaction as the
+// row it is about, and it needs nothing installed. The RESP one is for volume
+// beyond a table: the same queue.Queue contract, so the worker, the handlers and
+// every queue command are the ones the database queue has.
+//
+// The RESP queue is a connector of its own, linked by a blank import, and the
+// setting naming it without the import stops the boot with the two lines that
+// add it. It is opened over the endpoint the shared cache store is, because it
+// is the same server described by the same settings -- and opening dials
+// nothing, so a binary that only migrates never reaches it.
+//
+// The setting was accepted and then ignored before this function existed:
+// every binary queued over the table whatever QUEUE_CONNECTION said, and a
+// deployment that asked for RESP got a table nobody had planned for.
+func openQueue(cfg appconfig.Config, db *data.DB) (queue.Queue, error) {
+	switch cfg.Queue.Connection {
+	case appconfig.QueueDatabase:
+		return queue.NewDatabaseQueue(db), nil
+
+	case appconfig.QueueRedis:
+		driver := string(appconfig.QueueRedis)
+		if err := queue.Linked("QUEUE_CONNECTION", driver); err != nil {
+			return nil, err
+		}
+		endpoint, err := respEndpoint(cfg.Cache)
+		if err != nil {
+			return nil, err
+		}
+		return queue.Open(driver, endpoint)
+
+	default:
+		// Unreachable through Load, which refuses the value first. It is here
+		// for the reason sessionBackend has its default: a configuration built
+		// in Go skips that check, and a connection nobody recognises must not
+		// fall through to a queue nobody asked for.
+		return nil, fmt.Errorf("QUEUE_CONNECTION has unsupported value %q; expected %s or %s",
+			cfg.Queue.Connection, appconfig.QueueDatabase, appconfig.QueueRedis)
+	}
 }
 
 // The names this application's cache stores are known by, and the driver the

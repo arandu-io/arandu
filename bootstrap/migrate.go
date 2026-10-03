@@ -220,7 +220,7 @@ func migrationCommands(cfg appconfig.Config, db *data.DB, app App) []console.Com
 	// which asks its driver, and the failed jobs and batches tables belong to a
 	// provider and a repository this application wires by hand. Without them
 	// `aru queue:failed` is dispatched and answers that there is no such table.
-	moduleMigrations := append(app.Kernel.Migrations(), newQueueDeps(app, db).migrations()...)
+	moduleMigrations := append(app.Kernel.Migrations(), newQueueDeps(cfg.Queue, app, db).migrations()...)
 
 	return dbmigrations.Commands(dbmigrations.Deps{
 		Migrator:      newMigrator(db, moduleMigrations),
