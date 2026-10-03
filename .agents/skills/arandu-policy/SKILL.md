@@ -7,12 +7,12 @@ license: MIT
 # Authorization, and why it will not compile without it
 
 `security.Grant` has only unexported fields. Nothing outside the package that
-defines it can build one. Every read and write through a Model takes one — the
-query terminals `First`, `Get`, `Value` and the entity's `Save` and `Delete`
-all ask for it:
+defines it can build one. Every read and write through a Model takes one: the
+terminals of the generated query — `First`, `Get`, `Value` — and the entity's
+`Save` and `Delete` all ask for it:
 
 ```go
-found, err := models.Invoices(s.db).NewQuery().WhereKey(id).First(ctx, g) // no Grant, no compile
+found, err := models.Invoices(s.db).WhereKey(id).First(ctx, g) // no Grant, no compile
 ```
 
 and the tenant is read off it with `data.Tenant(g)` — never from the path, the

@@ -17,7 +17,8 @@ what the specification can say goes between the `// arandu:begin custom` and
 
 | file | what it holds |
 | --- | --- |
-| `app/Models/Note.go` | the entity and its Hesape Model entry point |
+| `app/Models/Note.go` | the entity and its table, with custom blocks for settings and local scopes |
+| `app/Models/NoteQuery.go` | `Notes`, the typed query and the collection, written by `aru model:build` and never by hand |
 | `app/Policies/NotePolicy.go` | who may do what, and the only thing that issues a Grant |
 | `app/Services/NoteService.go` | the domain and the only consumer of the Model entry point |
 | `app/Http/Controllers/NoteController.go` | the actions the routes dispatch to |
@@ -48,8 +49,8 @@ if err != nil {
 record, err := models.Notes(db).FindOrFail(ctx, g, id)
 ```
 
-Every Builder terminal takes `security.Grant`, and nothing outside the security
-package can build one. The Service owns the database handle, authorizes first,
+Every terminal of `NoteQuery` takes `security.Grant`, and nothing outside the
+security package can build one. The Service owns the database handle, authorizes first,
 and then spends that Grant on the Model. A Controller has neither dependency and
 cannot grow a second persistence path.
 

@@ -7,9 +7,10 @@ license: MIT
 # Adding a module to an Arandu application
 
 You do not write the Go. You write a specification and a deterministic generator
-writes the model (the entity and its `Model` constructor, whose query terminals
-take a Grant), the policy, the service, the request, the controller, the
-migration, the screens and the tests. It writes no repository and no routes: the
+writes the model (the entity, which embeds `model.Model`, and its table, with
+the typed query `aru model:build` generates beside them, whose terminals take a
+Grant), the policy, the service, the request, the controller, the migration,
+the screens and the tests. It writes no repository and no routes: the
 route lines and the wiring are **printed** for you to paste.
 
 This is not a preference. A new framework is in nobody's training set, so a
@@ -21,12 +22,14 @@ instead of becoming Go that does not compile.
 ## The reference
 
 The project ships one module built this way, **notes**, and it is the shape to
-copy when in doubt: `app/Models/Note.go`, `app/Policies/NotePolicy.go`,
+copy when in doubt: `app/Models/Note.go` (with `app/Models/NoteQuery.go`, which
+`aru model:build` writes beside it), `app/Policies/NotePolicy.go`,
 `app/Services/NoteService.go`, `app/Http/Controllers/NoteController.go`,
 `app/Http/Requests/NoteRequest.go`, `resources/views/notes/`,
 `database/factories/NoteFactory.go`, `database/seeders/NoteSeeder.go` and
-`tests/Feature/Notes_test.go`. It is marked as an example in every file, and
-README.md lists what to delete when the project no longer wants it.
+`tests/Feature/Notes_test.go`. It is marked as an example in every file but the
+generated one, and README.md lists what to delete when the project no longer
+wants it.
 
 What it shows that the generator alone does not: an ownership rule in the
 policy's custom block, the author set in the service from the subject and never
@@ -143,6 +146,78 @@ the generator preserves:
 
 Do not widen the specification to fit one case. That is how a schema becomes a
 language.
+
+## The model, and the file beside it nobody edits
+
+An entity is a struct that embeds `model.Model`, and its table is declared once,
+beside it:
+
+```go
+type Invoice struct {
+	model.Model
+
+	ID        string    `db:"id"`
+	TenantID  string    `db:"tenant_id"`
+	Reference string    `db:"reference"`
+	Total     int64     `db:"total"`
+	SentAt    time.Time `db:"sent_at"`
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
+}
+
+var invoiceTable = model.NewTable(model.TableSpec{
+	Name:      "invoices",
+	New:       func() model.Entity { return new(Invoice) },
+	UniqueIDs: true,
+	// arandu:begin custom
+	// arandu:end custom
+})
+```
+
+`aru model:build` reads the two and writes `app/Models/InvoiceQuery.go`: the
+constructor `Invoices(db)`, the typed query `InvoiceQuery` and the collection
+`InvoiceCollection`, each method a forward of a line or two with no type
+parameter. It re-renders `database/factories/InvoiceFactory.go` too, outside its
+custom block. Run it after changing an entity — `aru dev` and `aru build` run it
+first, and `aru doctor` reports a file that is behind as `model-query-stale` —
+and never edit the generated file. Everything else reaches the table through it:
+
+```go
+large, err := models.Invoices(db).Where("total", ">=", 100_000).Latest().Get(ctx, g)
+found, err := models.Invoices(db).FindOrFail(ctx, g, id)
+record, err := models.Invoices(db).New() // an empty row on the connection, to fill and Save(ctx, g)
+```
+
+A row from a query carries its connection. A struct literal has none, and its
+`Save` returns `model.ErrUnwired` — so set the fields of a row one by one rather
+than assigning a whole struct over it.
+
+What the generated query does not say is written in the entity's file:
+
+- **Table settings** — `Hidden`, `PerPage`, `SoftDeletes`, `Scopes`, `Events` and
+  the rest of `model.TableSpec` — go in the custom block inside the spec.
+- **A local scope** is a method on `*InvoiceQuery` in the file's custom block:
+
+  ```go
+  // Large narrows the query to invoices of 1,000.00 or more: the column holds cents.
+  func (q *InvoiceQuery) Large() *InvoiceQuery { return q.Where("total", ">=", 100_000) }
+  ```
+
+- **A relation** is registered on the table in an `init` function. Two table
+  variables that named each other in their initializers would be an
+  initialization cycle:
+
+  ```go
+  func init() {
+  	invoiceTable.Relate("lines", func(i *model.Model) model.Relation {
+  		return model.HasMany(i, invoiceLineTable, "invoice_id", "id")
+  	})
+  }
+  ```
+
+The model core itself — `model.NewTable`, a method called on a `*model.Builder`
+or on what `Base()` returns — stays in `app/Models`. Anywhere else it hands back
+untyped rows, and `aru doctor` reports it as `model-core-outside-models`.
 
 ## What the generated code guarantees, and you must not undo
 

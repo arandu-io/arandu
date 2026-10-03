@@ -68,6 +68,20 @@ zero.
 **`retired-module`** — an import names a module that no longer exists. The line
 says what replaced it.
 
+**`model-query-stale`** — a `<Entity>Query.go`, or a factory `aru model:build`
+renders, is missing, behind its entity, or left over from one that is gone. A
+build compiles what is on disk, so the application would run against the query
+of an entity that is not the one in the source. Run `aru model:build`; in a
+pipeline that calls `go build` directly, `aru model:build --check` asks the same
+question.
+
+**`model-core-outside-models`** — the model core is used outside `app/Models`: a
+`model.NewTable`, or a method called on a `*model.Builder` or on what `Base()`
+returns. The core hands back untyped rows, and a query written on it is a second
+way to reach the table, one the generated query does not describe. Call the
+generated constructor, `models.Notes(db)`, or write the query as a method on
+`*NoteQuery` in the custom block of the entity's file.
+
 Three more checks run only under `--profile=performance`:
 `profile-not-declared`, `join-across-aggregates` and
 `transaction-across-aggregates`. What they report is correct code on the
