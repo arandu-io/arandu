@@ -18,6 +18,8 @@ names the situation you are in rather than the topic it covers.
 | `arandu-policy` | writing authorization, or a repository call that will not compile |
 | `arandu-view` | writing a page, a layout or a fragment |
 | `arandu-doctor` | `aru doctor` reported something, or a change is about to be called finished |
+| `arandu-ecosystem` | a feature touches permissions, organizations, balances or credits, tags, Markdown or API docs — before a new table or package |
+| `notes` | changing or removing the example `notes` resource |
 
 ## Why these exist
 
@@ -30,7 +32,7 @@ maps to.
 The rest of the answer is that the project is built to be checked rather than
 trusted: `aru schema` prints the schema a specification is written against,
 `aru generate --check` validates before anything is written, and `aru doctor`
-reports twenty-nine findings that each name a file, a line and what breaks. An
+reports findings that each name a file, a line and what breaks. An
 assistant that uses those is not guessing.
 
 ## Adding your own
