@@ -25,7 +25,9 @@ const DefaultTenant = "00000000-0000-4000-8000-000000000001"
 // day either read grew a rule the other had not. One variable, one reader.
 type Auth struct {
 	// Tenant is the tenant every login belongs to. A multi-tenant deployment
-	// resolves it from the host name instead; see services.TenantResolver.
+	// resolves it per request instead: the sign-in screens `ui auth` publishes
+	// take an authui.TenantResolver, in app/Http/Controllers/Auth, and are
+	// handed authui.FixedTenant(Tenant) until something else is written.
 	Tenant string
 
 	// PasswordMinLength is the shortest password accepted at registration.
