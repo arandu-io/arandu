@@ -77,6 +77,9 @@ drawn outside the middleware that protects forms is the only one that needs
 3. `go build ./...` — it names the line if the Go is wrong.
 4. `aru doctor` — it names the line if the escaping is wrong.
 
+That is the loop while writing. Before calling it finished, run the gates, all
+of them, as `AGENTS.md` lists them.
+
 ## Directives
 
 `@extends` `@section`/`@endsection` `@yield` `@if`/`@elseif`/`@else`/`@endif`

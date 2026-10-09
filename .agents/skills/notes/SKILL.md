@@ -103,7 +103,15 @@ scoped by the Grant's tenant; another member's note is found and refused (403).
 
 ## Before calling a change finished
 
+The gates, all of them, as `AGENTS.md` lists them:
+
 ```sh
 export GOWORK=off
-aru view:build && go build ./... && go vet ./... && go test -race ./... && aru doctor
+aru model:build
+aru view:build
+gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
+go build ./...
+go vet ./...
+go test -race ./...
+aru doctor
 ```

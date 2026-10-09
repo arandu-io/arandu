@@ -112,11 +112,17 @@ the queries and added it. The generator edits none of these files, on purpose:
 a generator that changes the wiring behind you is a generator whose output
 nobody can explain.
 
-**6. Run the gates.**
+**6. Run the gates**, all of them, as `AGENTS.md` lists them:
 
 ```sh
 export GOWORK=off
-aru view:build && go build ./... && go vet ./... && go test -race ./... && aru doctor
+aru model:build
+aru view:build
+gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
+go build ./...
+go vet ./...
+go test -race ./...
+aru doctor
 ```
 
 ## The two closed sets

@@ -135,8 +135,19 @@ documents, and stays disabled unless `Config.Enabled` is true.
 
 ## 7. Before calling it finished
 
-- The gates in `AGENTS.md`, all of them: `aru model:build`, `aru view:build`,
-  `gofmt`, `go build`, `go vet`, `go test -race`, `aru doctor`.
+- The gates, all of them, as `AGENTS.md` lists them:
+
+  ```sh
+  export GOWORK=off
+  aru model:build
+  aru view:build
+  gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
+  go build ./...
+  go vet ./...
+  go test -race ./...
+  aru doctor
+  ```
+
 - `aru doctor` has no `driver-not-linked`, `model-core-outside-models` or
   `model-query-stale` finding.
 - A tenant-isolation test for every new table, read and write, in the shape of
