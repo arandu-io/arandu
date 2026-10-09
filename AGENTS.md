@@ -4,8 +4,11 @@ This is an Arandu application. Arandu is a Go framework where the architecture
 is enforced by the compiler rather than by convention, so the fastest way to be
 wrong here is to write what another framework would want.
 
-Read `.agents/skills/` before writing code. Each skill is a procedure, and the
-one you need is named by the situation you are in.
+Read `.agents/skills/` before writing code. Start with `arandu-feature`: it
+classifies the change, walks the two tables below and names the family skill
+of each step -- `arandu-module`, `arandu-http`, `arandu-api`, `arandu-view`,
+`arandu-async`, `arandu-integrations`, `arandu-policy`, `arandu-doctor` and
+`arandu-ecosystem`.
 
 ## Feature anatomy
 
@@ -13,30 +16,43 @@ The order a feature is built and checked in. It is not the order a request runs
 through, and not every feature has every step: a task with no table gets no
 migration, an API with no screen gets no view.
 
-A generator marked **proposed** does not exist in `aru` v0.64.0, the version
-the Dockerfile builds with. Write that file by hand, in the shape of the
-example beside it.
+Every generator below exists in `aru` v0.64.0, the version the Dockerfile
+builds with, and prints its wiring instead of editing `bootstrap/app.go` or
+`routes/web.go`. The example column is the `notes` resource, which has every
+step; `.agents/skills/notes` says which command wrote each file.
 
 | # | step | file | generator | example in this repository |
 | --- | --- | --- | --- | --- |
 | 1 | specification, when there is one | `database/specs/<entity>.yaml` | `aru schema`, `aru generate` | none: notes was generated from flags |
-| 2 | migration | `database/migrations/<id>.go` | `aru make:migration`, `aru make:model -m` | `database/migrations/2026_10_01_000001_create_notes_table.go` |
-| 3 | model, its query and the entity's rules | `app/Models/<Entity>.go`, and `<Entity>Query.go` beside it | `aru make:model`, `aru model:build` | `app/Models/Note.go` |
+| 2 | migration | `database/migrations/<id>.go` | `aru make:migration`, `aru make:model -m` | `database/migrations/2026_10_01_000001_create_notes_table.go`, `database/migrations/2026_10_09_000002_add_published_at_to_notes.go` |
+| 3 | model, its query and the entity's rules | `app/Models/<Entity>.go`, and `<Entity>Query.go` beside it | `aru make:model`, `aru model:build` | `app/Models/Note.go`, with the `Publish` transition |
 | 4 | factory and seeder | `database/factories/`, `database/seeders/` | `aru make:factory`, `aru make:seeder` | `database/factories/NoteFactory.go`, `database/seeders/NoteSeeder.go` |
 | 5 | policy | `app/Policies/<Entity>Policy.go` | `aru make:policy` | `app/Policies/NotePolicy.go` |
 | 6 | request | `app/Http/Requests/<Entity>Request.go` | `aru make:request` | `app/Http/Requests/NoteRequest.go` |
-| 7 | service | `app/Services/<Entity>Service.go` | `aru make:module`; `make:service` proposed | `app/Services/NoteService.go` |
-| 8 | controller | `app/Http/Controllers/<Entity>Controller.go` | `aru make:controller --resource` or `--invokable` | `app/Http/Controllers/NoteController.go` |
-| 9 | routes and their guard | `routes/web.go` | printed by `aru make:module`, pasted by you | the notes line in the custom block of `routes/web.go` |
-| 10 | page, fragment, component or JSON resource | `resources/views/**/*.kyse.go`, `app/Http/Resources/` | `aru make:module` writes the pages; `make:resource` proposed | `resources/views/notes/`, `resources/views/partials/notes_table.kyse.go` |
-| 11 | tests and wiring | `tests/Feature`, `tests/Unit`, `bootstrap/app.go` | `aru make:test`; a tenant test proposed | `tests/Feature/Notes_test.go`, `tests/Feature/TenantScope_test.go` |
+| 7 | service | `app/Services/<Entity>Service.go` | `aru make:module`, `aru make:service` | `app/Services/NoteService.go` |
+| 8 | controller | `app/Http/Controllers/<Entity>Controller.go` | `aru make:controller` with `--resource`, `--singleton`, `--invokable`, `--parent`, `--action` | `app/Http/Controllers/NoteController.go` (`Publish` is `--action=publish`), `app/Http/Controllers/CommentController.go` (`--parent=notes`) |
+| 9 | routes and their guard | `routes/web.go` | printed by the generators, pasted by you | the notes group in the custom block of `routes/web.go` |
+| 10 | page, fragment, component or JSON Resource | `resources/views/**/*.kyse.go`, `app/Http/Resources/` | `aru make:module` writes the pages; `aru make:resource` | `resources/views/notes/`, `resources/views/partials/notes_table.kyse.go`, `app/Http/Resources/NoteResource.go` |
+| 11 | tests and wiring | `tests/Feature`, `tests/Unit`, `bootstrap/app.go` | `aru make:test`; `aru make:module --tenant` writes the tenant test | `tests/Feature/Notes_test.go`, `tests/Feature/CommentTenantScope_test.go`, `tests/Feature/TenantScope_test.go` |
 
 `aru make:module <name> --fields "..." --tenant` writes the migration, the
-model and its query, the policy, the request, the service, the controller, the
-pages and the tests in one go, and prints the lines of step 9 and of
-`bootstrap/app.go` instead of editing them. `aru model:build` rewrites the
-query whenever the entity changes; the factory and the seeder have commands of
-their own.
+model and its query, the factory, the seeder, the policy, the request, the
+service, the controller, the pages and the tests in one go, and prints the
+lines of step 9 and of `bootstrap/app.go` instead of editing them; with
+`--parent=<resource>` it nests the module under another. `aru model:build`
+rewrites the query whenever the entity changes.
+
+Beyond the eleven steps, each in the example:
+
+| what | generator | example |
+| --- | --- | --- |
+| a domain event, stored by the write | `aru make:event` | `app/Events/NotePublished.go`, stored by `NoteService.Publish` |
+| a listener, run by the relay | `aru make:listener` | `app/Listeners/NotifyNoteAuthor.go`, in `listeners.Each` in `bootstrap/app.go` |
+| a notification | `aru make:notification` | `app/Notifications/NotePublished.go`, over the database channel |
+| a job and its schedule | `aru make:job` | `app/Jobs/SendNotesDigest.go`, scheduled in `app/Providers/AppServiceProvider.go` |
+| an external client and its fake | `aru make:client` | `app/Clients/NewsletterClient.go`, `app/Clients/NewsletterFake.go` |
+| a tool, resource or prompt of an MCP server | `aru make:mcp-tool`, `aru make:mcp-resource`, `aru make:mcp-prompt` | none: this project does not require the mcp module |
+| a console command | `aru make:command` | none |
 
 ## Where each kind of code lives
 
@@ -49,18 +65,19 @@ their own.
 | authorization | `app/Policies`, asked through `auth.Authorize` | the service | be skipped on a read |
 | a use case | `app/Services`, one service per aggregate | a controller, a job, a listener, a command | take an HTTP type, live in a subpackage, run a worker of its own |
 | a complex query, a report, a read model | `app/Repositories` | the service | exist for plain CRUD |
-| a client of an external system | `app/Clients/<Vendor>Client.go`, with its interface and a fake (no client exists yet) | a service, a job, a listener | reach a model, a Grant or the session |
+| a client of an external system | `app/Clients/<Vendor>Client.go`, with its interface and a fake | a service, a job, a listener | reach a model, a Grant or the session |
 | an engine that wraps another technology, a client another project would reuse | a `github.com/hyz-is/arandu-*` module | a service, a job | live in `app/Services` |
 | background work, a loop, a retry | `app/Jobs`, run by the worker or the scheduler | a service, the scheduler, a listener | be a goroutine started in a constructor or in `Boot` |
-| a reaction to something that happened | `app/Listeners`, through the outbox | the outbox | call a controller |
+| a reaction to something that happened | `app/Listeners`, through the outbox, listed in `listeners.Each` | the relay | call a controller |
+| telling a person something | `app/Notifications`, sent through the `Notifier` `bootstrap/app.go` builds | a listener, a service | write its own row or send mail by hand |
 | a closed set of values | `app/Enums` (`aru make:enum`) | anything | — |
 | a console command | `app/Console/Commands` (`aru make:command`), registered in `routes/console.go` | the console | put its logic in `bootstrap/` |
-| a JSON answer about the domain | a `JsonResource`, in `app/Http/Resources` (none exists yet) | a controller, with `ctx.JSON` | `json.NewEncoder` on the ResponseWriter |
+| a JSON answer about the domain | a `JsonResource`, in `app/Http/Resources` | a controller, with `ctx.JSON` | `json.NewEncoder` on the ResponseWriter |
 | an API error | a problem document, written by the router | the router | a format of its own |
 | a rejected form | the `validation.Errors` the service returns; the router answers it | the router | a 422 written by a controller |
 | a page | a view with `@extends('layouts.app')` and a struct that embeds `view.Page` | a controller, with `ctx.View` | take a map as its data |
 | an htmx fragment | `resources/views/partials/`, included by its page with `@include` | a controller, with `ctx.Fragment`, for the request whose `HX-Target` names it | depend on `HX-Boosted` |
-| a tool, resource or prompt for an assistant | `app/Mcp/` (proposed) | the MCP server mounted in `routes/web.go` | reach a model or a client |
+| a tool, resource or prompt for an assistant | `app/Mcp/` | the MCP server mounted in `routes/web.go` | reach a model or a client |
 | a helper | the package functions of `github.com/arandu-io/hesape` | anything | be written again here |
 | CPF, CNPJ, BRL | the `github.com/hyz-is/arandu-br` module | a request, a view | be written again here |
 
