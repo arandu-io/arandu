@@ -38,6 +38,8 @@ import (
 	"github.com/arandu-io/hesape/geo"
 	hhttp "github.com/arandu-io/hesape/http"
 	httpmiddleware "github.com/arandu-io/hesape/http/middleware"
+	hnotifications "github.com/arandu-io/hesape/notifications"
+	"github.com/arandu-io/hesape/notifications/channels"
 	"github.com/arandu-io/hesape/onetime"
 	"github.com/arandu-io/hesape/queue"
 	hmiddleware "github.com/arandu-io/hesape/routing/middleware"
@@ -162,6 +164,9 @@ type App struct {
 	// sends is built outside this function and reaching back in for the mailer
 	// later is the hidden coupling the explicit wiring exists to avoid.
 	Mail *mail.Mailer
+	// Notifier is what tells somebody something: a notification, sent over the
+	// channels built for it below. It is returned for the reason Mail is.
+	Notifier *hnotifications.Notifier
 	// Cache is the store every replica sees, and nil when no setting resolved
 	// one.
 	//
@@ -246,7 +251,19 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 		return App{}, err
 	}
 
-	// The relay that empties the outbox, and the listener it hands events to.
+	// The notifier, and the channels this application tells people through.
+	//
+	// One channel: the database, which stores the row a bell menu draws from,
+	// in the notifications table database/migrations registers. There is no
+	// mail channel here: a notification that names mail needs a
+	// channels.Mailer, and none is built over the mailer below yet. A
+	// notification sent through a channel that is not in this list is refused
+	// with notifications.ErrNoChannel rather than dropped.
+	notifier := hnotifications.New([]hnotifications.Channel{
+		channels.NewDatabase(hnotifications.NewTableStore(db)),
+	})
+
+	// The relay that empties the outbox, and the listeners it hands events to.
 	//
 	// events.NewModule() brings the table and publishes nothing, which is a
 	// coherent state -- storing is what cannot be recovered later, publishing can
@@ -276,7 +293,16 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	// publisher has to tolerate the repeat regardless -- delivery is at-least-once
 	// by design, so a mark that fails after a successful publish sends the event
 	// again.
-	relay := events.NewRelay(events.NewOutbox(db), listeners.NewEventLog(), events.RelayOptions{Locker: locker})
+	//
+	// The relay takes one Publisher, and listeners.Each is the list of them,
+	// in order: every committed event goes to each.
+	relay := events.NewRelay(events.NewOutbox(db), listeners.Each{
+		listeners.NewEventLog(),
+		// The example resource's listener: the author of a published note is
+		// told in the bell menu. Remove it with the list under "The example
+		// resource" in README.md.
+		listeners.NewNotifyNoteAuthor(notifier),
+	}, events.RelayOptions{Locker: locker})
 
 	// A module that calls another service takes log.Client, not one of
 	// its own:
@@ -481,7 +507,7 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	return App{
 		Kernel: k, DB: db, Users: userService, TwoFactor: twoFactorService,
 		EmailCodes: emailCodes, Sessions: sessions, Scheduler: sched,
-		Relay: relay, Queue: queueStore, Mail: mailer, Cache: stores.SharedStore(),
+		Relay: relay, Queue: queueStore, Mail: mailer, Notifier: notifier, Cache: stores.SharedStore(),
 	}, nil
 }
 

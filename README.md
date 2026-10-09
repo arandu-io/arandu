@@ -90,10 +90,12 @@ app/Http/Controllers/NoteController.go
 app/Http/Requests/CommentRequest.go
 app/Http/Requests/NoteRequest.go
 app/Http/Resources/NoteResource.go
+app/Listeners/NotifyNoteAuthor.go
 app/Models/Comment.go
 app/Models/CommentQuery.go        (generated; aru model:build also removes it once Comment.go is gone)
 app/Models/Note.go
 app/Models/NoteQuery.go           (generated; aru model:build also removes it once Note.go is gone)
+app/Notifications/NotePublished.go
 app/Policies/CommentPolicy.go
 app/Policies/NotePolicy.go
 app/Services/CommentService.go
@@ -115,6 +117,7 @@ tests/Feature/Comments_test.go
 tests/Feature/Notes_test.go
 tests/Unit/Comment_test.go
 tests/Unit/Note_test.go
+tests/Unit/NotePublishedNotification_test.go
 tests/Unit/NoteResource_test.go
 ```
 
@@ -127,6 +130,7 @@ routes/web.go                       notes := r.Group("", middleware.RequireAuth(
 bootstrap/app.go                    notes := services.NewNoteService(db)
 bootstrap/app.go                    Note:    controllers.NewNoteController(notes),
 bootstrap/app.go                    Comment: controllers.NewCommentController(services.NewCommentService(db, notes)),
+bootstrap/app.go                    listeners.NewNotifyNoteAuthor(notifier),
 bootstrap/app.go                    _ ".../storage/framework/views/partials"   (once no other partial is left)
 database/seeders/seeders.go         NoteSeeder{},
 database/seeders/DatabaseSeeder.go  return NoteSeeder{}.Run(ctx, d)   (becomes: return nil)

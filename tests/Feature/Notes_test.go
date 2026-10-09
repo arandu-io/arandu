@@ -13,9 +13,11 @@ import (
 	"github.com/arandu-io/hesape/arandutest"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/events"
+	hnotifications "github.com/arandu-io/hesape/notifications"
 
 	appevents "github.com/arandu-io/arandu/app/Events"
 	models "github.com/arandu-io/arandu/app/Models"
+	notifications "github.com/arandu-io/arandu/app/Notifications"
 	policies "github.com/arandu-io/arandu/app/Policies"
 	"github.com/arandu-io/arandu/bootstrap"
 	factories "github.com/arandu-io/arandu/database/factories"
@@ -578,5 +580,58 @@ func TestAJSONClientIsRefusedWithProblemDocuments(t *testing.T) {
 		if problem.Status != refused.status || problem.Title == "" {
 			t.Errorf("%s: problem = %+v, want status %d with a title", refused.kind, problem, refused.status)
 		}
+	}
+}
+
+// account is a recipient by id, the way the bell menu of a signed-in account
+// is read back.
+type account string
+
+func (a account) NotifiableID() string                     { return string(a) }
+func (account) NotifiableType() string                     { return "user" }
+func (account) RouteFor(hnotifications.ChannelName) string { return "" }
+
+// TestTheAuthorOfAPublishedNoteIsToldThroughTheOutbox: the publication stores
+// its event and tells nobody; the application's relay hands the committed
+// event to its listeners, and NotifyNoteAuthor stores the row the author's
+// bell menu draws -- read back here as the author, under the notifications
+// policy.
+func TestTheAuthorOfAPublishedNoteIsToldThroughTheOutbox(t *testing.T) {
+	f := newNotesFixture(t)
+	address := f.write(t, f.ana, "Groceries")
+	fromPage(t, f.ana, address).Post(address+"/publish", nil).AssertStatus(http.StatusSeeOther)
+
+	ctx := context.Background()
+	store := hnotifications.NewTableStore(f.app.DB)
+	bell := func(who string) []hnotifications.Record {
+		t.Helper()
+		g, err := auth.Authorize(ctx, hnotifications.Policy{}, auth.Subject{ID: who, Tenant: bootstrap.Tenant()},
+			hnotifications.ActionList, hnotifications.Record{})
+		if err != nil {
+			t.Fatalf("authorizing the bell menu of %s: %v", who, err)
+		}
+		rows, err := store.For(ctx, g, account(who), 10)
+		if err != nil {
+			t.Fatalf("reading the bell menu of %s: %v", who, err)
+		}
+		return rows
+	}
+
+	if got := bell(f.anaID); len(got) != 0 {
+		t.Fatalf("the author was told before the relay ran: %v", got)
+	}
+	if err := f.app.Relay.Drain(ctx); err != nil {
+		t.Fatalf("Drain: %v", err)
+	}
+
+	rows := bell(f.anaID)
+	if len(rows) != 1 || rows[0].Key != notifications.NotePublishedKey {
+		t.Fatalf("the author's bell menu holds %v, want one %s", rows, notifications.NotePublishedKey)
+	}
+	if id := strings.TrimPrefix(address, "/notes/"); !strings.Contains(string(rows[0].Data), id) {
+		t.Errorf("the stored row %s does not name the note %s", rows[0].Data, id)
+	}
+	if got := bell(f.beaID); len(got) != 0 {
+		t.Errorf("another member was told about a note they did not write: %v", got)
 	}
 }
