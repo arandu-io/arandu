@@ -74,10 +74,20 @@ generator for it and opened by hand where the generator stops --
   a listener of the outbox (`aru make:listener`);
 - **a nightly digest**, a scheduled task that enqueues a job (`aru make:job`)
   which hands the published notes to a newsletter client (`aru make:client`) --
-  the fake in the tests, nothing at all when no `NEWSLETTER_API_URL` is set.
+  the fake in the tests, nothing at all when no `NEWSLETTER_API_URL` is set;
+- **an API for a program**, `POST /api/notes` and its publish, behind
+  `RequireToken` and `Idempotent` and answered by the same actions, for a
+  client holding one of the personal access tokens the application issues;
+- **a received webhook**, `POST /webhooks/newsletter`, where the newsletter
+  provider reports on a digest: the signature is verified with
+  `hesape/webhook` before anything else, the route is exempt from CSRF by
+  name in `bootstrap/app.go`, and it answers 404 until
+  `NEWSLETTER_WEBHOOK_SECRET` is set.
 
 `tests/Feature/Notes_test.go` and `tests/Feature/Comments_test.go` prove each
-path, including another tenant's note (404) and another member's (403).
+path, including another tenant's note (404) and another member's (403);
+`tests/Feature/NotesAPI_test.go` and `tests/Feature/NewsletterWebhook_test.go`
+prove the token client and the webhook.
 
 `aru migrate` creates the tables and `aru db:seed` writes six notes in
 development, by two accounts nobody can sign in as. To use it in a browser,
@@ -95,10 +105,13 @@ There is no command for it. Delete these files:
 .agents/skills/notes/SKILL.md
 app/Clients/NewsletterClient.go
 app/Clients/NewsletterFake.go
+app/Events/NewsletterEventReceived.go
 app/Events/NotePublished.go
 app/Http/Controllers/CommentController.go
+app/Http/Controllers/NewsletterWebhookController.go
 app/Http/Controllers/NoteController.go
 app/Http/Requests/CommentRequest.go
+app/Http/Requests/NewsletterEventRequest.go
 app/Http/Requests/NoteRequest.go
 app/Http/Resources/NoteResource.go
 app/Jobs/SendNotesDigest.go
@@ -111,6 +124,7 @@ app/Notifications/NotePublished.go
 app/Policies/CommentPolicy.go
 app/Policies/NotePolicy.go
 app/Services/CommentService.go
+app/Services/NewsletterEventService.go
 app/Services/NoteService.go
 database/factories/CommentFactory.go
 database/factories/NoteFactory.go
@@ -126,7 +140,9 @@ storage/framework/views/notes/    (the directory, compiled output)
 storage/framework/views/partials/notes_table.go   (compiled output)
 tests/Feature/CommentTenantScope_test.go
 tests/Feature/Comments_test.go
+tests/Feature/NewsletterWebhook_test.go
 tests/Feature/Notes_test.go
+tests/Feature/NotesAPI_test.go
 tests/Unit/Comment_test.go
 tests/Unit/NewsletterClient_test.go
 tests/Unit/Note_test.go
@@ -137,20 +153,22 @@ tests/Unit/NoteResource_test.go
 and these lines, each marked with a comment naming this section:
 
 ```text
-routes/web.go                        Note    *controllers.NoteController
-routes/web.go                        Comment *controllers.CommentController
+routes/web.go                        Note *controllers.NoteController, Comment and NewsletterWebhook in Deps
 routes/web.go                        notes := r.Group("", middleware.RequireAuth(d.Sessions)), and the three lines that use it
+routes/web.go                        api := r.Group("/api", middleware.RequireToken(d.Tokens)), and the two api.Action that use it
+routes/web.go                        r.Action("POST", "/webhooks/newsletter", ...)
 bootstrap/app.go                     Notes *services.NoteService, in App, and Notes: notes where Build returns App
 bootstrap/app.go                     listeners.NewNotifyNoteAuthor(notifier),
 bootstrap/app.go                     notes := services.NewNoteService(db).WithNewsletter(newsletter(cfg.Services.Newsletter))
 bootstrap/app.go                     Note:    controllers.NewNoteController(notes),
 bootstrap/app.go                     Comment: controllers.NewCommentController(services.NewCommentService(db, notes)),
+bootstrap/app.go                     NewsletterWebhook: controllers.NewNewsletterWebhookController(...), two lines
 bootstrap/app.go                     _ ".../storage/framework/views/partials"   (once no other partial is left)
 bootstrap/app.go                     func newsletter, at the end of the file
 bootstrap/background.go              w.Handle(appjobs.SendNotesDigestName, appjobs.NewSendNotesDigestHandler(app.Notes))
 app/Providers/AppServiceProvider.go  the notes.digest task in Schedule
-config/services.go                   Newsletter Credential, and its entry in loadServices
-.env.example                         NEWSLETTER_API_URL= and NEWSLETTER_TOKEN=
+config/services.go                   Newsletter and NewsletterWebhook Credential, and their entries in loadServices
+.env.example                         NEWSLETTER_API_URL=, NEWSLETTER_TOKEN= and NEWSLETTER_WEBHOOK_SECRET=
 database/seeders/seeders.go          NoteSeeder{},
 database/seeders/DatabaseSeeder.go   return NoteSeeder{}.Run(ctx, d)   (becomes: return nil)
 tests/Feature/TenantScope_test.go    "notes": "...", and "comments": "...",
@@ -158,7 +176,10 @@ tests/Feature/TenantScope_test.go    "notes": "...", and "comments": "...",
 
 then the imports the deletions leave unused, which `go build` names. What
 stays is the application's own: the notifier and its table, the listener list,
-the scheduler's tenants and the queue the provider schedules on.
+the scheduler's tenants, the queue the provider schedules on, the personal
+access tokens with their resolver and the idempotency store the routes are
+given, and the `CSRFExcept("/webhooks/")` a webhook of the application's own
+will need.
 
 A database that already ran the migrations keeps the tables: in development run
 `aru migrate:fresh` after deleting the files; anywhere else add a migration
@@ -171,7 +192,7 @@ repository missing its policy to a tenant read off the request instead of the
 build, a warning stays the to-do it is, and a new project is never red for code
 the generator wrote.
 
-12,831 lines of Go outside the tests and 11,800 in them, across 59 test files,
+14,012 lines of Go outside the tests and 12,334 in them, across 62 test files,
 the example resource included, counted with `wc -l` over the tracked `.go`
 files — small on purpose: it is what a project starts from, not what it grows
 into.
