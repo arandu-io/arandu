@@ -88,9 +88,12 @@ aru generate invoice.yaml
 The specification is saved beside the code it produced, in `database/specs/`,
 so regenerating reads it back. `aru make:module` is the same generator driven by
 flags instead of a file — `aru make:module invoice --fields
-"reference:string!,total:money" --tenant [--force]` — and writes the same tree;
-the flags have no way to say `permissions` or a description, so use the
-specification when the module needs either.
+"reference:string!,total:money" --tenant [--force]` — and writes the same tree
+but the specification: it keeps none in `database/specs/`, so there is nothing
+to regenerate from but the same flags. The flags also have no way to say
+`permissions` or a description, so use the specification when the module needs
+either. `--force` keeps the custom blocks and rewrites everything outside them,
+so an edit made there by hand is lost.
 
 **5. Wire it.** The generator prints three lines to paste: the controller field
 in `routes.Deps`, the routes behind the sign-in guard in the custom block of
