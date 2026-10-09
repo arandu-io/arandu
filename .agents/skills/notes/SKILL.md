@@ -1,119 +1,71 @@
 ---
 name: notes
-description: Work with the Note module of this Arandu application. Use when the request mentions notes, when a notes route is involved, or when reading or changing note records. Covers what the module exposes, which roles may take which action, and the rule that the Service authorizes before it reaches the Hesape Model.
+description: Work with the example resource of this Arandu application -- notes, the comments nested under them, publishing a note, the JSON answers, the notification its author gets, the nightly digest and the newsletter client. Use when the request mentions notes or comments, when a notes route is involved, or when reading the example to copy its shape. It maps each step of the feature anatomy to the file that shows it and the aru command that wrote it.
 license: MIT
 ---
 
 > Example resource. Remove with the list under "The example resource" in README.md.
 
-# The Note module
+# The example resource
 
-It is what `aru make:module note --fields "title:string!,body:text,pinned:bool"
---tenant` writes, plus edits made by hand. No specification of it is kept --
-there is no `database/specs/` here -- so there is nothing to generate it again
-from, and it is not regenerated. `--force` would keep what sits between the
-`// arandu:begin custom` and `// arandu:end custom` markers and drop every edit
-outside them: the `user_id` author column in `Note.go` and in the migration, the
-two lines of `NoteService.Create` that set it, the table moved into
-`resources/views/partials/` with the branch of `NoteController.Index` that
-answers it alone, and the example header of each file. The build would then
-stop at `Note.OwnedBy`, which the policy's ownership rule calls. Change these
-files directly.
+It is the anatomy of a feature, whole, in one module: each step of the table in
+`AGENTS.md` has a file here, written by the generator named beside it and
+finished by hand where the generator stops. Copy its shape; the family skills
+hold the rules.
 
-## What it is made of
+## What wrote what
 
-| file | what it holds |
-| --- | --- |
-| `app/Models/Note.go` | the entity and its table, with custom blocks for settings and local scopes |
-| `app/Models/NoteQuery.go` | `Notes`, the typed query and the collection, written by `aru model:build` and never by hand |
-| `app/Policies/NotePolicy.go` | who may do what: the rule `auth.Authorize` asks before it issues a Grant |
-| `app/Services/NoteService.go` | the domain, and the only caller of the Model entry point on a request's path |
-| `app/Http/Controllers/NoteController.go` | the actions the routes dispatch to |
-| `app/Http/Requests/NoteRequest.go` | the input contract of create and update, with its form tags. Authorization stays in the Policy |
-| `resources/views`, under the resource | the four screens, which share one row struct |
-| `resources/views/partials/notes_table.kyse.go` | the listing's table, which the index screen includes and `Index` also answers alone |
-| `tests/Unit/Note_test.go` | that reads authorize before the Model is queried |
+| step | file | written by | finished by hand |
+| --- | --- | --- | --- |
+| migration | `database/migrations/2026_10_01_000001_create_notes_table.go` | `aru make:module note --fields "title:string!,body:text,pinned:bool" --tenant` | the `user_id` author column |
+| a column added | `database/migrations/2026_10_09_000002_add_published_at_to_notes.go` | `aru make:migration add_published_at_to_notes --table=notes --fields "published_at:timestamp"` | nothing |
+| model and its rules | `app/Models/Note.go`, `app/Models/NoteQuery.go` | `aru make:module`, `aru model:build` | `OwnedBy`, `Published`, `Publish` and `ErrNoteAlreadyPublished` in the custom block |
+| factory and seeder | `database/factories/NoteFactory.go`, `database/seeders/NoteSeeder.go` | `aru make:factory Note`, `aru make:seeder Note` | notes by two authors nobody can sign in as |
+| policy | `app/Policies/NotePolicy.go` | `aru make:module` | the rules below, and `NotePublish` |
+| request | `app/Http/Requests/NoteRequest.go` | `aru make:module` | nothing |
+| service | `app/Services/NoteService.go` | `aru make:module` | the author from the subject, `Publish`, `SendDigest`, `WithNewsletter` |
+| controller | `app/Http/Controllers/NoteController.go` | `aru make:module`; `Publish` by `aru make:controller Note --resource --action=publish` | the table fragment, the JSON branches, the publish button's address |
+| routes | the custom block of `routes/web.go` | printed by each generator | one sign-in group for all three lines |
+| views | `resources/views/notes/`, `resources/views/partials/notes_table.kyse.go` | `aru make:module` | the table moved to a partial, the publish form |
+| JSON Resource | `app/Http/Resources/NoteResource.go` | `aru make:resource Note` | the next page's link |
+| event | `app/Events/NotePublished.go` | `aru make:event NotePublished --aggregate=note --event-name=note.published --fields "title:string,author:string"` | nothing |
+| listener | `app/Listeners/NotifyNoteAuthor.go` | `aru make:listener NotifyNoteAuthor --event=note.published` | decoding the payload and sending the notification |
+| notification | `app/Notifications/NotePublished.go` | `aru make:notification NotePublished --channels=database` | the note's id and title |
+| job and schedule | `app/Jobs/SendNotesDigest.go`, `AppServiceProvider.Schedule` | `aru make:job SendNotesDigest --event-name=notes.digest --fields "since:timestamp"` | the handler calls `NoteService.SendDigest`; the task by hand |
+| client | `app/Clients/NewsletterClient.go`, `app/Clients/NewsletterFake.go` | `aru make:client Newsletter` | `SendDigest` on the client, the interface and the fake |
+| nested resource | `app/Models/Comment.go` and the rest of the comment files | `aru make:module comment --fields "body:text!" --tenant --parent=notes` | the `user_id` author, the opened policy, the note key as text, the listing's index |
 
-## Its fields
+No specification is kept -- there is no `database/specs/` -- so there is
+nothing to generate the module from again. `--force` would keep what sits
+between the `// arandu:begin custom` and `// arandu:end custom` markers and drop
+every edit outside them. Change these files directly.
 
-| field | type |
-| --- | --- |
-| `title` | `string` |
-| `body` | `text` |
-| `pinned` | `bool` |
-
-Every query uses the Model's `tenant_id` scope. Builder terminals take the
-Grant, and its tenant never comes from a path segment, a body, a query or a header.
-
-## Reaching a record
-
-There is one way, and the compiler is what says so.
-
-```go
-g, err := auth.Authorize(ctx, policy, subject, action, models.Note{})
-if err != nil {
-    return err
-}
-record, err := models.Notes(db).FindOrFail(ctx, g, id)
-```
-
-Every terminal of `NoteQuery` takes `auth.Grant`, and nothing outside the
-security package can build one. The Service owns the database handle, authorizes first,
-and then spends that Grant on the Model. A Controller has neither dependency and
-cannot grow a second persistence path.
-
-Reads are not exempt. `List`, `FindOrFail`, a report and an export all require a Grant.
-
-## A request, end to end
-
-```go
-var in requests.NoteRequest
-if err := ctx.Bind(&in); err != nil {
-    return err
-}
-who, _ := ctx.User()
-created, err := c.svc.Create(ctx.Ctx(), who, in)
-if err != nil {
-    return err
-}
-return ctx.RedirectRoute("notes.show", created.ID)
-```
-
-- **Who is asking** is `ctx.User()`, which the sign-in guard on the routes puts
-  on the request. There is no session lookup in the controller.
-- **The input** is `ctx.Bind` into `NoteRequest`: only the fields with a
-  `form` tag are read, trimmed and converted. A new field is one line there,
-  one in the model and one in the service's `fill`, a new migration that adds
-  the column, and its input on the create and edit forms.
-- **An error is returned, never mapped.** The router answers it:
-  `validation.Errors` goes back to the form with the messages and what was typed
-  (303, or 204 with `HX-Redirect` for htmx; a client that asked for JSON gets a
-  422 problem document instead), a missing row is 404, a refusal is 403, and an
-  error with an `HTTPStatus() int` method is that status.
-- **A screen's page** is `view.New(ctx, title)`: the title, what a rejected form
-  left in the flash, and the CSRF token the middleware issued. The controller
-  takes the service and nothing else.
-- **The listing** is the Model's `SimplePaginate`, newest first, and the key
-  is one the Model generates on insert. Its table is
-  `resources/views/partials/notes_table.kyse.go`: the page includes it, and the
-  next-page link asks for it alone with `hx-target` naming its element.
-  `Index` answers that request, and only that one, with `ctx.Fragment`, and
-  says `Vary: HX-Request, HX-Target` on every answer.
-
-## What the policy allows
-
-The generated policy denied every action; this example opened it, inside the
-custom block of `app/Policies/NotePolicy.go`:
+## What the policies allow
 
 | action | who |
 | --- | --- |
 | `note.list`, `note.view`, `note.create` | anybody signed in to the tenant |
-| `note.update`, `note.delete` | the note's author, `user_id`, and nobody else |
+| `note.update`, `note.delete`, `note.publish` | the note's author, `user_id`, and nobody else |
+| `comment.list`, `comment.view`, `comment.create` | anybody signed in to the tenant who can read the note |
+| `comment.update`, `comment.delete` | the comment's author |
 
-The author is set by `NoteService.Create` from `ctx.User()`, never from the
-form. A note of another tenant is not found at all (404), because every read is
-scoped by the Grant's tenant; another member's note is found and refused (403).
-`tests/Feature/Notes_test.go` proves each of those.
+The author is set by the service from `ctx.User()`, never from the form. A note
+of another tenant is not found at all (404); another member's note is found and
+refused (403); a note published twice is a conflict (409).
+
+## The paths it proves
+
+- **A browser**: `tests/Feature/Notes_test.go` and `tests/Feature/Comments_test.go`
+  write, read, change, delete and publish through the router, and prove the
+  403, the 404 and the 409.
+- **A fragment**: the listing's table answered alone only to the request that
+  names it, and the whole page to every navigation.
+- **A JSON client**: the same routes through `NoteResource`, and problem
+  documents for each refusal.
+- **The outbox**: publishing stores `note.published` in the write's
+  transaction; draining the relay stores the author's notification.
+- **The scheduler and the worker**: the nightly task enqueues the digest, and
+  the worker sends it to `NewsletterFake` -- no network, no credential.
 
 ## Before calling a change finished
 
