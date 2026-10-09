@@ -37,10 +37,16 @@ type SendNotesDigest struct {
 // the system carries the tenant, an id and the Grant that authorized it -- there
 // is no shape of Job that skipped any of the three.
 //
-// Called inside database.Transaction, the push is committed by the same
-// transaction as the row that produced it. That is the outbox guarantee applied
-// to work instead of to an event, and it is the reason the default queue is a
-// table and not Redis.
+// The caller holds the queue: a listener, once the write that stored its event
+// has committed, or a task in a provider's Schedule(). A service the handler
+// calls never dispatches it -- this package imports app/Services as soon as a
+// handler takes a service, and a service importing it back is an import cycle.
+// The write that leads to the job stores an event in the outbox, in its own
+// transaction, and the listener the relay hands it to dispatches this.
+//
+// The digest is the second case: the notes.digest task in
+// AppServiceProvider.Schedule dispatches it every night, and NoteService, which
+// the handler calls, does not.
 func DispatchSendNotesDigest(ctx context.Context, q hqueue.Queue, g auth.Grant, in SendNotesDigest) error {
 	j, err := hjobs.New(g, hjobs.DefaultQueue, SendNotesDigestName, in)
 	if err != nil {

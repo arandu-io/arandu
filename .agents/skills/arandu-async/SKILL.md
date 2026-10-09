@@ -52,8 +52,11 @@ a mail, a console command. The service that a job or a listener calls is
    the `Notifier` bootstrap builds (`app.Notifier`), from the listener or the
    service that decided to tell somebody.
 4. **Work worth retrying is a job.** `aru make:job SendNotesDigest
-   --event-name=notes.digest --fields "since:timestamp"`. Dispatch it inside the
-   write's transaction when it belongs to a write, so the push commits with it.
+   --event-name=notes.digest --fields "since:timestamp"`. The caller that holds
+   the queue dispatches it: a listener, after the write that stored its event
+   has committed, or a task in `AppServiceProvider.Schedule`, as the digest is.
+   A service never does -- the job's package imports `app/Services` once its
+   handler takes a service, and a service importing it back is an import cycle.
    The handler calls a service; `j.UUID` is stable across retries and is the
    key to deduplicate on.
 5. **Recurring work is a task that enqueues a job.** Declare it in
@@ -143,6 +146,9 @@ func WeeklyDigest(q queue.Queue) hfoundation.Task {
 - Call a listener, publish an event or send a notification from inside the
   transaction that produced it: the reader sees a write that may still roll
   back. Store the event; the relay publishes after the commit.
+- Dispatch a job from a service. The handler calls services, so the job's
+  package imports `app/Services`, and the import back is a cycle the compiler
+  refuses. Store an event; its listener dispatches the job.
 - Share the producer's payload type with a listener. The listener decodes into
   a struct of its own, so the two deploy apart.
 - Return nil from a listener or a handler that failed: the outbox and the queue

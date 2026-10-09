@@ -59,8 +59,9 @@ is `arandu-module`; the job or listener that makes it later is `arandu-async`.
    anything else, binds the request from the same bytes, hands it to a service
    and answers 2xx. The service records the delivery -- the example stores an
    event in the outbox under the delivery id, which the relay hands to the
-   listeners after the answer -- so a slow step never times the sender out. A
-   job dispatched from the service is the other way to do the work later.
+   listeners after the answer -- so a slow step never times the sender out. Work
+   that needs retries is a job a listener of that event dispatches, never one
+   the service dispatches: the job's package imports `app/Services`.
 5. **Expose a capability to an assistant** with `aru make:mcp-tool ShowNote
    --service=Note` (`make:mcp-resource`, `make:mcp-prompt` for the other two
    kinds). It writes the type in `app/Mcp`, its test and the wiring; the module

@@ -71,7 +71,7 @@ Beyond the eleven steps, each in the example:
 | a complex query, a report, a read model | `app/Repositories` | the service | exist for plain CRUD |
 | a client of an external system | `app/Clients/<Vendor>Client.go`, with its interface and a fake | a service, a job, a listener | reach a model, a Grant or the session |
 | an engine that wraps another technology, a client another project would reuse | a `github.com/hyz-is/arandu-*` module | a service, a job | live in `app/Services` |
-| background work, a loop, a retry | `app/Jobs`, run by the worker or the scheduler | a service, the scheduler, a listener | be a goroutine started in a constructor or in `Boot` |
+| background work, a loop, a retry | `app/Jobs`, run by the worker or the scheduler | the scheduler, a listener | be a goroutine started in a constructor or in `Boot`, be dispatched by a service |
 | a reaction to something that happened | `app/Listeners`, through the outbox, listed in `listeners.Each` | the relay | call a controller |
 | telling a person something | `app/Notifications`, sent through the `Notifier` `bootstrap/app.go` builds | a listener, a service | write its own row or send mail by hand |
 | a closed set of values | `app/Enums` (`aru make:enum`) | anything | — |
