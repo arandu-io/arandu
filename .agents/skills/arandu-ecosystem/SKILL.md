@@ -1,169 +1,159 @@
 ---
 name: arandu-ecosystem
-description: Decide whether a feature belongs in this application or in a shared Arandu module, before adding or changing authorization, roles, organizations or tenants, balances, credits or any spendable unit, tags or labels, rendered Markdown, or API documentation. Use when a request mentions permissions, groups, members, workspaces, wallet, ledger, credits, points, tags, categories, Markdown, OpenAPI or Swagger, or when about to create a table or package for something another project would also need.
+description: Decide whether a feature belongs in this application or in a shared Arandu module, before adding or changing authorization, roles, organizations or tenants, balances, credits or any spendable unit, tags or labels, rendered Markdown, API documentation, Brazilian documents and money (CPF, CNPJ, BRL), or a helper such as a slug or a currency format. Use when a request mentions permissions, groups, members, workspaces, wallet, ledger, credits, points, tags, categories, Markdown, OpenAPI or Swagger, CPF/CNPJ, or when about to create a table, a package or a helper something else would also need.
 license: MIT
 ---
 
-# Using the shared Arandu modules
+# Using what the ecosystem already owns
 
-Five responsibilities already have an Arandu module. Writing a second one inside
-this project is the mistake this procedure exists to stop: it works on day one,
-and from then on two implementations drift.
+## When to use
 
-| responsibility | module | it owns |
+Before the first table, package or helper of a feature: something else may own
+it already. Writing a second one here works on day one, and from then on two
+implementations drift. A capability this application really owns goes on to
+`arandu-module`.
+
+## Before you start
+
+1. `AGENTS.md`, then `arandu-feature`.
+2. `bootstrap/app.go`: what `Build` constructs and passes to `k.Register` is
+   everything the application was given. A module not registered there is a
+   module the application does not have.
+3. `github.com/arandu-io/examples`, the public reference application, before
+   inventing a shape.
+
+## Contracts and imports
+
+| responsibility | owner | it owns |
 | --- | --- | --- |
-| who may do what | `github.com/hyz-is/arandu-permission` | permission groups, actions, members of a group, the screens that administer them |
-| anything with a balance | `github.com/hyz-is/arandu-wallet` | wallets, deposits, withdrawals, transfers, credits, refunds, the ledger and statements, idempotency keys |
+| who may do what inside an organization | `github.com/hyz-is/arandu-permission` | permission groups, actions, members of a group, the screens that administer them; it fills the subject's roles, and this application's policies still decide |
+| anything with a balance | `github.com/hyz-is/arandu-wallet` | wallets, deposits, withdrawals, transfers, credits, holds, refunds, the ledger and statements, idempotency keys |
 | labels on records | `github.com/hyz-is/arandu-tags` | tags, their ordering, attaching tags to any record |
-| Markdown a page shows | `github.com/hyz-is/arandu-markdown` | sanitized HTML from `hesape/str.Markdown`, the table of contents, plain text, reading time |
+| Markdown a page shows | `github.com/hyz-is/arandu-markdown` | sanitized HTML, the table of contents, plain text, reading time |
 | OpenAPI for the HTTP routes | `github.com/hyz-is/arandu-swagger` | an OpenAPI 3.1 document built from the route table, Swagger UI served from the same origin |
+| CPF, CNPJ, CEP, BRL, Brazilian dates | `github.com/hyz-is/arandu-br` | validation rules and pure formatting functions |
+| a helper | the package functions of `github.com/arandu-io/hesape`: `support`, `str`, `number`, `collections`, `pagination` | slugs, currency, plurals, collections -- called by package name, never global |
 
-## 1. Read what is already here
+The flow of an organization's data is fixed:
+`login identity -> membership -> organization (the tenant) -> subject -> Policy -> auth.Grant -> auth.Tenant(g) -> the row`.
 
-1. `AGENTS.md`, then the other skills in `.agents/skills/`.
-2. `bootstrap/app.go`: the `Build` function constructs every collaborator, and
-   what it passes to `k.Register` — the list after the middleware, then the
-   cache module and the scheduler below it — is everything the application was
-   given. If a module is not registered there, the application does not have
-   it.
-3. The `notes` resource is the worked example of the mandatory path:
-   `app/Http/Controllers/NoteController.go` takes the subject with
-   `ctx.User()`, `app/Services/NoteService.go` asks the Policy with
-   `auth.Authorize`, and only the `Grant` that returns reaches
-   `models.Notes(db)`.
-4. Two tests stand for tenant isolation. `tests/Feature/TenantScope_test.go`
-   reads every table with a `tenant_id` column from the database and fails
-   until each one is claimed as read through the Grant;
-   `TestANoteOfAnotherTenantIsNotFound` in `tests/Feature/Notes_test.go` proves
-   the claim for notes: another tenant's row, read, changed or deleted, answers
-   404. Any new table gets both.
-5. `github.com/arandu-io/examples` is the public reference application: a
-   category/post domain with Policies, Services, the generated queries,
-   `PostRepository` for the read the query builder cannot say, and
-   `tests/Feature/TenantScoping_test.go`. Read it before inventing a shape.
+## Procedure
 
-## 2. Answer these before writing a migration
+1. **Answer these before a migration**, in writing:
+   1. Is this the login identity, or data an organization owns?
+   2. Which tenant owns each row? It comes from `auth.Tenant(g)`.
+   3. Which policy action authorizes the read, and which the write?
+   4. Is it access control? arandu-permission.
+   5. Does any number in it go up and down and get spent? arandu-wallet.
+   6. Is it a label a user attaches? arandu-tags.
+   7. Is a field Markdown a page renders? arandu-markdown.
+   8. Does it expose an HTTP API someone else calls? arandu-swagger.
+   9. Is it a Brazilian document or amount? arandu-br.
+   10. Would the next project need the same thing? Then it is a module (step 4).
+2. **Use the owner.** A role is arandu-permission's, never a `role` column or an
+   ACL table; a balance is arandu-wallet's, never a `balance` column, a
+   `credits` table or a `*_ledger`. This application may own the commercial
+   side -- a catalog, prices, a contract with a payment provider -- and calls
+   the wallet to move value.
+3. **Install a module** the same way for all of them, from the latest release
+   in `hyz-is`, never with a `replace` to a local checkout:
 
-1. Is this the login identity, or data an organization owns?
-2. Which tenant owns each row? (It will come from `auth.Tenant(g)`, never from
-   a path, a body, a query string or a header.)
-3. Which Policy action authorizes the read, and which the write? A read is
-   authorized exactly like a write.
-4. Is it access control? → arandu-permission.
-5. Does any number in it go up and down and get spent? → arandu-wallet.
-6. Is it a label a user attaches? → arandu-tags.
-7. Is any field Markdown that a page renders? → arandu-markdown.
-8. Does it expose an HTTP API someone else calls? → arandu-swagger.
-9. Would the next project need the same thing? → it is a module, not this
-   application's code (step 5).
+   ```bash
+   go get github.com/hyz-is/arandu-wallet@<tag>
+   ```
 
-Write the schema only once each answer is written down.
+   Construct it in `Build`, after the session store exists, with the tenant
+   from `cfg.Auth.Tenant` and the CSRF issuer `Build` already made; add it to
+   the `Register(...)` list; then `aru migrate`, and preview what it publishes
+   with `aru vendor:publish --tag=view` before `--apply`. Each module's README
+   has its exact `Config`.
+4. **When no module owns it**, stop and report: name the capability, the
+   modules checked, why none owns it, and whether one should be extended. A new
+   reusable capability starts from `github.com/arandu-io/package-skeleton` as a
+   `hyz-is/arandu-*` module, with its public contract defined before any
+   application embeds it. Only what belongs to this application alone is
+   generated here.
 
-## 3. Organizations, members and permissions
+## Commands
 
-The flow is fixed:
+- `aru migrate`, for the tables a module brings
+- `aru vendor:publish --tag=view`, then `aru vendor:publish --tag=view --apply`, then `aru view:build`
+- `aru about`, what the project is wired with
+- `aru skills:sync`, the skills a required `hyz-is` module hands out, with `--apply` to write them
 
-`login identity → membership → organization (the tenant) → subject → Policy → auth.Grant → auth.Tenant(g) → the row`
+## Example
 
-- A membership links a login to an organization. The organization is the
-  tenant of everything it owns.
-- What a member may do inside the organization is authorization, and it lives
-  in arandu-permission: its groups, its actions (`permission.Actions()` plus
-  this application's own), its member screens. Do not add a `role` column, an
-  `is_admin` flag or an ACL table to this project.
-- Application Policies still decide domain rules ("only the author edits a
-  draft"); arandu-permission decides who holds which action.
-- A guessed id from another tenant answers not found, never forbidden: a
-  forbidden answer confirms the row exists.
+The helpers are package functions of hesape, called by name -- never written
+again here:
 
-## 4. Balances, credits and spendable units
+```go compile
+package example
 
-If the feature has a balance, credits, tokens, points that can be spent,
-deposits, withdrawals, transfers, holds, refunds or a statement, it goes through
-arandu-wallet. Do not create a `balance` column, a `credits` table, a
-`*_ledger` table or a running total on another entity: arandu-wallet writes every
-movement to its ledger inside one transaction, undoes an operation with a
-reversal or a refund instead of editing it, and replays an idempotency key
-instead of moving the value twice.
+import (
+	"github.com/arandu-io/hesape/number"
+	"github.com/arandu-io/hesape/str"
+)
 
-This application may own the commercial side — the product catalog, prices,
-the contract with a payment provider — and it calls the wallet to move value.
-If the wallet lacks a primitive the feature needs, stop and name the gap; extend
-the module rather than writing a local substitute.
-
-## 5. Installing a module
-
-Every module installs the same way, and nothing edits `bootstrap/app.go` for
-you:
-
-```bash
-go get github.com/hyz-is/arandu-wallet
+// Listing is how a record is addressed and priced on a page: a slug for the
+// address and a currency for the amount, held in cents.
+func Listing(title string, cents int64) (slug, price string) {
+	return str.Slug(title, "-"), number.CurrencyFromCents(cents, "USD")
+}
 ```
 
-In `bootstrap/app.go`, construct it in `Build`, after the session store exists.
-The CSRF issuer is the `csrf` value `Build` already made from
-`cfg.Session.CSRFTTL`, the one `middleware.CSRFProtect` checks; the
-configuration has no CSRF field of its own:
+## Do not
 
-```go
-	walletModule, err := wallet.New(wallet.Config{
-		Tenant: cfg.Auth.Tenant,
-		CSRF:   csrf,
-	}, db, sessions)
-	if err != nil {
-		return App{}, err
-	}
-```
+- Create a `role`, `is_admin`, `balance` or `credits` column, a tags table, a
+  Markdown renderer or a hand-kept OpenAPI file.
+- Write a `Slugify`, a CPF validator or a BRL formatter in the application:
+  `helper-reimplemented`.
+- Point `go.mod` at a local checkout with `replace`, or work around a module's
+  defect in the application: fix it in the module's repository.
+- Take an organization id from a form as the tenant. It is navigation intent;
+  the tenant comes from the Grant.
 
-Add `walletModule,` to the `Register(...)` list. Then:
+## Extending it
 
-```bash
-aru migrate                          # the module's tables
-aru vendor:publish --tag=view        # preview the screens it publishes
-aru vendor:publish --tag=view --apply
+A module's screens are published into the project with `aru vendor:publish`
+and edited there, inside their custom blocks. A primitive a module lacks is
+added to the module, by its repository and a release -- never as a local
+substitute.
+
+## Wiring
+
+Explicit, in `bootstrap/app.go`: constructed in `Build`, registered in the
+`Register(...)` list -- arandu-swagger last, after the modules whose routes it
+documents. Migrations run through `aru migrate`, never at boot.
+
+## Acceptance test
+
+- Every new table with a tenant column claimed in
+  `tests/Feature/TenantScope_test.go`, with a cross-tenant test.
+- Nothing in the diff is a second copy of what an owner above holds.
+- `aru doctor` reports no `driver-not-linked`, `helper-reimplemented` or
+  `skills-missing`.
+
+## Limits
+
+This skeleton requires none of the `hyz-is` modules: a project takes the ones
+it needs. The list above is the set that exists today; a capability not in it
+is a report, not a license to build it here.
+
+## Gates
+
+Run them all, in this order, as `AGENTS.md` lists them:
+
+```sh
+export GOWORK=off
+aru model:build --check
 aru view:build
+gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
+go vet ./...
+bash tests/test-layout-guard.sh
+go test -race ./...
+go build ./...
+aru doctor
 ```
 
-Each module's README has its exact `Config` and the actions it declares; read it
-rather than guessing field names. arandu-markdown adds no table and no route,
-and arandu-swagger is registered last, after the modules whose routes it
-documents, and stays disabled unless `Config.Enabled` is true.
-
-## 6. When no module owns it
-
-1. Name the capability and list the modules above you checked.
-2. Say why none of them owns it, or which one should be extended.
-3. If it is new and the next project would need it, start the module from
-   `github.com/arandu-io/package-skeleton`, the template community modules are
-   cloned from, and define its public contract before any application embeds
-   it.
-4. If it really belongs only to this application, generate it with
-   `aru make:module` (see `arandu-module`) so it gets the entity, the generated
-   query, the Policy, the Service and the tests in the shape everything else
-   has.
-
-## 7. Before calling it finished
-
-- The gates, all of them, as `AGENTS.md` lists them:
-
-  ```sh
-  export GOWORK=off
-  aru model:build --check
-  aru view:build
-  gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
-  go vet ./...
-  bash tests/test-layout-guard.sh
-  go test -race ./...
-  go build ./...
-  aru doctor
-  ```
-
-- `aru doctor` has no `driver-not-linked`, `model-core-outside-models` or
-  `model-query-stale` finding.
-- For every new table with a tenant column, its claim in
-  `tests/Feature/TenantScope_test.go`, and a cross-tenant test, read and write,
-  in the shape of `TestANoteOfAnotherTenantIsNotFound` in
-  `tests/Feature/Notes_test.go`.
-- The Policy is asked before anything touches the database, and the tenant in
-  every query came from the Grant.
-- Nothing in the diff is a second copy of what one of the five modules owns.
+<!-- arandu:begin custom -->
+<!-- arandu:end custom -->
