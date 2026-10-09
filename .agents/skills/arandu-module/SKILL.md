@@ -21,15 +21,15 @@ instead of becoming Go that does not compile.
 
 ## The reference
 
-The project ships one module built this way, **notes**, and it is the shape to
-copy when in doubt: `app/Models/Note.go` (with `app/Models/NoteQuery.go`, which
-`aru model:build` writes beside it), `app/Policies/NotePolicy.go`,
-`app/Services/NoteService.go`, `app/Http/Controllers/NoteController.go`,
-`app/Http/Requests/NoteRequest.go`, `resources/views/notes/`,
-`database/factories/NoteFactory.go`, `database/seeders/NoteSeeder.go` and
-`tests/Feature/Notes_test.go`. It is marked as an example in every file but the
-generated one, and README.md lists what to delete when the project no longer
-wants it.
+The project ships one module made with the generator and finished by hand,
+**notes**, and it is the shape to copy when in doubt: `app/Models/Note.go` (with
+`app/Models/NoteQuery.go`, which `aru model:build` writes beside it),
+`app/Policies/NotePolicy.go`, `app/Services/NoteService.go`,
+`app/Http/Controllers/NoteController.go`, `app/Http/Requests/NoteRequest.go`,
+`resources/views/notes/`, `database/factories/NoteFactory.go`,
+`database/seeders/NoteSeeder.go` and `tests/Feature/Notes_test.go`. It is marked
+as an example in every file but the generated one, and README.md lists what to
+delete when the project no longer wants it.
 
 What it shows that the generator alone does not: an ownership rule in the
 policy's custom block, the author set in the service from the subject and never
