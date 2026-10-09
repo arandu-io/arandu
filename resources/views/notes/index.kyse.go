@@ -33,6 +33,11 @@ type NotesIndexData struct {
 // Compile-time proof that this page fits the layout it extends.
 var _ view.Layout = NotesIndexData{}
 
+// NotesTableID is the id of the element partials/notes_table draws: the target
+// its next-page link names, and what NoteController.Index reads from HX-Target
+// to tell a request for the table from a request for the page.
+const NotesTableID = "notes-table"
+
 // NoteRow is one record, formatted by the controller: what the listing
 // and the record show, and what the edit form starts at.
 type NoteRow struct {
@@ -104,11 +109,10 @@ func NoteIndexTable(data NotesIndexData) components.DataTableProps {
 		<a class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900" href="{{ .NewURL }}">New note</a>
 	</div>
 
+	{{-- The table is a file of its own, because it is the one part of this page
+	     the server also answers alone: the next page of the listing replaces
+	     it and nothing else. @include hands this page's data over unchanged. --}}
 	<div class="mt-8">
-		{!! components.DataTable(NoteIndexTable(.)) !!}
+		@include('partials.notes_table')
 	</div>
-
-	@if(d.NextURL != "")
-		<a class="mt-6 inline-block text-sm underline underline-offset-2" href="{{ .NextURL }}">Next page</a>
-	@endif
 @endsection

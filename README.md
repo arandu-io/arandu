@@ -94,7 +94,9 @@ database/factories/NoteFactory.go
 database/migrations/2026_10_01_000001_create_notes_table.go
 database/seeders/NoteSeeder.go
 resources/views/notes/            (the directory, four views)
+resources/views/partials/notes_table.kyse.go
 storage/framework/views/notes/    (the directory, compiled output)
+storage/framework/views/partials/notes_table.go   (compiled output)
 tests/Feature/Notes_test.go
 tests/Unit/Note_test.go
 ```
@@ -105,6 +107,7 @@ and these lines, each marked with a comment naming this section:
 routes/web.go                       Note *controllers.NoteController
 routes/web.go                       r.Group("", middleware.RequireAuth(d.Sessions)).Resource("notes", d.Note)
 bootstrap/app.go                    Note: controllers.NewNoteController(services.NewNoteService(db)),
+bootstrap/app.go                    _ ".../storage/framework/views/partials"   (once no other partial is left)
 database/seeders/seeders.go         NoteSeeder{},
 database/seeders/DatabaseSeeder.go  return NoteSeeder{}.Run(ctx, d)   (becomes: return nil)
 tests/Feature/TenantScope_test.go   "notes": "...",

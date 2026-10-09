@@ -115,6 +115,11 @@ import (
 
 	_ "github.com/arandu-io/arandu/storage/framework/views"
 	_ "github.com/arandu-io/arandu/storage/framework/views/layouts"
+
+	// The notes table, answered alone as well as inside its page, is the one
+	// partial this project ships. Remove the line with the list under "The
+	// example resource" in README.md when no other partial is left.
+	_ "github.com/arandu-io/arandu/storage/framework/views/partials"
 )
 
 // AppModule is this project's module path. The error page uses it to tell your

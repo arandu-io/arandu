@@ -213,6 +213,64 @@ func TestARejectedNoteFromAJSONClientIsAProblemDocument(t *testing.T) {
 	}
 }
 
+// TestTheNotesTableIsAnsweredAloneOnlyToTheElementThatAsksForIt.
+//
+// The listing's address has two representations. The table alone goes to the
+// one request that asks for it: htmx naming the table's element as the target
+// it will replace. Every other request -- a direct visit, a boosted link, a
+// history restore, an htmx request aimed at another element -- gets the whole
+// document, because each of them replaces the page, and a reload of any of
+// them has to show the same thing.
+func TestTheNotesTableIsAnsweredAloneOnlyToTheElementThatAsksForIt(t *testing.T) {
+	f := newNotesFixture(t)
+	f.write(t, f.ana, "Groceries")
+
+	const table = `id="notes-table"`
+	// asks loads the listing with the headers a request of that kind carries.
+	// The client's assertions stop the test, so this runs on the test's own
+	// goroutine rather than in a subtest.
+	asks := func(kind string, headers map[string]string) string {
+		t.Helper()
+		for name, value := range headers {
+			f.ana.WithHeader(name, value)
+		}
+		answer := f.ana.Get("/notes")
+		for name := range headers {
+			f.ana.WithHeader(name, "")
+		}
+		answer.AssertOk().AssertSee("Groceries")
+		vary := answer.Header("Vary")
+		for _, header := range []string{"HX-Request", "HX-Target"} {
+			if !strings.Contains(vary, header) {
+				t.Errorf("%s: Vary = %q, and the answer depends on %s: "+
+					"a cache that is not told can hand one representation to a request for the other", kind, vary, header)
+			}
+		}
+		return answer.GetContent()
+	}
+
+	for _, request := range []struct {
+		kind    string
+		headers map[string]string
+	}{
+		{"a direct visit", nil},
+		{"a boosted link", map[string]string{"HX-Request": "true", "HX-Boosted": "true"}},
+		{"a history restore", map[string]string{"HX-Request": "true", "HX-History-Restore-Request": "true"}},
+		{"an htmx request for another element", map[string]string{"HX-Request": "true", "HX-Target": "main"}},
+		{"the table's target named without htmx", map[string]string{"HX-Target": "notes-table"}},
+	} {
+		page := asks(request.kind, request.headers)
+		if !strings.Contains(page, "<html") || !strings.Contains(page, table) {
+			t.Errorf("%s was not answered with the whole page around the table:\n%s", request.kind, page)
+		}
+	}
+
+	fragment := strings.TrimSpace(asks("the table's own request", map[string]string{"HX-Request": "true", "HX-Target": "notes-table"}))
+	if strings.Contains(fragment, "<html") || !strings.HasPrefix(fragment, "<div "+table) {
+		t.Errorf("the table's own request was not answered with the table alone:\n%s", fragment)
+	}
+}
+
 func TestAnotherMembersNoteIsReadButNotChanged(t *testing.T) {
 	f := newNotesFixture(t)
 	address := f.write(t, f.bea, "Bea's plan")

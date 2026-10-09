@@ -3,6 +3,8 @@
 package controllers
 
 import (
+	"net/http"
+
 	fhttp "github.com/arandu-io/framework/http"
 	hhttp "github.com/arandu-io/hesape/http"
 	"github.com/arandu-io/hesape/pagination"
@@ -57,6 +59,17 @@ var (
 )
 
 // Index renders the listing, one page at a time.
+//
+// It answers the whole page, except to the request the table's next-page link
+// makes: htmx names the element it will replace in HX-Target, and that request
+// gets the table alone, drawn from the same partial the page includes. A direct
+// visit, a boosted link and a history restore name no such target, so each of
+// them gets the page, layout and title included, and a reload shows what was
+// on screen.
+//
+// One address, two representations chosen by request headers, so the answer
+// says which headers: a cache that did not know would hand the table to a
+// navigation, or the page to the hole the table was in.
 func (c *NoteController) Index(ctx *hhttp.Context) error {
 	who, _ := ctx.User()
 	found, page, err := c.svc.List(ctx.Ctx(), who, pagination.ResolveCurrentPage(ctx.Request.URL, ""))
@@ -68,12 +81,18 @@ func (c *NoteController) Index(ctx *hhttp.Context) error {
 	for _, n := range found {
 		rows = append(rows, c.row(ctx, n))
 	}
-	return ctx.View("notes.index", views.NotesIndexData{
+	data := views.NotesIndexData{
 		Page:    view.New(ctx, "Notes"),
 		Notes:   rows,
 		NewURL:  ctx.URL("notes.create"),
 		NextURL: page.SetPath(ctx.URL("notes.index")).NextPageURL(),
-	})
+	}
+
+	ctx.Response.Header().Add("Vary", "HX-Request, HX-Target")
+	if ctx.IsHTMX() && ctx.Header("HX-Target") == views.NotesTableID {
+		return ctx.Fragment(http.StatusOK, "partials.notes_table", data)
+	}
+	return ctx.View("notes.index", data)
 }
 
 // Show renders one record.
