@@ -77,6 +77,7 @@ Dockerfile pins, when that list differs from what `aru doctor --list` prints.
 | `scaffolding-ships` | warning | a file outside the tests that imports test scaffolding |
 | `skills-out-of-date` | warning | a skill under `.agents/skills` copied from the skeleton or a `hyz-is` module that is behind what that origin hands out at the version the project pins |
 | `skills-missing` | warning | a skill the skeleton or a required `hyz-is` module hands out that this project does not have |
+| `generated-skill-retired` | warning | a skill under `.agents/skills` whose metadata source is `aru@<version>`: one `make:module` wrote, which no generator writes or updates any more |
 | `migrations-not-linked` | warning | migrations in a package nothing imports, so `aru migrate` never sees them |
 | `added-column-not-nullable` | warning | a column added to an existing table without `Nullable()` or a default |
 | `rollback-does-nothing` | warning | a migration that declares neither a `Down` nor that it is irreversible |

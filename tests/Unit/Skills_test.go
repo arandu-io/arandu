@@ -90,7 +90,8 @@ func sourceOf(body string) string {
 // aru@<version>, from a template the aru tests held to its contract, and a
 // project generated then still carries them. This project's tests do not
 // hold it to this project's text, or every generated module would be red here
-// until somebody edited a file the next --force writes over.
+// until somebody edited a file aru wrote. `aru doctor` reports each one as
+// generated-skill-retired, which is where deleting or adopting it is asked for.
 func writtenByAru(s skillFile) bool { return strings.HasPrefix(s.source, "aru@") }
 
 // coveredSkills are the skills this project answers for: every family skill,

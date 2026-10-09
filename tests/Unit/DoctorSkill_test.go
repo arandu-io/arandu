@@ -67,6 +67,7 @@ var doctorRules = []doctorRule{
 	{"scaffolding-ships", "warning", ""},
 	{"skills-out-of-date", "warning", ""},
 	{"skills-missing", "warning", ""},
+	{"generated-skill-retired", "warning", ""},
 	{"migrations-not-linked", "warning", ""},
 	{"added-column-not-nullable", "warning", ""},
 	{"rollback-does-nothing", "warning", ""},
