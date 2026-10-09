@@ -11,8 +11,8 @@ package controllers
 import (
 	"net/http"
 
-	fhttp "github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/validation"
+	hhttp "github.com/arandu-io/hesape/http"
+	"github.com/arandu-io/hesape/validation"
 )
 
 // Controller is the type every controller in this directory embeds.
@@ -30,7 +30,7 @@ type Controller struct{}
 // tells the browser, the logs and every dashboard that the write succeeded --
 // and HTMX still swaps the fragment either way, so nothing looks wrong until
 // somebody asks why the success rate is 100%.
-func (Controller) Invalid(ctx *fhttp.Context, view string, data any) error {
+func (Controller) Invalid(ctx *hhttp.Context, view string, data any) error {
 	return ctx.Fragment(http.StatusUnprocessableEntity, view, data)
 }
 

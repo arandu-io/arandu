@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arandu-io/framework/data"
 	nativeauth "github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/database"
 
 	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
@@ -301,7 +301,7 @@ func TestFreshRefusesOutsideDevelopment(t *testing.T) {
 
 // openForTest builds the same configuration and handle the commands use, so the
 // test exercises the real wiring rather than a parallel one.
-func openForTest(t *testing.T) (appconfig.Config, *data.DB, func()) {
+func openForTest(t *testing.T) (appconfig.Config, *database.DB, func()) {
 	t.Helper()
 
 	cfg, err := appconfig.Load()

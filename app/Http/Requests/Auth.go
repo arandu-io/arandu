@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/arandu-io/framework/security"
-	"github.com/arandu-io/framework/validation"
+	"github.com/arandu-io/hesape/hashing"
+	"github.com/arandu-io/hesape/validation"
 )
 
 const redactedPassword = "[redacted]"
@@ -63,7 +63,7 @@ func (r RegisterRequest) Validate() validation.Errors {
 	validation.Required(err, "email", r.Email)
 	validation.Email(err, "email", r.Email)
 	validation.MaxLen(err, "email", r.Email, 254)
-	validation.MinLen(err, "password", r.Password, security.MinPasswordLen)
+	validation.MinLen(err, "password", r.Password, hashing.MinPasswordLen)
 	validation.MaxLen(err, "password", r.Password, 128)
 	validation.Confirmed(err, "password_confirmation", r.Password, r.PasswordConfirmation)
 	return err

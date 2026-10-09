@@ -182,7 +182,9 @@ func TestSecondFactorServicesReauthorizeTheLoadedEnrollment(t *testing.T) {
 				switch expressionName(call.Fun) {
 				case "s.repository.Find":
 					rowPosition = call.Pos()
-				case "security.Authorize":
+				// One function under two spellings: hesape/auth declares it,
+				// and the framework/security bridge forwards to it until v1.0.0.
+				case "auth.Authorize", "security.Authorize":
 					if rowPosition == token.NoPos || call.Pos() < rowPosition || len(call.Args) != 5 {
 						return true
 					}

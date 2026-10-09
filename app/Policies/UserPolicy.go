@@ -5,25 +5,25 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
 
 	"github.com/arandu-io/arandu/app/Models"
 )
 
 // User actions are constants so a misspelling cannot silently widen a policy.
 const (
-	ActionUserView        security.Action = "user.view"
-	ActionUserCreate      security.Action = "user.create"
-	ActionUserUpdate      security.Action = "user.update"
-	ActionUserDelete      security.Action = "user.delete"
-	ActionUserNamesPublic security.Action = "user.names.public"
+	ActionUserView        auth.Action = "user.view"
+	ActionUserCreate      auth.Action = "user.create"
+	ActionUserUpdate      auth.Action = "user.update"
+	ActionUserDelete      auth.Action = "user.delete"
+	ActionUserNamesPublic auth.Action = "user.names.public"
 )
 
 // UserPolicy is the only authority over application users.
 type UserPolicy struct{}
 
 // Can decides whether subject may perform action on user and denies by default.
-func (UserPolicy) Can(_ context.Context, subject security.Subject, action security.Action, user models.User) error {
+func (UserPolicy) Can(_ context.Context, subject auth.Subject, action auth.Action, user models.User) error {
 	if action == ActionUserNamesPublic {
 		if subject.Tenant == "" || user.TenantID == "" || user.TenantID != subject.Tenant {
 			return fmt.Errorf("public user names require the reader's tenant")
@@ -52,4 +52,4 @@ func (UserPolicy) Can(_ context.Context, subject security.Subject, action securi
 	return fmt.Errorf("insufficient role for %s", action)
 }
 
-var _ security.Policy[models.User] = UserPolicy{}
+var _ auth.Policy[models.User] = UserPolicy{}

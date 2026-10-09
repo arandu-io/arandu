@@ -19,14 +19,14 @@ import (
 	"time"
 
 	"github.com/arandu-io/framework/foundation/bootstrap"
-	"github.com/arandu-io/framework/geo"
 	hconfig "github.com/arandu-io/hesape/config"
+	"github.com/arandu-io/hesape/geo"
 )
 
 // Config is the whole configuration of this application: one field per file in
 // this directory, plus what the framework parsed for the kernel.
 type Config struct {
-	// Framework is what kernel.New takes: one struct per component, filled from
+	// Framework is what foundation.New takes: one struct per component, filled from
 	// the environment once. It is not a copy of the fields below -- the kernel
 	// validates APP_KEY, APP_ENV and the connection while it is filled, and this
 	// package never re-reads them.

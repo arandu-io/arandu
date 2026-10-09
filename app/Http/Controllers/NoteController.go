@@ -4,6 +4,7 @@ package controllers
 
 import (
 	fhttp "github.com/arandu-io/framework/http"
+	hhttp "github.com/arandu-io/hesape/http"
 	"github.com/arandu-io/hesape/pagination"
 	"github.com/arandu-io/hesape/view"
 
@@ -16,7 +17,7 @@ import (
 // NoteController answers the seven routes of the notes resource.
 //
 // It is thin on purpose: read the request, call the service, render. There is no
-// repository here and there cannot be one -- fhttp.Context carries no database
+// repository here and there cannot be one -- hhttp.Context carries no database
 // handle, so a controller that reached the data layer would be a controller that
 // skipped the service, and therefore skipped the policy.
 //
@@ -56,7 +57,7 @@ var (
 )
 
 // Index renders the listing, one page at a time.
-func (c *NoteController) Index(ctx *fhttp.Context) error {
+func (c *NoteController) Index(ctx *hhttp.Context) error {
 	who, _ := ctx.User()
 	found, page, err := c.svc.List(ctx.Ctx(), who, pagination.ResolveCurrentPage(ctx.Request.URL, ""))
 	if err != nil {
@@ -76,7 +77,7 @@ func (c *NoteController) Index(ctx *fhttp.Context) error {
 }
 
 // Show renders one record.
-func (c *NoteController) Show(ctx *fhttp.Context) error {
+func (c *NoteController) Show(ctx *hhttp.Context) error {
 	who, _ := ctx.User()
 	found, err := c.svc.Get(ctx.Ctx(), who, ctx.Param("id"))
 	if err != nil {
@@ -94,7 +95,7 @@ func (c *NoteController) Show(ctx *fhttp.Context) error {
 
 // Create renders the empty form, or the rejected one: the page carries what
 // was typed and the messages, from the flash the router left.
-func (c *NoteController) Create(ctx *fhttp.Context) error {
+func (c *NoteController) Create(ctx *hhttp.Context) error {
 	return ctx.View("notes.create", views.NotesCreateData{
 		Page:     view.New(ctx, "New note"),
 		IndexURL: ctx.URL("notes.index"),
@@ -103,7 +104,7 @@ func (c *NoteController) Create(ctx *fhttp.Context) error {
 }
 
 // Store takes the submitted form.
-func (c *NoteController) Store(ctx *fhttp.Context) error {
+func (c *NoteController) Store(ctx *hhttp.Context) error {
 	var in requests.NoteRequest
 	if err := ctx.Bind(&in); err != nil {
 		return err
@@ -117,7 +118,7 @@ func (c *NoteController) Store(ctx *fhttp.Context) error {
 }
 
 // Edit renders the form filled in with the stored record.
-func (c *NoteController) Edit(ctx *fhttp.Context) error {
+func (c *NoteController) Edit(ctx *hhttp.Context) error {
 	who, _ := ctx.User()
 	found, err := c.svc.Get(ctx.Ctx(), who, ctx.Param("id"))
 	if err != nil {
@@ -133,7 +134,7 @@ func (c *NoteController) Edit(ctx *fhttp.Context) error {
 }
 
 // Update writes the submitted form onto the stored record.
-func (c *NoteController) Update(ctx *fhttp.Context) error {
+func (c *NoteController) Update(ctx *hhttp.Context) error {
 	var in requests.NoteRequest
 	if err := ctx.Bind(&in); err != nil {
 		return err
@@ -147,7 +148,7 @@ func (c *NoteController) Update(ctx *fhttp.Context) error {
 }
 
 // Destroy removes the record.
-func (c *NoteController) Destroy(ctx *fhttp.Context) error {
+func (c *NoteController) Destroy(ctx *hhttp.Context) error {
 	who, _ := ctx.User()
 	if err := c.svc.Delete(ctx.Ctx(), who, ctx.Param("id")); err != nil {
 		return err
@@ -165,7 +166,7 @@ func (c *NoteController) Destroy(ctx *fhttp.Context) error {
 // The address is settled here too, for the same reason and one more: the view
 // has no route table, so a link written there could only be a literal. This
 // takes the context so it can ask for the route by name.
-func (c *NoteController) row(ctx *fhttp.Context, n *models.Note) views.NoteRow {
+func (c *NoteController) row(ctx *hhttp.Context, n *models.Note) views.NoteRow {
 	return views.NoteRow{
 		ID:      n.ID,
 		URL:     ctx.URL("notes.show", n.ID),

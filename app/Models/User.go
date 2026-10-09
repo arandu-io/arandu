@@ -10,7 +10,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database/model"
 	"github.com/arandu-io/hesape/database/query"
 )
@@ -113,8 +113,8 @@ func (r *Roles) Scan(src any) error {
 func (u User) Verified() bool { return u.VerifiedAt != nil && !u.VerifiedAt.IsZero() }
 
 // Subject returns the session subject derived only from stored account data.
-func (u User) Subject() security.Subject {
-	return security.Subject{
+func (u User) Subject() auth.Subject {
+	return auth.Subject{
 		ID: u.ID, Tenant: u.TenantID, Roles: append([]string(nil), u.Roles...), Verified: u.Verified(),
 	}
 }

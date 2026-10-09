@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database/model"
 
 	models "github.com/arandu-io/arandu/app/Models"
@@ -21,12 +21,12 @@ import (
 // generated query can be run without a Grant.
 type notePersistent interface {
 	model.Entity
-	Save(context.Context, security.Grant) (bool, error)
+	Save(context.Context, auth.Grant) (bool, error)
 }
 
 var (
-	_ notePersistent                                                                                  = (*models.Note)(nil)
-	_ func(*models.NoteQuery, context.Context, security.Grant, ...any) (models.NoteCollection, error) = (*models.NoteQuery).Get
+	_ notePersistent                                                                              = (*models.Note)(nil)
+	_ func(*models.NoteQuery, context.Context, auth.Grant, ...any) (models.NoteCollection, error) = (*models.NoteQuery).Get
 )
 
 // TestEveryNoteReadRequiresAuthorization needs no database: the service
@@ -35,7 +35,7 @@ var (
 func TestEveryNoteReadRequiresAuthorization(t *testing.T) {
 	svc := services.NewNoteService(nil)
 	ctx := context.Background()
-	var anonymous security.Subject
+	var anonymous auth.Subject
 
 	calls := map[string]func() error{
 		"Get": func() error {
@@ -53,7 +53,7 @@ func TestEveryNoteReadRequiresAuthorization(t *testing.T) {
 
 	for name, call := range calls {
 		t.Run(name+" with no subject", func(t *testing.T) {
-			if err := call(); !errors.Is(err, security.ErrForbidden) {
+			if err := call(); !errors.Is(err, auth.ErrForbidden) {
 				t.Fatalf("error = %v, want ErrForbidden", err)
 			}
 		})
@@ -68,7 +68,7 @@ func TestEveryNoteReadRequiresAuthorization(t *testing.T) {
 // the real ones -- a test that breaks when you do what the generator told you to
 // do is a test people delete.
 func TestTheNotePolicyDeniesWhatItDoesNotKnow(t *testing.T) {
-	admin := security.Subject{ID: "a1", Tenant: "t1", Roles: []string{"admin", "staff"}}
+	admin := auth.Subject{ID: "a1", Tenant: "t1", Roles: []string{"admin", "staff"}}
 
 	err := (policies.NotePolicy{}).Can(context.Background(), admin,
 		"note.action_that_does_not_exist", models.Note{})

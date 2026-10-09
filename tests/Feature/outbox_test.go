@@ -7,16 +7,17 @@ import (
 
 	"github.com/arandu-io/arandu/bootstrap"
 
-	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/events"
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/database"
+	hevents "github.com/arandu-io/hesape/events"
 )
 
 // The outbox, against a real database. The guarantee is that the event and the
 // row it describes commit together or not at all, and that is a claim about a
 // transaction -- which is exactly the thing a fake cannot prove.
 
-func migratedDB(t *testing.T) *data.DB {
+func migratedDB(t *testing.T) *database.DB {
 	t.Helper()
 	sqliteEnv(t)
 
@@ -31,16 +32,16 @@ func TestTheEventCommitsWithTheWrite(t *testing.T) {
 	db := migratedDB(t)
 	outbox := events.NewOutbox(db)
 	ctx := context.Background()
-	g := security.SystemGrant("customer.create", bootstrap.Tenant())
+	g := auth.SystemGrant("customer.create", bootstrap.Tenant())
 
-	err := data.Transaction(ctx, db, func(ctx context.Context) error {
+	err := database.Transaction(ctx, db, func(ctx context.Context) error {
 		if _, err := db.ExecContext(ctx, `CREATE TABLE customer (id TEXT PRIMARY KEY)`); err != nil {
 			return err
 		}
 		if _, err := db.ExecContext(ctx, `INSERT INTO customer (id) VALUES (?)`, "c-1"); err != nil {
 			return err
 		}
-		return outbox.Store(ctx, g, []events.Event{{
+		return outbox.Store(ctx, g, []hevents.Event{{
 			Name:        "customer.created",
 			Aggregate:   "customer",
 			AggregateID: "c-1",
@@ -88,8 +89,8 @@ func TestARolledBackWriteStoresNoEvent(t *testing.T) {
 	ctx := context.Background()
 	failed := errors.New("the rule said no")
 
-	err := data.Transaction(ctx, db, func(ctx context.Context) error {
-		if err := outbox.Store(ctx, security.SystemGrant("customer.create", bootstrap.Tenant()), []events.Event{
+	err := database.Transaction(ctx, db, func(ctx context.Context) error {
+		if err := outbox.Store(ctx, auth.SystemGrant("customer.create", bootstrap.Tenant()), []hevents.Event{
 			{Name: "customer.created", Aggregate: "customer", AggregateID: "c-2"},
 		}); err != nil {
 			return err
@@ -116,8 +117,8 @@ func TestPublishingMarksTheEvent(t *testing.T) {
 	outbox := events.NewOutbox(db)
 	ctx := context.Background()
 
-	err := data.Transaction(ctx, db, func(ctx context.Context) error {
-		return outbox.Store(ctx, security.SystemGrant("invoice.pay", bootstrap.Tenant()), []events.Event{
+	err := database.Transaction(ctx, db, func(ctx context.Context) error {
+		return outbox.Store(ctx, auth.SystemGrant("invoice.pay", bootstrap.Tenant()), []hevents.Event{
 			{Name: "invoice.paid", Aggregate: "invoice", AggregateID: "i-1"},
 		})
 	})
@@ -160,8 +161,8 @@ func TestAnotherTenantDoesNotSeeTheEvent(t *testing.T) {
 	outbox := events.NewOutbox(db)
 	ctx := context.Background()
 
-	err := data.Transaction(ctx, db, func(ctx context.Context) error {
-		return outbox.Store(ctx, security.SystemGrant("invoice.pay", bootstrap.Tenant()), []events.Event{
+	err := database.Transaction(ctx, db, func(ctx context.Context) error {
+		return outbox.Store(ctx, auth.SystemGrant("invoice.pay", bootstrap.Tenant()), []hevents.Event{
 			{Name: "invoice.paid", Aggregate: "invoice", AggregateID: "i-1"},
 		})
 	})

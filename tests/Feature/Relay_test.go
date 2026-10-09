@@ -9,24 +9,26 @@ import (
 	"github.com/arandu-io/arandu/bootstrap"
 
 	"github.com/arandu-io/framework/arandutest"
-	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/events"
-	"github.com/arandu-io/framework/security"
+	harandutest "github.com/arandu-io/hesape/arandutest"
+	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/database"
+	hevents "github.com/arandu-io/hesape/events"
 )
 
 // The relay against a real database. Everything it claims -- at-least-once,
 // parking after repeated failures, the lag that tells a stopped relay from an
 // idle one -- is a claim about rows, and a fake would prove none of it.
 
-func storedEvents(t *testing.T, db *data.DB, names ...string) {
+func storedEvents(t *testing.T, db *database.DB, names ...string) {
 	t.Helper()
 	outbox := events.NewOutbox(db)
-	g := security.SystemGrant("invoice.pay", bootstrap.Tenant())
+	g := auth.SystemGrant("invoice.pay", bootstrap.Tenant())
 
-	err := data.Transaction(context.Background(), db, func(ctx context.Context) error {
-		list := make([]events.Event, 0, len(names))
+	err := database.Transaction(context.Background(), db, func(ctx context.Context) error {
+		list := make([]hevents.Event, 0, len(names))
 		for i, name := range names {
-			list = append(list, events.Event{
+			list = append(list, hevents.Event{
 				Name: name, Aggregate: "invoice", AggregateID: string(rune('a' + i)),
 				Payload: map[string]string{"n": name},
 			})
@@ -45,7 +47,7 @@ func TestTheRelayPublishesWhatWasStored(t *testing.T) {
 
 	storedEvents(t, db, "invoice.paid", "invoice.closed")
 
-	var got arandutest.Collected
+	var got harandutest.Collected
 	arandutest.DrainOutbox(t, ctx, outbox, &got)
 
 	if len(got.Events) != 2 {
@@ -63,7 +65,7 @@ func TestTheRelayPublishesWhatWasStored(t *testing.T) {
 
 	// Published once. A second drain must not deliver them again -- at-least-once
 	// is the guarantee, not the goal.
-	var again arandutest.Collected
+	var again harandutest.Collected
 	arandutest.DrainOutbox(t, ctx, outbox, &again)
 	if len(again.Events) != 0 {
 		t.Errorf("a second pass republished %d events", len(again.Events))
@@ -79,7 +81,7 @@ func TestAFailedPublishIsRetried(t *testing.T) {
 
 	storedEvents(t, db, "invoice.paid")
 
-	refuse := events.PublisherFunc(func(context.Context, events.Stored) error {
+	refuse := hevents.PublisherFunc(func(context.Context, hevents.Stored) error {
 		return errors.New("the broker refused")
 	})
 	relay := events.NewRelay(outbox, refuse, events.RelayOptions{MaxAttempts: 3})
@@ -113,7 +115,7 @@ func TestAnEventThatKeepsFailingIsParked(t *testing.T) {
 
 	storedEvents(t, db, "invoice.paid")
 
-	refuse := events.PublisherFunc(func(context.Context, events.Stored) error {
+	refuse := hevents.PublisherFunc(func(context.Context, hevents.Stored) error {
 		return errors.New("the payload is malformed")
 	})
 	relay := events.NewRelay(outbox, refuse, events.RelayOptions{MaxAttempts: 3})
@@ -141,7 +143,7 @@ func TestAnEventThatKeepsFailingIsParked(t *testing.T) {
 
 	// A parked event must not block what came after it.
 	storedEvents(t, db, "invoice.closed")
-	var got arandutest.Collected
+	var got harandutest.Collected
 	arandutest.DrainOutbox(t, ctx, outbox, &got)
 	if len(got.Events) != 1 || got.Events[0].Name != "invoice.closed" {
 		t.Errorf("the parked event blocked the queue: %v", got.Names())
@@ -157,7 +159,7 @@ func TestRetryPutsAParkedEventBackInLine(t *testing.T) {
 
 	storedEvents(t, db, "invoice.paid")
 
-	refuse := events.PublisherFunc(func(context.Context, events.Stored) error {
+	refuse := hevents.PublisherFunc(func(context.Context, hevents.Stored) error {
 		return errors.New("the consumer was down")
 	})
 	relay := events.NewRelay(outbox, refuse, events.RelayOptions{MaxAttempts: 1})
@@ -175,7 +177,7 @@ func TestRetryPutsAParkedEventBackInLine(t *testing.T) {
 		t.Fatalf("Retry: %v", err)
 	}
 
-	var got arandutest.Collected
+	var got harandutest.Collected
 	arandutest.DrainOutbox(t, ctx, outbox, &got)
 	if len(got.Events) != 1 {
 		t.Fatalf("the retried event was not published: %v", got.Names())
@@ -208,7 +210,7 @@ func TestTheLagTellsAStoppedRelayFromAnIdleOne(t *testing.T) {
 		t.Fatalf("lag = %s, want a small positive duration", lag)
 	}
 
-	var got arandutest.Collected
+	var got harandutest.Collected
 	arandutest.DrainOutbox(t, ctx, outbox, &got)
 
 	// Published, so the backlog is gone and the lag with it.
@@ -225,7 +227,7 @@ func TestParkedEventsDoNotCountAsLag(t *testing.T) {
 	ctx := context.Background()
 
 	storedEvents(t, db, "invoice.paid")
-	refuse := events.PublisherFunc(func(context.Context, events.Stored) error {
+	refuse := hevents.PublisherFunc(func(context.Context, hevents.Stored) error {
 		return errors.New("no")
 	})
 	if err := events.NewRelay(outbox, refuse, events.RelayOptions{MaxAttempts: 1}).Drain(ctx); err != nil {

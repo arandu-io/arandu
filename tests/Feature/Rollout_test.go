@@ -7,11 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/events"
-	"github.com/arandu-io/framework/observability"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/database/schema"
+	"github.com/arandu-io/hesape/log"
 
 	"github.com/arandu-io/arandu/bootstrap"
 )
@@ -139,7 +138,7 @@ func TestThePreviousBinaryKeepsServingWhileTheNewSchemaIsInPlace(t *testing.T) {
 	if len(pending) != 2 {
 		t.Fatalf("the outbox holds %d events after two registrations, want 2", len(pending))
 	}
-	if err := app.Relay.Drain(observability.WithLogger(ctx, slog.New(&publishedEvents{}))); err != nil {
+	if err := app.Relay.Drain(log.Into(ctx, slog.New(&publishedEvents{}))); err != nil {
 		t.Fatalf("the relay cannot drain against the new schema: %v", err)
 	}
 	if left, err := outbox.PendingAll(ctx, 10); err != nil || len(left) != 0 {
@@ -191,7 +190,7 @@ func TestThePreviousBinaryStopsServingWhenTheNewSchemaTakesAColumnAway(t *testin
 // exporting it would put a door in the application for the benefit of a test.
 // What matters is that the DDL below goes through the same grammar a migration's
 // conn.Schema() goes through, and the connection is what carries that.
-func schemaBuilder(t *testing.T, db *data.DB) *schema.Builder {
+func schemaBuilder(t *testing.T, db *database.DB) *schema.Builder {
 	t.Helper()
 	conn := database.NewConnection(db.Unwrap(), "", "", map[string]any{
 		"driver": string(db.Dialect()),

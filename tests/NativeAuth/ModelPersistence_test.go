@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arandu-io/framework/security"
 	twofactor "github.com/arandu-io/hesape/2fa"
+	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/hashing"
@@ -34,7 +34,7 @@ func TestTheSecondFactorLifecycle(t *testing.T) {
 	if user.TenantID != "tenant-a" || user.ID == "" {
 		t.Fatalf("the registered account is %+v, want an id in tenant-a", user)
 	}
-	actor := security.Subject{ID: user.ID, Tenant: user.TenantID}
+	actor := auth.Subject{ID: user.ID, Tenant: user.TenantID}
 	factors, err := services.NewTwoFactorService(db.app, []byte("0123456789abcdef0123456789abcdef"), cache.NewArrayStore())
 	if err != nil {
 		t.Fatalf("creating the second-factor service: %v", err)
@@ -134,8 +134,8 @@ func TestEverySecondFactorWriteStaysInsideTheGrantTenant(t *testing.T) {
 		t.Fatalf("seeding the recovery code: %v", err)
 	}
 
-	read := security.SystemGrant(policies.ActionTwoFactorRead, "tenant-b")
-	manage := security.SystemGrant(policies.ActionTwoFactorManage, "tenant-b")
+	read := auth.SystemGrant(policies.ActionTwoFactorRead, "tenant-b")
+	manage := auth.SystemGrant(policies.ActionTwoFactorManage, "tenant-b")
 
 	if _, err := repository.Find(ctx, read, "user-a"); !errors.Is(err, repositories.ErrTwoFactorNotEnrolled) {
 		t.Errorf("Find under another tenant answered %v, want ErrTwoFactorNotEnrolled", err)

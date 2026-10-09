@@ -4,7 +4,7 @@ import "time"
 
 // DefaultTenant is the tenant a single-tenant application runs under.
 //
-// It is a constant rather than an empty string on purpose: security.SystemGrant
+// It is a constant rather than an empty string on purpose: auth.SystemGrant
 // refuses an empty tenant, because a system grant with no tenant reads across
 // every customer of the system. An application that never thinks about tenancy
 // still writes every row under this value, so growing into multi-tenant later is

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/arandu-io/framework/geo"
+	hgeo "github.com/arandu-io/hesape/geo"
 )
 
 func TestGeoDefaultsToAllSurfacesWithIndexingClosed(t *testing.T) {
@@ -13,7 +14,7 @@ func TestGeoDefaultsToAllSurfacesWithIndexingClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.Geo.Enabled || cfg.Geo.Indexing || cfg.Geo.Surfaces != geo.AllSurfaces {
+	if !cfg.Geo.Enabled || cfg.Geo.Indexing || cfg.Geo.Surfaces != hgeo.AllSurfaces {
 		t.Fatalf("GEO defaults = enabled %t indexing %t surfaces %d", cfg.Geo.Enabled, cfg.Geo.Indexing, cfg.Geo.Surfaces)
 	}
 	module := geo.NewModule(cfg.Geo, nil)
@@ -27,7 +28,7 @@ func TestGeoSurfacesAreIndependentlySelectable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := geo.Robots.AsSet() | geo.LLMs.AsSet()
+	want := hgeo.Robots.AsSet() | hgeo.LLMs.AsSet()
 	if cfg.Geo.Surfaces != want {
 		t.Fatalf("GEO surfaces = %d, want %d", cfg.Geo.Surfaces, want)
 	}

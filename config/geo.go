@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/arandu-io/framework/geo"
+	"github.com/arandu-io/hesape/geo"
 )
 
 // loadGeo builds the native Search and Generative Engine Optimization module.

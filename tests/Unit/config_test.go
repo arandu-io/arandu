@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
 
 	appconfig "github.com/arandu-io/arandu/config"
 )
@@ -85,7 +86,7 @@ func sessionCookie(t *testing.T, values map[string]string) *http.Cookie {
 	// the id somebody arrived holding is session fixation, and this is the seam
 	// that replaces it.
 	response := httptest.NewRecorder()
-	subject := security.Subject{
+	subject := auth.Subject{
 		ID:     "11111111-1111-4111-8111-111111111111",
 		Tenant: "22222222-2222-4222-8222-222222222222",
 	}

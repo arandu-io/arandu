@@ -2,7 +2,7 @@
 
 package requests
 
-import "github.com/arandu-io/framework/validation"
+import "github.com/arandu-io/hesape/validation"
 
 // NoteRequest is the input contract of creation and update, which take the
 // same fields. ctx.Bind fills it through the form tags, and only those: there is

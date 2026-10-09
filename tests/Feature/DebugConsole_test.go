@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arandu-io/framework/data"
 	fhttp "github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/observability"
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/database"
+	"github.com/arandu-io/hesape/log"
 
 	"github.com/arandu-io/arandu/bootstrap"
 )
@@ -27,14 +27,14 @@ import (
 // wires are reachable from no route: the relay that empties the outbox is one,
 // and a test that built one of its own would pass over an application that wires
 // none.
-func bootedApp(t *testing.T) (bootstrap.App, *data.DB) {
+func bootedApp(t *testing.T) (bootstrap.App, *database.DB) {
 	t.Helper()
 	app, db := builtApp(t)
 	bootApp(t, app)
 	return app, db
 }
 
-func builtApp(t *testing.T) (bootstrap.App, *data.DB) {
+func builtApp(t *testing.T) (bootstrap.App, *database.DB) {
 	t.Helper()
 	sqliteEnv(t)
 
@@ -72,7 +72,7 @@ func TestTheConsoleRecordsARealRequest(t *testing.T) {
 	}
 
 	list := httptest.NewRecorder()
-	handler.ServeHTTP(list, httptest.NewRequest(http.MethodGet, observability.ConsolePath, nil))
+	handler.ServeHTTP(list, httptest.NewRequest(http.MethodGet, log.ConsolePath, nil))
 	if list.Code != http.StatusOK {
 		t.Fatalf("the console answered %d", list.Code)
 	}
@@ -81,7 +81,7 @@ func TestTheConsoleRecordsARealRequest(t *testing.T) {
 	}
 
 	detail := httptest.NewRecorder()
-	handler.ServeHTTP(detail, httptest.NewRequest(http.MethodGet, observability.ConsolePath+"/"+id, nil))
+	handler.ServeHTTP(detail, httptest.NewRequest(http.MethodGet, log.ConsolePath+"/"+id, nil))
 	if detail.Code != http.StatusOK {
 		t.Fatalf("the detail page answered %d", detail.Code)
 	}
@@ -124,7 +124,7 @@ func TestTheConsoleSeesTheQueriesOfTheRequest(t *testing.T) {
 	}
 
 	detail := httptest.NewRecorder()
-	handler.ServeHTTP(detail, httptest.NewRequest(http.MethodGet, observability.ConsolePath+"/"+id+"?format=json", nil))
+	handler.ServeHTTP(detail, httptest.NewRequest(http.MethodGet, log.ConsolePath+"/"+id+"?format=json", nil))
 
 	body := detail.Body.String()
 	if !strings.Contains(strings.ToLower(body), `from \"users\"`) {
@@ -155,8 +155,8 @@ func (p queryProbe) Routes(router *fhttp.Router) {
 }
 
 func TestTheGrantStillComesFromTheSession(t *testing.T) {
-	g := security.SystemGrant("user.view", bootstrap.Tenant())
-	if data.Tenant(g) != bootstrap.Tenant() {
+	g := auth.SystemGrant("user.view", bootstrap.Tenant())
+	if auth.Tenant(g) != bootstrap.Tenant() {
 		t.Fatal("the tenant no longer comes from the Grant")
 	}
 }

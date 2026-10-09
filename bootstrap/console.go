@@ -14,11 +14,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/arandu-io/framework/data"
-	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/console"
 	"github.com/arandu-io/hesape/database"
+	"github.com/arandu-io/hesape/routing"
 
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/routes"
@@ -72,7 +71,7 @@ func Dispatch(command string, args []string) error {
 		if err := k.Boot(ctx); err != nil {
 			return err
 		}
-		fmt.Print(kernel.FormatRoutes(k.Routes()))
+		fmt.Print(routing.FormatRoutes(k.Routes()))
 		return nil
 
 	case "schedule:list":
@@ -211,6 +210,6 @@ func unknownCommand(command string, available []console.Command) error {
 // Exported because the feature tests open the same database the commands do:
 // two ways to connect is two places for a DSN to be built differently, and the
 // one nobody runs daily is the one that drifts.
-func Open(cfg appconfig.Config) (*data.DB, func(), error) {
+func Open(cfg appconfig.Config) (*database.DB, func(), error) {
 	return database.Open(cfg.Database.Connection)
 }

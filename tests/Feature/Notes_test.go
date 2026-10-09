@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/hesape/arandutest"
+	"github.com/arandu-io/hesape/auth"
 
 	models "github.com/arandu-io/arandu/app/Models"
 	policies "github.com/arandu-io/arandu/app/Policies"
@@ -33,15 +33,15 @@ func newNotesFixture(t *testing.T) notesFixture {
 	app := tests.Booted(t)
 	tenant := bootstrap.Tenant()
 	members, err := factories.Users(app.DB).Count(2).
-		Create(context.Background(), security.SystemGrant(policies.ActionUserCreate, tenant))
+		Create(context.Background(), auth.SystemGrant(policies.ActionUserCreate, tenant))
 	if err != nil {
 		t.Fatalf("creating the members: %v", err)
 	}
 	ana, bea := members[0].ID, members[1].ID
 	return notesFixture{
 		app:   app,
-		ana:   tests.SignedIn(t, app, security.Subject{ID: ana, Tenant: tenant}),
-		bea:   tests.SignedIn(t, app, security.Subject{ID: bea, Tenant: tenant}),
+		ana:   tests.SignedIn(t, app, auth.Subject{ID: ana, Tenant: tenant}),
+		bea:   tests.SignedIn(t, app, auth.Subject{ID: bea, Tenant: tenant}),
 		anaID: ana,
 		beaID: bea,
 	}
@@ -67,7 +67,7 @@ func (f notesFixture) stored(t *testing.T, address string) *models.Note {
 	t.Helper()
 	id := strings.TrimPrefix(address, "/notes/")
 	note, err := models.Notes(f.app.DB).Find(context.Background(),
-		security.SystemGrant(policies.NoteView, bootstrap.Tenant()), id)
+		auth.SystemGrant(policies.NoteView, bootstrap.Tenant()), id)
 	if err != nil {
 		t.Fatalf("reading note %s: %v", id, err)
 	}
@@ -141,7 +141,7 @@ func TestANoteOfAnotherTenantIsNotFound(t *testing.T) {
 	theirs, err := factories.Notes(f.app.DB).State(func(n *models.Note) {
 		n.Title = "Another tenant's secret"
 		n.UserID = f.anaID
-	}).CreateOne(context.Background(), security.SystemGrant(policies.NoteCreate, elsewhere))
+	}).CreateOne(context.Background(), auth.SystemGrant(policies.NoteCreate, elsewhere))
 	if err != nil {
 		t.Fatalf("creating a note in another tenant: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestANoteOfAnotherTenantIsNotFound(t *testing.T) {
 	ana.Put(address, map[string]string{"title": "Moved"}).AssertStatus(http.StatusNotFound)
 	ana.Delete(address, nil).AssertStatus(http.StatusNotFound)
 
-	still, err := models.Notes(f.app.DB).Find(context.Background(), security.SystemGrant(policies.NoteView, elsewhere), theirs.ID)
+	still, err := models.Notes(f.app.DB).Find(context.Background(), auth.SystemGrant(policies.NoteView, elsewhere), theirs.ID)
 	if err != nil || still == nil || still.Title != "Another tenant's secret" {
 		t.Fatalf("the other tenant's note is now %+v (%v)", still, err)
 	}
@@ -183,7 +183,7 @@ func TestTheExampleNotesAreSeededInDevelopmentOnly(t *testing.T) {
 	ctx := context.Background()
 	notes := func() []*models.Note {
 		t.Helper()
-		found, err := models.Notes(db).Get(ctx, security.SystemGrant(policies.NoteList, bootstrap.Tenant()))
+		found, err := models.Notes(db).Get(ctx, auth.SystemGrant(policies.NoteList, bootstrap.Tenant()))
 		if err != nil {
 			t.Fatalf("reading the seeded notes: %v", err)
 		}
@@ -208,7 +208,7 @@ func TestTheExampleNotesAreSeededInDevelopmentOnly(t *testing.T) {
 		t.Fatalf("two runs of the root seeder in development wrote %d notes, want 6", len(seeded))
 	}
 	for _, note := range seeded {
-		author, err := models.Users(db).Find(ctx, security.SystemGrant(policies.ActionUserView, bootstrap.Tenant()), note.UserID)
+		author, err := models.Users(db).Find(ctx, auth.SystemGrant(policies.ActionUserView, bootstrap.Tenant()), note.UserID)
 		if err != nil || author == nil {
 			t.Fatalf("note %s has no author in the tenant: %v", note.ID, err)
 		}

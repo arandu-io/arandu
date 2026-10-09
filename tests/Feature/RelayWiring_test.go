@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/events"
-	"github.com/arandu-io/framework/observability"
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/database"
+	hevents "github.com/arandu-io/hesape/events"
+	"github.com/arandu-io/hesape/log"
 
 	appevents "github.com/arandu-io/arandu/app/Events"
 	"github.com/arandu-io/arandu/app/Policies"
@@ -30,7 +31,7 @@ import (
 // process ever read. Nothing failed, which is how it survived.
 //
 // Nothing below starts the loop, and nothing has to. Start belongs to
-// kernel.Background and is called by Kernel.Run, never by Kernel.Boot, so a
+// foundation.Background and is called by Kernel.Run, never by Kernel.Boot, so a
 // booted-but-not-served application publishes exactly when a test says so. That
 // is what makes "published once" a countable claim instead of a race with a
 // ticker.
@@ -63,7 +64,7 @@ func TestTheApplicationWiresARelayAndItPublishesWhatAuthStored(t *testing.T) {
 	// the log is where a test watches it work, rather than substituting a
 	// publisher and proving nothing about the one that is wired.
 	seen := &publishedEvents{}
-	logged := observability.WithLogger(ctx, slog.New(seen))
+	logged := log.Into(ctx, slog.New(seen))
 
 	if err := app.Relay.Drain(logged); err != nil {
 		t.Fatalf("Drain: %v", err)
@@ -140,9 +141,9 @@ func TestTheProbeFailsWhileNothingIsDrainingTheOutbox(t *testing.T) {
 	// field of the event, so the age is the fixture and the write is still the
 	// one production makes.
 	ctx := context.Background()
-	g := security.SystemGrant("invoice.pay", bootstrap.Tenant())
-	err := data.Transaction(ctx, db, func(ctx context.Context) error {
-		return events.NewOutbox(db).Store(ctx, g, []events.Event{{
+	g := auth.SystemGrant("invoice.pay", bootstrap.Tenant())
+	err := database.Transaction(ctx, db, func(ctx context.Context) error {
+		return events.NewOutbox(db).Store(ctx, g, []hevents.Event{{
 			Name:        "invoice.paid",
 			Aggregate:   "invoice",
 			AggregateID: "i-1",
@@ -161,7 +162,7 @@ func TestTheProbeFailsWhileNothingIsDrainingTheOutbox(t *testing.T) {
 		t.Errorf("the probe does not name the module holding the backlog: %q", rec.Body.String())
 	}
 
-	if err := app.Relay.Drain(observability.WithLogger(ctx, slog.New(&publishedEvents{}))); err != nil {
+	if err := app.Relay.Drain(log.Into(ctx, slog.New(&publishedEvents{}))); err != nil {
 		t.Fatalf("Drain: %v", err)
 	}
 	if rec := probe(); rec.Code != http.StatusOK {

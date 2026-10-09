@@ -5,7 +5,7 @@ package seeders
 import (
 	"context"
 
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
 
 	models "github.com/arandu-io/arandu/app/Models"
 	policies "github.com/arandu-io/arandu/app/Policies"
@@ -18,8 +18,8 @@ import (
 // UserSeeder, and the notes of the tenant are there to read -- and refused to
 // change, because you did not write them.
 //
-// A seeder writes, and a write needs a security.Grant. This is one of the few
-// places security.SystemGrant is legitimate -- there is no request and no
+// A seeder writes, and a write needs an auth.Grant. This is one of the few
+// places auth.SystemGrant is legitimate -- there is no request and no
 // actor behind it -- and `aru doctor` allows it here
 // because of the directory this file is in, not because of what the function
 // is called. Anywhere else it is a warning that has to be answered with
@@ -37,14 +37,14 @@ func (NoteSeeder) Name() string { return "NoteSeeder" }
 // table that already has rows is left as it is, which is what makes a second
 // run safe.
 func (NoteSeeder) Run(ctx context.Context, d Deps) error {
-	seeded, err := models.Notes(d.DB).Exists(ctx, security.SystemGrant(policies.NoteList, d.Tenant))
+	seeded, err := models.Notes(d.DB).Exists(ctx, auth.SystemGrant(policies.NoteList, d.Tenant))
 	if err != nil || seeded {
 		return err
 	}
 	// arandu:begin custom
 	// Rows the factory's defaults do not describe go here: a fixed record, a
 	// state applied to some of them.
-	authors, err := factories.Users(d.DB).Count(2).Create(ctx, security.SystemGrant(policies.ActionUserCreate, d.Tenant))
+	authors, err := factories.Users(d.DB).Count(2).Create(ctx, auth.SystemGrant(policies.ActionUserCreate, d.Tenant))
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func (NoteSeeder) Run(ctx context.Context, d Deps) error {
 		Sequence(factories.WrittenBy(authors[0].ID), factories.WrittenBy(authors[1].ID))
 	// arandu:end custom
 
-	if _, err := byAuthor.Create(ctx, security.SystemGrant(policies.NoteCreate, d.Tenant)); err != nil {
+	if _, err := byAuthor.Create(ctx, auth.SystemGrant(policies.NoteCreate, d.Tenant)); err != nil {
 		return err
 	}
 	return nil

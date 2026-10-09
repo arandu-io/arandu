@@ -20,6 +20,8 @@ import (
 	"github.com/arandu-io/framework/security"
 	twofactor "github.com/arandu-io/hesape/2fa"
 	nativeauth "github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/encryption"
+	"github.com/arandu-io/hesape/session"
 )
 
 func TestPasswordAndPendingFactorSessionMatrix(t *testing.T) {
@@ -110,7 +112,7 @@ func TestPasswordAndPendingFactorSessionMatrix(t *testing.T) {
 		}
 		pending := &http.Cookie{
 			Name:  "two-factor-pending",
-			Value: security.NewSigner(harness.appKey).Sign("two-factor-pending", string(payload), -time.Second),
+			Value: encryption.NewSigner(harness.appKey).Sign("two-factor-pending", string(payload), -time.Second),
 			Path:  "/auth/two-factor",
 		}
 		harness.postWithCookies("/auth/two-factor/challenge", url.Values{
@@ -151,7 +153,7 @@ func newSessionHarness(t *testing.T) *sessionHarness {
 	backend := &countingBackend{}
 	sessions := security.NewSessionStore(appKey, time.Hour, false, backend)
 	module := authui.New(
-		users, factors, nil, sessions, security.NewCSRF(appKey, time.Hour), nil,
+		users, factors, nil, sessions, session.NewCSRF(appKey, time.Hour), nil,
 		appKey, "Arandu", authui.FixedTenant("tenant-a"), false,
 	)
 	router := fhttp.NewRouter()
@@ -211,11 +213,11 @@ type countingBackend struct {
 	writes int
 }
 
-func (*countingBackend) Get(context.Context, string) (security.Subject, error) {
-	return security.Subject{}, security.ErrSessionExpired
+func (*countingBackend) Get(context.Context, string) (nativeauth.Subject, error) {
+	return nativeauth.Subject{}, session.ErrExpired
 }
 
-func (b *countingBackend) Put(context.Context, string, security.Subject, time.Duration) error {
+func (b *countingBackend) Put(context.Context, string, nativeauth.Subject, time.Duration) error {
 	b.mu.Lock()
 	b.writes++
 	b.mu.Unlock()

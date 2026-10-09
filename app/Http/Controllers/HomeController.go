@@ -4,7 +4,8 @@ import (
 	"context"
 
 	"github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
+	hhttp "github.com/arandu-io/hesape/http"
 	"github.com/arandu-io/hesape/view"
 
 	"github.com/arandu-io/arandu/storage/framework/views"
@@ -14,7 +15,7 @@ import (
 // Keeping the interface here lets the published UI replace this controller
 // without coupling the request layer to a concrete service constructor.
 type UserNames interface {
-	PublicNames(context.Context, security.Subject, []string) (map[string]string, error)
+	PublicNames(context.Context, auth.Subject, []string) (map[string]string, error)
 }
 
 // HomeController answers the landing page.
@@ -73,7 +74,7 @@ var _ http.Indexer = (*HomeController)(nil)
 // sign-out form and in hx-headers. The navigation draws a link only for what
 // answers. The published authentication UI owns the sign-in and sign-out
 // routes; registration stays off until its handler is published as well.
-func (c *HomeController) Index(ctx *http.Context) error {
+func (c *HomeController) Index(ctx *hhttp.Context) error {
 	// Who is signed in, put on the request by the route's LoadSubject from the
 	// session cookie and never from the request body. No subject is the
 	// anonymous case -- no cookie, a forged one, or a session that expired --
@@ -87,7 +88,7 @@ func (c *HomeController) Index(ctx *http.Context) error {
 	if signedIn && c.people != nil {
 		// PublicNames authorizes against the reader rather than taking a tenant
 		// string, so the policy sees who is asking.
-		reader := security.Subject{ID: subject.ID, Tenant: c.tenant}
+		reader := auth.Subject{ID: subject.ID, Tenant: c.tenant}
 		if names, err := c.people.PublicNames(ctx.Ctx(), reader, []string{subject.ID}); err == nil && names[subject.ID] != "" {
 			name = names[subject.ID]
 		}
@@ -107,7 +108,7 @@ func (c *HomeController) Index(ctx *http.Context) error {
 		Features: []views.Feature{
 			{
 				Title: "Authorization the compiler enforces",
-				Body:  "No repository is reachable without a security.Grant, and no Grant exists without a Policy having answered.",
+				Body:  "No repository is reachable without an auth.Grant, and no Grant exists without a Policy having answered.",
 			},
 			{
 				Title: "One view, one runtime, one build",

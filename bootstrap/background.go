@@ -11,7 +11,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/arandu-io/framework/kernel"
+	"github.com/arandu-io/framework/foundation"
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/hesape/queue"
 
@@ -30,7 +30,7 @@ func scheduleList(sched *scheduler.Module) error {
 	s := sched.Scheduler()
 	if s == nil {
 		fmt.Println("no scheduled tasks.")
-		fmt.Println("A module declares them with Schedule() []kernel.Task -- see doc 16.")
+		fmt.Println("A module declares them with Schedule() []foundation.Task -- see doc 16.")
 		return nil
 	}
 
@@ -132,7 +132,7 @@ func WorkerOptions(cfg appconfig.Queue, args []string) (queue.WorkerOptions, err
 }
 
 // work drains a job queue until interrupted.
-func work(ctx context.Context, k *kernel.Kernel, store queue.Queue, cfg appconfig.Queue, args []string) error {
+func work(ctx context.Context, k *foundation.Application, store queue.Queue, cfg appconfig.Queue, args []string) error {
 	opts, err := WorkerOptions(cfg, args)
 	if err != nil {
 		return err

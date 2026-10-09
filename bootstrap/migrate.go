@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/arandu-io/framework/data"
-	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/console"
 	"github.com/arandu-io/hesape/database"
@@ -17,6 +15,7 @@ import (
 	"github.com/arandu-io/hesape/database/console/seeds"
 	"github.com/arandu-io/hesape/database/migrations"
 	"github.com/arandu-io/hesape/database/schema"
+	"github.com/arandu-io/hesape/foundation"
 
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/database/seeders"
@@ -99,7 +98,7 @@ const isolationLockTTL = time.Hour
 //
 // Output goes to stdout because the migrator prints each migration and how it
 // turned out. Nothing below reprints what it already said.
-func newMigrator(db *data.DB, moduleMigrations []kernel.Migration) *migrations.Migrator {
+func newMigrator(db *database.DB, moduleMigrations []foundation.Migration) *migrations.Migrator {
 	for _, migration := range moduleMigrations {
 		migrations.Register(migration, modulePath)
 	}
@@ -114,7 +113,7 @@ func newMigrator(db *data.DB, moduleMigrations []kernel.Migration) *migrations.M
 
 // newConnectionResolver holds this application's one connection under the one
 // name the migrations know it by.
-func newConnectionResolver(db *data.DB) *database.ConnectionResolver {
+func newConnectionResolver(db *database.DB) *database.ConnectionResolver {
 	connection := database.NewConnection(db.Unwrap(), "", "", map[string]any{
 		"driver": string(db.Dialect()),
 		"name":   migrationConnection,
@@ -155,7 +154,7 @@ func seedCommands(cfg appconfig.Config, app App) []console.Command {
 // it. Events is nil and Prunables is empty: this application dispatches no
 // DatabaseBusy and has nothing to prune, and both degrade to a command that says
 // so rather than one that is missing.
-func databaseCommands(cfg appconfig.Config, db *data.DB) []console.Command {
+func databaseCommands(cfg appconfig.Config, db *database.DB) []console.Command {
 	return dbconsole.Commands(dbconsole.Deps{
 		Connections: newConnectionResolver(db),
 		Wipe:        wipeFor(cfg, db),
@@ -169,7 +168,7 @@ func databaseCommands(cfg appconfig.Config, db *data.DB) []console.Command {
 // It reads the catalogue through the schema builder, which is the same door
 // every migration writes DDL through -- so what db:show lists and what a
 // migration created cannot describe different tables.
-func tablesFor(db *data.DB) func(context.Context, string) ([]dbconsole.TableInfo, error) {
+func tablesFor(db *database.DB) func(context.Context, string) ([]dbconsole.TableInfo, error) {
 	return func(ctx context.Context, connection string) ([]dbconsole.TableInfo, error) {
 		name := connection
 		if name == "" {
@@ -214,7 +213,7 @@ func tablesFor(db *data.DB) func(context.Context, string) ([]dbconsole.TableInfo
 // A store this process holds by itself would satisfy the types and isolate
 // nothing, so a binary configured with the in-process cache gets no lock issuer
 // and the isolated commands say so rather than reporting themselves isolated.
-func migrationCommands(cfg appconfig.Config, db *data.DB, app App) []console.Command {
+func migrationCommands(cfg appconfig.Config, db *database.DB, app App) []console.Command {
 	// The queue's two tables are added to what the modules declared, because
 	// nothing declares them: the jobs table arrives with the queue module,
 	// which asks its driver, and the failed jobs and batches tables belong to a
@@ -263,7 +262,7 @@ func seedDeps(cfg appconfig.Config, app App) seeders.Deps {
 // The refusal outside development is in refuseCommand, which runs before the
 // command does: a command that cannot do what it was asked should leave nothing
 // behind that says it tried.
-func wipeFor(_ appconfig.Config, db *data.DB) func(context.Context, string) error {
+func wipeFor(_ appconfig.Config, db *database.DB) func(context.Context, string) error {
 	return func(ctx context.Context, connection string) error {
 		resolver := newConnectionResolver(db)
 		name := connection

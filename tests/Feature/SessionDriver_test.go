@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
 
 	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
@@ -107,7 +107,7 @@ func TestTheSessionIsKeptByTheStoreTheConnectorOpened(t *testing.T) {
 		t.Errorf("the shared store indexes the session under %s in %s, want %s in %s",
 			stored.SubjectID, stored.Tenant, user.ID, user.TenantID)
 	}
-	var subject security.Subject
+	var subject auth.Subject
 	if err := json.Unmarshal(stored.Payload, &subject); err != nil {
 		t.Fatalf("the stored payload is not the subject as JSON: %v (%s)", err, stored.Payload)
 	}

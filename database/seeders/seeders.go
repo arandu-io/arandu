@@ -10,7 +10,6 @@ package seeders
 import (
 	"context"
 
-	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/hesape/database"
 
 	"github.com/arandu-io/arandu/app/Services"
@@ -27,7 +26,7 @@ type Deps struct {
 	// DB is the application database, for the seeders that create rows through
 	// a factory. A factory stores through the model, and the model takes the
 	// Grant the seeder hands it.
-	DB *data.DB
+	DB *database.DB
 	// Development is true when APP_ENV is dev. The example rows are seeded only
 	// then: a production database is no place for invented content.
 	Development bool

@@ -21,7 +21,7 @@ import (
 // rather than written out here. A hand-written list is a list that stops
 // mentioning the table added after it, which is precisely the table this is
 // about. The map below is the other half: it is the claim, one entry per table
-// whose reads take data.Tenant(g), and the catalogue is the fact. The two are
+// whose reads take auth.Tenant(g), and the catalogue is the fact. The two are
 // compared in both directions.
 //
 // # What it does not reach
@@ -37,7 +37,7 @@ import (
 // under another name changes it here, and gets the same check.
 const tenantColumn = "tenant_id"
 
-// scopedByTenant is the claim: reads of these tables take data.Tenant(g).
+// scopedByTenant is the claim: reads of these tables take auth.Tenant(g).
 //
 // It is written by hand ON PURPOSE, and it is the only hand-written half. Adding
 // a name here is a statement that somebody looked at the queries, so it is meant
@@ -105,7 +105,7 @@ func TestEveryTableWithATenantColumnIsOneThatFiltersByTenant(t *testing.T) {
 		case carries && !claimed:
 			t.Errorf("%s has a %s and nothing says it is filtered by one.\n"+
 				"        Every read of it -- List, Find, a read model, a report, an export -- has to take "+
-				"data.Tenant(g) before the name goes in scopedByTenant. A tenant column nobody filters on "+
+				"auth.Tenant(g) before the name goes in scopedByTenant. A tenant column nobody filters on "+
 				"is one tenant reading another's rows.\n"+
 				"        Once every read does take it, the line to add is:\n"+
 				"            %q: \"why every read of it is scoped\",\n"+

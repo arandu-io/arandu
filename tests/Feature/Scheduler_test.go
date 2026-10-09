@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arandu-io/framework/data"
-	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/framework/scheduler"
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/database"
+	"github.com/arandu-io/hesape/foundation"
 	"github.com/arandu-io/hesape/queue"
 	"github.com/arandu-io/hesape/queue/jobs"
 
@@ -30,13 +30,13 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 	// A task that does what a scheduled task should: decide what work exists,
 	// and enqueue it. The work itself belongs to a handler, where it gets the
 	// retry budget the scheduler deliberately does not offer.
-	task := kernel.Task{
+	task := foundation.Task{
 		ID:      "billing.close",
 		Spec:    "0 3 * * *",
-		Scope:   kernel.PerTenant,
+		Scope:   foundation.PerTenant,
 		Action:  "invoice.send",
 		Timeout: 10 * time.Second,
-		Run: func(ctx context.Context, g security.Grant) error {
+		Run: func(ctx context.Context, g auth.Grant) error {
 			j, err := jobs.New(g, "", "invoice.send", map[string]string{"cycle": "2026-08"})
 			if err != nil {
 				return err
@@ -45,7 +45,7 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 		},
 	}
 
-	sched, err := scheduler.New([]kernel.Task{task}, scheduler.Options{
+	sched, err := scheduler.New([]foundation.Task{task}, scheduler.Options{
 		Tenants: func(context.Context) ([]string, error) { return []string{bootstrap.Tenant()}, nil },
 	})
 	if err != nil {
@@ -72,7 +72,7 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 	done := make(chan struct{})
 
 	w := queue.NewWorker(store, queue.WorkerOptions{Sleep: 5 * time.Millisecond})
-	w.HandleFunc("invoice.send", func(_ context.Context, g security.Grant, j *jobs.Job) error {
+	w.HandleFunc("invoice.send", func(_ context.Context, g auth.Grant, j *jobs.Job) error {
 		var payload struct {
 			Cycle string `json:"cycle"`
 		}
@@ -114,8 +114,8 @@ func TestAJobIsCommittedWithTheWriteThatProducedIt(t *testing.T) {
 	ctx := context.Background()
 	refused := errors.New("the rule said no")
 
-	err := data.Transaction(ctx, db, func(ctx context.Context) error {
-		g := security.SystemGrant("invoice.send", bootstrap.Tenant())
+	err := database.Transaction(ctx, db, func(ctx context.Context) error {
+		g := auth.SystemGrant("invoice.send", bootstrap.Tenant())
 		j, err := jobs.New(g, "", "invoice.send", nil)
 		if err != nil {
 			return err

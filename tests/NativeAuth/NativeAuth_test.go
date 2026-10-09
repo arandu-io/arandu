@@ -12,10 +12,10 @@ import (
 	"time"
 
 	appmigrations "github.com/arandu-io/arandu/database/migrations"
-	"github.com/arandu-io/framework/data"
+
 	frameevents "github.com/arandu-io/framework/events"
-	"github.com/arandu-io/framework/security"
 	twofactor "github.com/arandu-io/hesape/2fa"
+	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/cache"
 	hedatabase "github.com/arandu-io/hesape/database"
 	_ "github.com/arandu-io/hesape/database/connectors/sqlite"
@@ -34,14 +34,14 @@ import (
 func TestPolicyAndGrantRefusalsHappenBeforeTheFirstQuery(t *testing.T) {
 	t.Run("user service", func(t *testing.T) {
 		service := services.NewUserService(nil)
-		if _, err := service.PublicNames(context.Background(), security.Subject{}, []string{"user-a"}); err == nil {
+		if _, err := service.PublicNames(context.Background(), auth.Subject{}, []string{"user-a"}); err == nil {
 			t.Fatal("an unauthenticated subject reached the public-name query")
 		}
 	})
 
 	t.Run("two-factor repository", func(t *testing.T) {
 		repository := repositories.NewTwoFactorRepository(nil)
-		grant := security.SystemGrant(policies.ActionTwoFactorRead, "tenant-a")
+		grant := auth.SystemGrant(policies.ActionTwoFactorRead, "tenant-a")
 		if _, err := repository.SpendStep(context.Background(), grant, "user-a", 42); err == nil {
 			t.Fatal("a read-only grant reached the replay update")
 		}
@@ -49,7 +49,7 @@ func TestPolicyAndGrantRefusalsHappenBeforeTheFirstQuery(t *testing.T) {
 
 	t.Run("two-factor requirement", func(t *testing.T) {
 		repository := repositories.NewTwoFactorRepository(nil)
-		grant := security.SystemGrant(policies.ActionTwoFactorManage, "tenant-a")
+		grant := auth.SystemGrant(policies.ActionTwoFactorManage, "tenant-a")
 		if _, err := repository.Required(context.Background(), grant, "user-a"); err == nil {
 			t.Fatal("a management grant reached the second-factor read")
 		}
@@ -167,14 +167,14 @@ func TestSeededVerifiedUserPreservesVerificationContracts(t *testing.T) {
 }
 
 func TestTwoFactorPolicyRejectsAnotherUsersLoadedEnrollment(t *testing.T) {
-	actor := security.Subject{ID: "user-a", Tenant: "tenant-a"}
+	actor := auth.Subject{ID: "user-a", Tenant: "tenant-a"}
 	other := models.TwoFactor{UserID: "user-b", TenantID: "tenant-a"}
-	for _, action := range []security.Action{
+	for _, action := range []auth.Action{
 		policies.ActionTwoFactorRead,
 		policies.ActionTwoFactorManage,
 	} {
 		t.Run(string(action), func(t *testing.T) {
-			if _, err := security.Authorize(context.Background(), policies.TwoFactorPolicy{}, actor, action, other); err == nil {
+			if _, err := auth.Authorize(context.Background(), policies.TwoFactorPolicy{}, actor, action, other); err == nil {
 				t.Fatalf("%s authorized another user's loaded enrollment", action)
 			}
 		})
@@ -186,7 +186,7 @@ func TestSecondFactorWritesCannotCrossTheGrantTenant(t *testing.T) {
 	seedFactor(t, db.sql, "tenant-a", "user-a", "encrypted", true)
 
 	repository := repositories.NewTwoFactorRepository(db.app)
-	grant := security.SystemGrant(policies.ActionTwoFactorManage, "tenant-b")
+	grant := auth.SystemGrant(policies.ActionTwoFactorManage, "tenant-b")
 	won, err := repository.SpendStep(context.Background(), grant, "user-a", 42)
 	if err != nil {
 		t.Fatalf("spending under another tenant: %v", err)
@@ -268,7 +268,7 @@ func TestConcurrentRecoveryRedemptionHasExactlyOneWinner(t *testing.T) {
 
 type nativeAuthDatabase struct {
 	sql *sql.DB
-	app *data.DB
+	app *hedatabase.DB
 }
 
 func openNativeAuthDatabase(t *testing.T) nativeAuthDatabase {
@@ -302,7 +302,7 @@ func openNativeAuthDatabase(t *testing.T) nativeAuthDatabase {
 		}
 	}
 
-	return nativeAuthDatabase{sql: handle, app: data.Wrap(handle, data.DialectSQLite)}
+	return nativeAuthDatabase{sql: handle, app: hedatabase.Wrap(handle, hedatabase.DialectSQLite)}
 }
 
 func seedFactor(t *testing.T, db *sql.DB, tenant, user, secret string, confirmed bool) {

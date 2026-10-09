@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/arandu-io/framework/foundation"
+	"github.com/arandu-io/hesape/foundation"
 	"github.com/arandu-io/hesape/publish"
 )
 

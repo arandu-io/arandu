@@ -14,8 +14,9 @@ import (
 	"github.com/arandu-io/framework/arandutest"
 	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/http/middleware"
-	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/hesape/config"
+	hhttp "github.com/arandu-io/hesape/http"
+	"github.com/arandu-io/hesape/routing"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	"github.com/arandu-io/arandu/bootstrap"
@@ -225,7 +226,7 @@ type methodProbeModule struct{}
 func (methodProbeModule) Name() string { return "method-probe" }
 
 func (methodProbeModule) Routes(router *fhttp.Router) {
-	router.Action(http.MethodPost, "/method-probe", func(ctx *fhttp.Context) error {
+	router.Action(http.MethodPost, "/method-probe", func(ctx *hhttp.Context) error {
 		return ctx.Status(http.StatusNoContent)
 	})
 }
@@ -280,7 +281,7 @@ func TestDebugConsoleIsDevelopmentOnly(t *testing.T) {
 func TestRoutesAreListedByModule(t *testing.T) {
 	k := tests.Kernel(t, config.EnvDev)
 
-	out := kernel.FormatRoutes(k.Routes())
+	out := routing.FormatRoutes(k.Routes())
 
 	for _, want := range []string{"app", "/{$}", "/_arandu/health"} {
 		if !strings.Contains(out, want) {

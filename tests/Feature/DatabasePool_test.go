@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/hesape/database"
 
 	"github.com/arandu-io/arandu/bootstrap"
@@ -65,7 +64,7 @@ func (poolConn) Begin() (driver.Tx, error)           { return nil, io.EOF }
 // opens anything itself, which is the whole of what the adapter reads.
 type poolConnector struct{}
 
-func (poolConnector) Dialect() database.Dialect { return data.DialectMySQL }
+func (poolConnector) Dialect() database.Dialect { return database.DialectMySQL }
 func (poolConnector) DriverName() string        { return poolDriverName }
 
 // borrowMySQL links the connector above, or skips when the project has since
@@ -79,7 +78,7 @@ func (poolConnector) DriverName() string        { return poolDriverName }
 func borrowMySQL(t *testing.T) {
 	t.Helper()
 
-	if name, err := database.DriverName(data.DialectMySQL); err == nil && name != poolDriverName {
+	if name, err := database.DriverName(database.DialectMySQL); err == nil && name != poolDriverName {
 		t.Skipf("mysql is linked to the %q driver here, and this test borrows that dialect: "+
 			"point it at an engine this binary does not speak", name)
 	}

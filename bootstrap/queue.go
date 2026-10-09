@@ -3,10 +3,10 @@ package bootstrap
 import (
 	"os"
 
-	"github.com/arandu-io/framework/data"
-	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/hesape/bus"
 	"github.com/arandu-io/hesape/console"
+	"github.com/arandu-io/hesape/database"
+	"github.com/arandu-io/hesape/foundation"
 	"github.com/arandu-io/hesape/queue"
 	qconsole "github.com/arandu-io/hesape/queue/console"
 	"github.com/arandu-io/hesape/queue/failed"
@@ -43,7 +43,7 @@ type queueDeps struct {
 // also the name the component's drivers answer to -- so `aru queue:pause
 // database:default`, or `redis:default`, names the connection the worker
 // drains and not a second spelling of it.
-func newQueueDeps(cfg appconfig.Queue, app App, db *data.DB) queueDeps {
+func newQueueDeps(cfg appconfig.Queue, app App, db *database.DB) queueDeps {
 	manager := queue.NewQueueManager().Extend(string(cfg.Connection), app.Queue)
 
 	// The pause flag and the restart signal are written to the cache, and the
@@ -124,6 +124,6 @@ func (d queueDeps) commands() []console.Command {
 //
 // They are asked of the values in this struct rather than of a fresh pair, so
 // the table a migration creates is the table a command reads. See queueDeps.
-func (d queueDeps) migrations() []kernel.Migration {
+func (d queueDeps) migrations() []foundation.Migration {
 	return append(d.failures.Migrations(), bus.Migrations()...)
 }

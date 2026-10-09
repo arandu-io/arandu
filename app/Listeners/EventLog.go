@@ -9,8 +9,8 @@ package listeners
 import (
 	"context"
 
-	"github.com/arandu-io/framework/events"
-	"github.com/arandu-io/framework/observability"
+	"github.com/arandu-io/hesape/events"
+	"github.com/arandu-io/hesape/log"
 )
 
 // EventLog is what this application does with a domain event once it has
@@ -68,7 +68,7 @@ var _ events.Publisher = (*EventLog)(nil)
 // over a failure loses the event silently, which is the one outcome the outbox
 // exists to prevent. Nothing here can fail, so nothing here returns one.
 func (l *EventLog) Publish(ctx context.Context, e events.Stored) error {
-	observability.Log(ctx).Info("domain event published",
+	log.For(ctx).Info("domain event published",
 		"event", e.Name,
 		"id", e.ID,
 		"aggregate", e.Aggregate,

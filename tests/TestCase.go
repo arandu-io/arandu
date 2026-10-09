@@ -23,11 +23,11 @@ import (
 	"time"
 
 	"github.com/arandu-io/framework/arandutest"
-	"github.com/arandu-io/framework/data"
+
+	"github.com/arandu-io/framework/foundation"
 	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
-	"github.com/arandu-io/framework/kernel"
-	"github.com/arandu-io/framework/security"
 	hesapetest "github.com/arandu-io/hesape/arandutest"
+	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/config"
 	"github.com/arandu-io/hesape/database"
 
@@ -55,7 +55,7 @@ import (
 //
 // Exported because both suites use it, which is the whole reason this package
 // exists.
-func Kernel(t *testing.T, env config.Env, extra ...kernel.Module) *kernel.Kernel {
+func Kernel(t *testing.T, env config.Env, extra ...foundation.Module) *foundation.Application {
 	t.Helper()
 
 	cfg := fwbootstrap.Configuration{
@@ -75,7 +75,7 @@ func Kernel(t *testing.T, env config.Env, extra ...kernel.Module) *kernel.Kernel
 			Key:      []byte("0123456789abcdef0123456789abcdef"),
 		},
 		Database: database.Config{
-			Connection: data.DialectSQLite,
+			Connection: database.DialectSQLite,
 			Database:   unopenableSQLite(t),
 		},
 		Observability: fwbootstrap.Observability{
@@ -100,7 +100,7 @@ func Kernel(t *testing.T, env config.Env, extra ...kernel.Module) *kernel.Kernel
 	if err != nil {
 		t.Fatalf("loading the application configuration: %v", err)
 	}
-	app, err := bootstrap.Build(appCfg, data.Wrap(sqldb, cfg.Database.Connection))
+	app, err := bootstrap.Build(appCfg, database.Wrap(sqldb, cfg.Database.Connection))
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -163,7 +163,7 @@ func File(t *testing.T, name string) string {
 //
 // SQLite in a temporary directory, so the tests need nothing installed and two
 // of them cannot see each other's rows. The file goes with t.TempDir.
-func App(t *testing.T) (*arandutest.Client, *data.DB) {
+func App(t *testing.T) (*arandutest.Client, *database.DB) {
 	t.Helper()
 	app := Booted(t)
 	return arandutest.NewClient(t, app.Kernel.Handler()), app.DB
@@ -218,7 +218,7 @@ func Booted(t *testing.T) bootstrap.App {
 // It is the browser hesape answers with, which speaks every verb a resource
 // registers -- PUT and DELETE as well as GET and POST -- and takes a header for
 // what a browser would send that a test has to say.
-func SignedIn(t *testing.T, app bootstrap.App, subject security.Subject) *hesapetest.Client {
+func SignedIn(t *testing.T, app bootstrap.App, subject auth.Subject) *hesapetest.Client {
 	t.Helper()
 	const signInHere = "/_tests/sign-in"
 	handler := app.Kernel.Handler()

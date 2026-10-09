@@ -1,6 +1,6 @@
 // Package providers holds this application's own modules.
 //
-// A provider here is a kernel.Module: it has a name, it registers routes, and it
+// A provider here is a foundation.Module: it has a name, it registers routes, and it
 // may declare migrations, scheduled tasks and a boot step. What it is not is a
 // service provider in the container sense -- there is nothing to bind into and
 // no deferred resolution, because every dependency is constructed in
@@ -14,9 +14,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/arandu-io/framework/data"
+	"github.com/arandu-io/framework/foundation"
 	"github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/kernel"
+	"github.com/arandu-io/hesape/database"
+	hfoundation "github.com/arandu-io/hesape/foundation"
 
 	"github.com/arandu-io/arandu/routes"
 )
@@ -30,7 +31,7 @@ import (
 // place to look for the same schema.
 type AppServiceProvider struct {
 	deps routes.Deps
-	db   *data.DB
+	db   *database.DB
 }
 
 // NewAppServiceProvider returns the provider. bootstrap builds the controllers
@@ -42,7 +43,7 @@ func NewAppServiceProvider(deps routes.Deps) *AppServiceProvider {
 // WithDatabase adds the application database to the module's health surface.
 // It remains explicit in bootstrap so the application provider cannot report
 // healthy without probing the connection its routes and services use.
-func (p *AppServiceProvider) WithDatabase(db *data.DB) *AppServiceProvider {
+func (p *AppServiceProvider) WithDatabase(db *database.DB) *AppServiceProvider {
 	p.db = db
 	return p
 }
@@ -50,9 +51,9 @@ func (p *AppServiceProvider) WithDatabase(db *data.DB) *AppServiceProvider {
 // The optional interfaces this provider implements, asserted at compile time so
 // a typo in a method name fails the build instead of silently doing nothing.
 var (
-	_ kernel.Module      = (*AppServiceProvider)(nil)
-	_ kernel.Schedulable = (*AppServiceProvider)(nil)
-	_ kernel.Health      = (*AppServiceProvider)(nil)
+	_ foundation.Module       = (*AppServiceProvider)(nil)
+	_ hfoundation.Schedulable = (*AppServiceProvider)(nil)
+	_ hfoundation.Health      = (*AppServiceProvider)(nil)
 )
 
 // Name is the module identifier, and the group `aru routes` prints.
@@ -73,6 +74,6 @@ func (p *AppServiceProvider) Health(ctx context.Context) error {
 //
 // A module never starts a goroutine of its own: it declares tasks here, and the
 // scheduler module runs them with a lock and a Grant.
-func (*AppServiceProvider) Schedule() []kernel.Task {
+func (*AppServiceProvider) Schedule() []hfoundation.Task {
 	return nil
 }

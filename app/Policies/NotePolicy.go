@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/auth"
 
 	models "github.com/arandu-io/arandu/app/Models"
 )
@@ -19,15 +19,15 @@ import (
 // compile past the first module.
 const (
 	// NoteView is reading one record.
-	NoteView security.Action = "note.view"
+	NoteView auth.Action = "note.view"
 	// NoteList is paging through the records.
-	NoteList security.Action = "note.list"
+	NoteList auth.Action = "note.list"
 	// NoteCreate is adding one.
-	NoteCreate security.Action = "note.create"
+	NoteCreate auth.Action = "note.create"
 	// NoteUpdate is changing one.
-	NoteUpdate security.Action = "note.update"
+	NoteUpdate auth.Action = "note.update"
 	// NoteDelete is removing one.
-	NoteDelete security.Action = "note.delete"
+	NoteDelete auth.Action = "note.delete"
 )
 
 // NotePolicy is the only authority over who does what with Note.
@@ -38,10 +38,10 @@ const (
 type NotePolicy struct{}
 
 // Compile-time proof that the policy answers about this entity and no other.
-var _ security.Policy[models.Note] = NotePolicy{}
+var _ auth.Policy[models.Note] = NotePolicy{}
 
 // Can decides whether the subject may perform the action.
-func (NotePolicy) Can(ctx context.Context, s security.Subject, a security.Action, n models.Note) error {
+func (NotePolicy) Can(ctx context.Context, s auth.Subject, a auth.Action, n models.Note) error {
 	// Tenant isolation comes first and applies to every action. Without it every
 	// check below would be pointless in a multi-tenant system.
 	if n.ID != "" && n.TenantID != s.Tenant {

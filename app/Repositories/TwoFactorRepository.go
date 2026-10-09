@@ -8,9 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/arandu-io/framework/data"
-	"github.com/arandu-io/framework/security"
 	twofactor "github.com/arandu-io/hesape/2fa"
+	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/database/model"
 	"github.com/arandu-io/hesape/hashing"
@@ -56,15 +55,15 @@ func recoveryCodeMaterial(code string) string {
 //
 // Every method checks its Grant before the first query, and every query is
 // scoped by the model to the Grant's tenant.
-type TwoFactorRepository struct{ db *data.DB }
+type TwoFactorRepository struct{ db *database.DB }
 
 // NewTwoFactorRepository returns the second-factor store.
-func NewTwoFactorRepository(db *data.DB) *TwoFactorRepository {
+func NewTwoFactorRepository(db *database.DB) *TwoFactorRepository {
 	return &TwoFactorRepository{db: db}
 }
 
 // Find reads one enrolment under the supplied read grant.
-func (r *TwoFactorRepository) Find(ctx context.Context, grant security.Grant, userID string) (models.TwoFactor, error) {
+func (r *TwoFactorRepository) Find(ctx context.Context, grant auth.Grant, userID string) (models.TwoFactor, error) {
 	if err := grant.Check(policies.ActionTwoFactorRead); err != nil {
 		return models.TwoFactor{}, err
 	}
@@ -79,7 +78,7 @@ func (r *TwoFactorRepository) Find(ctx context.Context, grant security.Grant, us
 }
 
 // Enrol atomically replaces only an unfinished enrolment.
-func (r *TwoFactorRepository) Enrol(ctx context.Context, grant security.Grant, factor models.TwoFactor) (models.TwoFactor, error) {
+func (r *TwoFactorRepository) Enrol(ctx context.Context, grant auth.Grant, factor models.TwoFactor) (models.TwoFactor, error) {
 	if err := grant.Check(policies.ActionTwoFactorManage); err != nil {
 		return models.TwoFactor{}, err
 	}
@@ -95,7 +94,7 @@ func (r *TwoFactorRepository) Enrol(ctx context.Context, grant security.Grant, f
 		return models.TwoFactor{}, err
 	}
 	record.UserID = factor.UserID
-	record.TenantID = data.Tenant(grant)
+	record.TenantID = auth.Tenant(grant)
 	record.Secret = factor.Secret
 	if _, err := record.Save(ctx, grant); err != nil {
 		// A confirmed enrolment survived the delete above, and the key is the
@@ -109,7 +108,7 @@ func (r *TwoFactorRepository) Enrol(ctx context.Context, grant security.Grant, f
 }
 
 // Confirm stamps an unfinished enrolment and reports whether this call won.
-func (r *TwoFactorRepository) Confirm(ctx context.Context, grant security.Grant, userID string, at time.Time) (bool, error) {
+func (r *TwoFactorRepository) Confirm(ctx context.Context, grant auth.Grant, userID string, at time.Time) (bool, error) {
 	if err := grant.Check(policies.ActionTwoFactorManage); err != nil {
 		return false, err
 	}
@@ -119,7 +118,7 @@ func (r *TwoFactorRepository) Confirm(ctx context.Context, grant security.Grant,
 }
 
 // Required reports whether the account has a confirmed enrolment.
-func (r *TwoFactorRepository) Required(ctx context.Context, grant security.Grant, userID string) (bool, error) {
+func (r *TwoFactorRepository) Required(ctx context.Context, grant auth.Grant, userID string) (bool, error) {
 	if err := grant.Check(policies.ActionTwoFactorRead); err != nil {
 		return false, err
 	}
@@ -131,7 +130,7 @@ func (r *TwoFactorRepository) Required(ctx context.Context, grant security.Grant
 }
 
 // Disable removes the enrolment and all of its recovery codes.
-func (r *TwoFactorRepository) Disable(ctx context.Context, grant security.Grant, userID string) error {
+func (r *TwoFactorRepository) Disable(ctx context.Context, grant auth.Grant, userID string) error {
 	if err := grant.Check(policies.ActionTwoFactorManage); err != nil {
 		return err
 	}
@@ -149,7 +148,7 @@ func (r *TwoFactorRepository) Disable(ctx context.Context, grant security.Grant,
 }
 
 // SpendStep atomically records a higher authenticator time step.
-func (r *TwoFactorRepository) SpendStep(ctx context.Context, grant security.Grant, userID string, step uint64) (bool, error) {
+func (r *TwoFactorRepository) SpendStep(ctx context.Context, grant auth.Grant, userID string, step uint64) (bool, error) {
 	if err := grant.Check(policies.ActionTwoFactorManage); err != nil {
 		return false, err
 	}
@@ -159,14 +158,14 @@ func (r *TwoFactorRepository) SpendStep(ctx context.Context, grant security.Gran
 }
 
 // ReplaceRecoveryCodes replaces the entire recovery set with password hashes.
-func (r *TwoFactorRepository) ReplaceRecoveryCodes(ctx context.Context, grant security.Grant, userID string, hashes []string) error {
+func (r *TwoFactorRepository) ReplaceRecoveryCodes(ctx context.Context, grant auth.Grant, userID string, hashes []string) error {
 	if err := grant.Check(policies.ActionTwoFactorManage); err != nil {
 		return err
 	}
 	if _, err := models.RecoveryCodes(r.db).Where("user_id", "=", userID).Delete(ctx, grant); err != nil {
 		return err
 	}
-	tenant := data.Tenant(grant)
+	tenant := auth.Tenant(grant)
 	for _, hash := range hashes {
 		if hash == "" {
 			return fmt.Errorf("two-factor: refusing to store an empty recovery hash")
@@ -191,7 +190,7 @@ func (r *TwoFactorRepository) ReplaceRecoveryCodes(ctx context.Context, grant se
 // looked up by value. The write that spends the match is conditional on the
 // code still being unspent, so of two concurrent redemptions of one code only
 // one changes the row.
-func (r *TwoFactorRepository) ConsumeRecoveryCode(ctx context.Context, grant security.Grant, userID, code string) (bool, error) {
+func (r *TwoFactorRepository) ConsumeRecoveryCode(ctx context.Context, grant auth.Grant, userID, code string) (bool, error) {
 	if err := grant.Check(policies.ActionTwoFactorManage); err != nil {
 		return false, err
 	}

@@ -11,16 +11,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/arandu-io/framework/data"
 	frameevents "github.com/arandu-io/framework/events"
-	"github.com/arandu-io/framework/observability"
 	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/hesape/auth"
 	authusers "github.com/arandu-io/hesape/auth/users"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/database/model"
 	"github.com/arandu-io/hesape/database/query"
+	"github.com/arandu-io/hesape/events"
 	"github.com/arandu-io/hesape/hashing"
+	"github.com/arandu-io/hesape/log"
 
 	appevents "github.com/arandu-io/arandu/app/Events"
 	"github.com/arandu-io/arandu/app/Models"
@@ -64,14 +64,14 @@ func (TooManyAttemptsError) HTTPStatus() int { return http.StatusTooManyRequests
 
 // UserService owns application user rules and persistence through models.Users.
 type UserService struct {
-	db       *data.DB
+	db       *database.DB
 	policy   policies.UserPolicy
-	outbox   *frameevents.Outbox
+	outbox   *events.Outbox
 	throttle security.SignInThrottle
 }
 
 // NewUserService returns the application user service.
-func NewUserService(db *data.DB) *UserService {
+func NewUserService(db *database.DB) *UserService {
 	return &UserService{
 		db: db, outbox: frameevents.NewOutbox(db), throttle: security.NewMemoryThrottle(),
 	}
@@ -86,12 +86,12 @@ func NewUserService(db *data.DB) *UserService {
 // factors.
 type credentialUser struct {
 	*models.User
-	db *data.DB
+	db *database.DB
 }
 
 // newCredentialUser returns an adapter holding no account yet: the provider
 // asks it only for the name of the identifier column before filling it.
-func newCredentialUser(db *data.DB) *credentialUser {
+func newCredentialUser(db *database.DB) *credentialUser {
 	return &credentialUser{User: &models.User{}, db: db}
 }
 
@@ -162,17 +162,17 @@ func (s *UserService) VerifyCredentials(ctx context.Context, tenant, email, pass
 	}
 	user := *adapted.User
 	s.throttle.Clear(tenant, email, client)
-	observability.Log(ctx).Info("login credentials verified", "user", user)
+	log.For(ctx).Info("login credentials verified", "user", user)
 	return user, nil
 }
 
 // Register creates one unverified, unprivileged account after guest policy authorization.
 func (s *UserService) Register(ctx context.Context, tenant, name, email, password string) (models.User, error) {
-	if strings.TrimSpace(name) == "" || NormalizeEmail(email) == "" || len(password) < security.MinPasswordLen {
+	if strings.TrimSpace(name) == "" || NormalizeEmail(email) == "" || len(password) < hashing.MinPasswordLen {
 		return models.User{}, fmt.Errorf("user: invalid registration input")
 	}
 	candidate := models.User{TenantID: tenant, Name: strings.TrimSpace(name), Email: NormalizeEmail(email), Roles: models.Roles{}}
-	grant, err := security.Authorize(ctx, s.policy, security.Guest(tenant), policies.ActionUserCreate, candidate)
+	grant, err := auth.Authorize(ctx, s.policy, auth.Guest(tenant), policies.ActionUserCreate, candidate)
 	if err != nil {
 		return models.User{}, err
 	}
@@ -182,7 +182,7 @@ func (s *UserService) Register(ctx context.Context, tenant, name, email, passwor
 	}
 
 	var created models.User
-	err = data.Transaction(ctx, s.db, func(ctx context.Context) error {
+	err = database.Transaction(ctx, s.db, func(ctx context.Context) error {
 		created, err = s.create(ctx, grant, candidate)
 		if err != nil {
 			return err
@@ -195,13 +195,13 @@ func (s *UserService) Register(ctx context.Context, tenant, name, email, passwor
 // FindForAuthentication reads an account during a pre-authentication flow.
 func (s *UserService) FindForAuthentication(ctx context.Context, tenant, userID string) (models.User, error) {
 	//arandu:system-grant credential-bound authentication and recovery reads have no Grant-bearing subject; tenant and user ID bind the row
-	return s.find(ctx, security.SystemGrant(policies.ActionUserView, tenant), policies.ActionUserView, userID)
+	return s.find(ctx, auth.SystemGrant(policies.ActionUserView, tenant), policies.ActionUserView, userID)
 }
 
 // Lookup reads an account by normalized address for application-owned flows.
 func (s *UserService) Lookup(ctx context.Context, tenant, email string) (models.User, error) {
 	//arandu:system-grant pre-authentication and seeding lookups have no subject; tenant and normalized email bind this read
-	grant := security.SystemGrant(policies.ActionUserView, tenant)
+	grant := auth.SystemGrant(policies.ActionUserView, tenant)
 	if err := grant.Check(policies.ActionUserView); err != nil {
 		return models.User{}, err
 	}
@@ -213,8 +213,8 @@ func (s *UserService) Lookup(ctx context.Context, tenant, email string) (models.
 }
 
 // PublicNames resolves a tenant-scoped projection after policy authorization.
-func (s *UserService) PublicNames(ctx context.Context, reader security.Subject, ids []string) (map[string]string, error) {
-	grant, err := security.Authorize(ctx, s.policy, reader, policies.ActionUserNamesPublic, models.User{TenantID: reader.Tenant})
+func (s *UserService) PublicNames(ctx context.Context, reader auth.Subject, ids []string) (map[string]string, error) {
+	grant, err := auth.Authorize(ctx, s.policy, reader, policies.ActionUserNamesPublic, models.User{TenantID: reader.Tenant})
 	if err != nil {
 		return nil, err
 	}
@@ -257,13 +257,13 @@ func (s *UserService) MarkVerified(ctx context.Context, tenant, userID, captured
 	}
 
 	//arandu:system-grant a consumed verification code has no session subject; tenant, user ID, and captured email bind the conditional update
-	grant := security.SystemGrant(policies.ActionUserUpdate, tenant)
+	grant := auth.SystemGrant(policies.ActionUserUpdate, tenant)
 	if err := grant.Check(policies.ActionUserUpdate); err != nil {
 		return models.User{}, false, err
 	}
 	at := time.Now().UTC()
 	var changed int64
-	err = data.Transaction(ctx, s.db, func(ctx context.Context) error {
+	err = database.Transaction(ctx, s.db, func(ctx context.Context) error {
 		changed, err = models.Users(s.db).Where("id", "=", userID).
 			Where("email", "=", NormalizeEmail(capturedEmail)).WhereNull("verified_at").
 			Update(ctx, grant, map[string]any{"verified_at": at})
@@ -303,7 +303,7 @@ func (s *UserService) ResetPassword(ctx context.Context, tenant, userID, capture
 }
 
 // ConfirmPassword revalidates the password for an existing session subject.
-func (s *UserService) ConfirmPassword(ctx context.Context, subject security.Subject, password, client string) error {
+func (s *UserService) ConfirmPassword(ctx context.Context, subject auth.Subject, password, client string) error {
 	if subject.ID == "" || subject.Tenant == "" {
 		return fmt.Errorf("user: password confirmation needs a subject")
 	}
@@ -349,7 +349,7 @@ func (s *UserService) EnsureUser(ctx context.Context, tenant, name, email, passw
 		user.VerifiedAt = &at
 	}
 	//arandu:system-grant the seeder has no request subject; tenant-scoped lookup and explicit account fields bound idempotent creation
-	return s.create(ctx, security.SystemGrant(policies.ActionUserCreate, tenant), user)
+	return s.create(ctx, auth.SystemGrant(policies.ActionUserCreate, tenant), user)
 }
 
 // SetPassword replaces one account password for operator-owned flows.
@@ -367,12 +367,12 @@ func (s *UserService) replacePassword(ctx context.Context, user models.User, pla
 		return models.User{}, fmt.Errorf("user: hashing password: %w", err)
 	}
 	//arandu:system-grant guest and operator password replacement has no session subject; tenant lookup plus ID/current-hash compare-and-swap bounds the write
-	grant := security.SystemGrant(policies.ActionUserUpdate, user.TenantID)
+	grant := auth.SystemGrant(policies.ActionUserUpdate, user.TenantID)
 	if err := grant.Check(policies.ActionUserUpdate); err != nil {
 		return models.User{}, err
 	}
 	var changed int64
-	err = data.Transaction(ctx, s.db, func(ctx context.Context) error {
+	err = database.Transaction(ctx, s.db, func(ctx context.Context) error {
 		changed, err = models.Users(s.db).Where("id", "=", user.ID).Where("password", "=", user.Password).
 			Update(ctx, grant, map[string]any{"password": hash})
 		if err != nil {
@@ -387,7 +387,7 @@ func (s *UserService) replacePassword(ctx context.Context, user models.User, pla
 	return user, err
 }
 
-func (s *UserService) create(ctx context.Context, grant security.Grant, user models.User) (models.User, error) {
+func (s *UserService) create(ctx context.Context, grant auth.Grant, user models.User) (models.User, error) {
 	if err := grant.Check(policies.ActionUserCreate); err != nil {
 		return models.User{}, err
 	}
@@ -403,7 +403,7 @@ func (s *UserService) create(ctx context.Context, grant security.Grant, user mod
 	// the Grant, and the entity says so before the insert does. The id is the
 	// model's to generate. Each field is assigned on its own, because assigning
 	// the whole struct would replace the model the row is wired with.
-	record.TenantID = data.Tenant(grant)
+	record.TenantID = auth.Tenant(grant)
 	record.Name = user.Name
 	record.Email = NormalizeEmail(user.Email)
 	record.Password = user.Password
@@ -424,7 +424,7 @@ func (s *UserService) create(ctx context.Context, grant security.Grant, user mod
 	return *record, nil
 }
 
-func (s *UserService) find(ctx context.Context, grant security.Grant, action security.Action, id string) (models.User, error) {
+func (s *UserService) find(ctx context.Context, grant auth.Grant, action auth.Action, id string) (models.User, error) {
 	if err := grant.Check(action); err != nil {
 		return models.User{}, err
 	}
@@ -435,8 +435,8 @@ func (s *UserService) find(ctx context.Context, grant security.Grant, action sec
 	return *user, nil
 }
 
-func (s *UserService) record(ctx context.Context, grant security.Grant, name string, user models.User) error {
-	return s.outbox.Store(ctx, grant, []frameevents.Event{{
+func (s *UserService) record(ctx context.Context, grant auth.Grant, name string, user models.User) error {
+	return s.outbox.Store(ctx, grant, []events.Event{{
 		Name: name, Aggregate: "user", AggregateID: user.ID,
 		Payload: appevents.User{UserID: user.ID, Tenant: user.TenantID, Email: user.Email, Name: user.Name},
 	}})

@@ -21,20 +21,22 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/arandu-io/framework/data"
 	"github.com/arandu-io/framework/events"
+	"github.com/arandu-io/framework/foundation"
 	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
 	fwgeo "github.com/arandu-io/framework/geo"
-	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/framework/jobs"
-	"github.com/arandu-io/framework/kernel"
 	"github.com/arandu-io/framework/mail"
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/framework/security"
 	fwview "github.com/arandu-io/framework/view"
+	"github.com/arandu-io/hesape/auth"
 	cache2 "github.com/arandu-io/hesape/cache"
+	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/exception"
+	"github.com/arandu-io/hesape/geo"
+	hhttp "github.com/arandu-io/hesape/http"
 	httpmiddleware "github.com/arandu-io/hesape/http/middleware"
 	"github.com/arandu-io/hesape/onetime"
 	"github.com/arandu-io/hesape/queue"
@@ -126,10 +128,10 @@ const AppModule = "github.com/arandu-io/arandu"
 type App struct {
 	// Kernel is the composed application: configuration, modules, the global
 	// middleware pipeline and the router.
-	Kernel *kernel.Kernel
+	Kernel *foundation.Application
 	// DB is the application database every service was built over. It is
 	// returned for the seeders, which create rows through factories over it.
-	DB *data.DB
+	DB *database.DB
 	// Users is the application-owned account service. Seeders receive this same
 	// value instead of reaching through a framework module.
 	Users *services.UserService
@@ -175,7 +177,7 @@ type App struct {
 // certificate file that is not there is the case that exists today. Refusing
 // here is the point: the alternative is a process that starts having quietly
 // dropped what it was told to use.
-func Build(cfg appconfig.Config, db *data.DB) (App, error) {
+func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	fw := cfg.Framework
 
 	// The CSRF token is bound to the session, and a visitor without one is bound
@@ -183,7 +185,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// exactly when the session cookie does: over plain HTTP in development the
 	// browser would never send a Secure one back, and every form a guest
 	// submits would answer 419.
-	csrf := security.NewCSRF(fw.App.Key, cfg.Session.CSRFTTL).Secure(cfg.Session.Secure)
+	csrf := session.NewCSRF(fw.App.Key, cfg.Session.CSRFTTL).Secure(cfg.Session.Secure)
 
 	// A setting that names the RESP store is a setting that needs its connector
 	// in this binary, and asking here is what puts a missing import in the boot
@@ -250,7 +252,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	//
 	// # It runs in `aru serve`, and in no other command
 	//
-	// That is not decided here. The module's loop is a kernel.Background one, and
+	// That is not decided here. The module's loop is a foundation.Background one, and
 	// Start is called by Kernel.Run, never by Kernel.Boot. The `aru queue:work`
 	// command, `aru routes` and every migration command build this same
 	// application and start no relay.
@@ -271,10 +273,10 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// again.
 	relay := events.NewRelay(events.NewOutbox(db), listeners.NewEventLog(), events.RelayOptions{Locker: locker})
 
-	// A module that calls another service takes observability.Client, not one of
+	// A module that calls another service takes log.Client, not one of
 	// its own:
 	//
-	//	billing.New(svc, observability.Client(10*time.Second))
+	//	billing.New(svc, log.Client(10*time.Second))
 	//
 	// Going through it is what puts the call on the request timeline and on the
 	// console. A handler that builds its own http.Client is a handler whose
@@ -304,8 +306,8 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// only the catalog: adding a public route to this project means deciding
 	// explicitly whether it belongs in this list. Indexing remains disabled by
 	// default even though the fail-closed machine endpoints are registered.
-	geoCatalog := fwgeo.CatalogFunc(func(context.Context) ([]fwgeo.Document, error) {
-		return []fwgeo.Document{{Path: "/", Title: cfg.App.Name}}, nil
+	geoCatalog := geo.CatalogFunc(func(context.Context) ([]geo.Document, error) {
+		return []geo.Document{{Path: "/", Title: cfg.App.Name}}, nil
 	})
 	geoModule := fwgeo.NewModule(cfg.Geo, geoCatalog)
 
@@ -322,7 +324,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 		Note: controllers.NewNoteController(services.NewNoteService(db)),
 	}
 
-	k := kernel.New(fw)
+	k := foundation.New(fw)
 
 	// The one handler that answers a failed request, built by the bootstrapper
 	// from the configuration the kernel was given: whether the debug page may
@@ -377,7 +379,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// outside development, and passing nil records nothing -- which is
 			// what production does.
 			middleware.Observe(cfg.App.IsDev(), fw.Observability.TracingSecret, k.Recorder()),
-			middleware.SecurityHeaders(cfg.App.IsDev()),
+			httpmiddleware.SecurityHeaders(cfg.App.IsDev()),
 			// The budget and the window are one value, which is what a named
 			// limiter resolves to. The refusal is passed rather than assumed:
 			// how a 4xx is written belongs to the request layer, and this one
@@ -389,7 +391,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// issued here once, and every expired id a client kept would be a
 			// fresh budget.
 			hmiddleware.Throttle(limiter, cache2.PerMinute(300),
-				middleware.KeyBySession(sessions), fhttp.Refuse),
+				middleware.KeyBySession(sessions), hhttp.Refuse),
 			// CSRFProtect checks every write and issues the token every page
 			// carries: view.New reads it off the request, so no controller
 			// issues one by hand.
@@ -398,7 +400,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 		).
 		Register(
 			// The view layer. It brings the renderer ctx.View needs, through the
-			// optional kernel.RendererProvider interface, and serves the
+			// optional foundation.RendererProvider interface, and serves the
 			// embedded assets. Without it every page answers with an error that
 			// names this missing line, and every stylesheet 404s.
 			fwview.NewModule(),
@@ -446,7 +448,7 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 	// that server for every request, and a probe that stayed green because
 	// CACHE_STORE said memory would be reporting half of it.
 	if shared := stores.SharedStore(); shared != nil {
-		k.Register(kernel.NewCacheModule("cache", shared))
+		k.Register(foundation.NewCacheModule("cache", shared))
 	}
 
 	// The scheduler goes last, because it collects the tasks the modules above
@@ -515,7 +517,7 @@ func requireSharedStoreConnector(cfg appconfig.Config) error {
 // The setting was accepted and then ignored before this function existed:
 // every binary queued over the table whatever QUEUE_CONNECTION said, and a
 // deployment that asked for RESP got a table nobody had planned for.
-func openQueue(cfg appconfig.Config, db *data.DB) (queue.Queue, error) {
+func openQueue(cfg appconfig.Config, db *database.DB) (queue.Queue, error) {
 	switch cfg.Queue.Connection {
 	case appconfig.QueueDatabase:
 		return queue.NewDatabaseQueue(db), nil
@@ -771,7 +773,7 @@ func sessionBackend(cfg appconfig.Session, stores *cacheStores) (security.Sessio
 		if !ok {
 			return nil, fmt.Errorf("SESSION_DRIVER %q names it, and the cache store %q is shared and cannot keep sessions", cfg.Driver, respStore)
 		}
-		return security.NewSessionBackend(session.Decode[security.Subject](keeper.Sessions())), nil
+		return security.NewSessionBackend(session.Decode[auth.Subject](keeper.Sessions())), nil
 
 	default:
 		// Unreachable through Load, which refuses the value first. It is here
@@ -799,7 +801,7 @@ func sessionBackend(cfg appconfig.Session, stores *cacheStores) (security.Sessio
 // one is part of what cache.SharedStore is, so a connector that could not would
 // not compile. That is the failure this shape exists to end -- a scheduler that
 // declares a Singleton task and runs it on every replica.
-func cacheLocker(stores *cacheStores, cfg appconfig.Cache) (kernel.Locker, error) {
+func cacheLocker(stores *cacheStores, cfg appconfig.Cache) (foundation.Locker, error) {
 	name := string(cfg.Store)
 	if !stores.IsShared(name) {
 		return nil, nil
@@ -809,7 +811,7 @@ func cacheLocker(stores *cacheStores, cfg appconfig.Cache) (kernel.Locker, error
 	if err != nil {
 		return nil, err
 	}
-	return kernel.NewLocker(cache2.NewLocks(shared)), nil
+	return foundation.NewLocker(cache2.NewLocks(shared)), nil
 }
 
 // cacheTLS turns the file paths the configuration carries into the settings the
