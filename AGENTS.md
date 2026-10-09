@@ -13,7 +13,7 @@ The order a feature is built and checked in. It is not the order a request runs
 through, and not every feature has every step: a task with no table gets no
 migration, an API with no screen gets no view.
 
-A generator marked **proposed** does not exist in `aru` v0.63.0, the version
+A generator marked **proposed** does not exist in `aru` v0.64.0, the version
 the Dockerfile builds with. Write that file by hand, in the shape of the
 example beside it.
 
@@ -93,10 +93,10 @@ entity; `aru model:build` without the flag rewrites them. `aru view:build`
 writes the compiled views the compiler then reads, so it runs before anything
 that compiles. `aru dev` and `aru build` run both for you.
 
-The `aru` in these commands is the release the Dockerfile pins, v0.63.0. An
+The `aru` in these commands is the release the Dockerfile pins, v0.64.0. An
 older one reports fewer rules than the ones this project is held to, so a clean
 `aru doctor` from it says less than it seems to.
-`go run github.com/arandu-io/aru@v0.63.0 <command>` runs that release without
+`go run github.com/arandu-io/aru@v0.64.0 <command>` runs that release without
 installing it.
 
 Both filters on `gofmt` are load-bearing. A `.kyse.go` is excluded from the
