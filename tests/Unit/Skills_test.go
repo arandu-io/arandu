@@ -85,9 +85,10 @@ func sourceOf(body string) string {
 	return ""
 }
 
-// writtenByAru reports whether aru wrote the skill: `aru make:module` and
-// `aru generate` leave one per module, stamped source: aru@<version>, from a
-// template the aru tests hold to its contract. This project's tests do not
+// writtenByAru reports whether aru wrote the skill: before aru v0.67.0,
+// `aru make:module` and `aru generate` left one per module, stamped source:
+// aru@<version>, from a template the aru tests held to its contract, and a
+// project generated then still carries them. This project's tests do not
 // hold it to this project's text, or every generated module would be red here
 // until somebody edited a file the next --force writes over.
 func writtenByAru(s skillFile) bool { return strings.HasPrefix(s.source, "aru@") }

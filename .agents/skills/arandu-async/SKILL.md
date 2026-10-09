@@ -66,7 +66,7 @@ a mail, a console command. The service that a job or a listener calls is
 
 ## Commands
 
-- `aru make:job <Name> --event-name=<name> --fields "..."`
+- `aru make:job <Name> --event-name=<name> --fields "..." [--services=<Entity>,...]`
 - `aru make:event <Name> --aggregate=<entity> --event-name=<entity.verb> --fields "..."`
 - `aru make:listener <Name> --event=<entity.verb>`
 - `aru make:notification <Name> --channels=database`
@@ -168,8 +168,10 @@ All in two files, by hand:
   channels; the scheduler's `Tenants`; the services a handler takes, returned
   in `App`; the queue handed to the provider with `WithQueue`.
 - `bootstrap/background.go`: the handler, in the custom block of
-  `registerHandlers`, built from `app`. `aru make:job` prints a constructor with
-  no arguments; a handler that calls a service takes it from `app` instead.
+  `registerHandlers`, built from `app`. `aru make:job --services=<Entity>`
+  writes the constructor with those services and prints the
+  `registerHandlers` line that passes them from `app`, with the `App` fields
+  to add when they are not there yet.
 
 ## Acceptance test
 

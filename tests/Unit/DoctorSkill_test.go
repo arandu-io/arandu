@@ -49,6 +49,7 @@ var doctorRules = []doctorRule{
 	{"sql-built-by-concatenation", "error", ""},
 	{"sensitive-field-not-redacted", "warning", ""},
 	{"session-not-rotated", "error", ""},
+	{"csrf-exempt-without-signature", "warning", ""},
 	{"view-data-is-a-map", "error", ""},
 	{"view-does-not-exist", "error", ""},
 	{"permission-not-declared", "error", ""},
