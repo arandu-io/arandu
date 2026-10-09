@@ -98,6 +98,18 @@ the router sends the browser back to the form -- htmx follows that as a
 navigation -- and the page after it shows the messages through `view.New`.
 There is no 422 to swap.
 
+The sign-in screens follow the same rule.
+`go run github.com/arandu-io/ui@v0.20.0 auth` publishes the layout, the
+screens under `resources/views/auth` and their controllers in
+`app/Http/Controllers/Auth`, and no fragment: there is no `login_form`
+partial. A rejected sign-in, sign-up or reset is answered with a redirect back
+to its screen, which reads the messages and what was typed from the flash; a
+password never comes back. A screen that reports a success is reached through
+a redirect as well, so a reload asks for a page instead of posting the form
+again. The layout leaves htmx's response handling at its default, with nothing
+that teaches it to swap a 422. A project that published an older kit still has
+the previous flow, and `ui auth` refuses to write over it without `--force`.
+
 ## The procedure
 
 1. Write the `.kyse.go`.
