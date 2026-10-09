@@ -386,7 +386,7 @@ func loadConfigurationWith(t *testing.T, values map[string]string) (appconfig.Co
 		// would be about a variable no case here sets.
 		"DB_CONNECTION", "DB_HOST", "DB_PORT", "DB_USERNAME", "DB_PASSWORD", "DB_DATABASE",
 		"CACHE_TTL", "QUEUE_WORKERS", "QUEUE_RETRY_AFTER", "QUEUE_MAX_ATTEMPTS",
-		"AUTH_PASSWORD_MIN_LENGTH", "AUTH_PASSWORD_RESET_TTL",
+		"AUTH_PASSWORD_RESET_TTL",
 		"MAIL_URL", "MAIL_MAILER", "MAIL_HOST", "MAIL_PORT", "MAIL_USERNAME",
 		"MAIL_PASSWORD", "MAIL_ENCRYPTION", "MAIL_KEY",
 	} {

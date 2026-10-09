@@ -30,9 +30,6 @@ type Auth struct {
 	// handed authui.FixedTenant(Tenant) until something else is written.
 	Tenant string
 
-	// PasswordMinLength is the shortest password accepted at registration.
-	PasswordMinLength int
-
 	// PasswordResetTTL is how long a reset link stays valid.
 	PasswordResetTTL time.Duration
 }
@@ -45,17 +42,12 @@ type Auth struct {
 func Tenant() string { return env("ARANDU_TENANT_ID", DefaultTenant) }
 
 func loadAuth() (Auth, error) {
-	passwordMinLength, err := envInt("AUTH_PASSWORD_MIN_LENGTH", 12)
-	if err != nil {
-		return Auth{}, err
-	}
 	passwordResetTTL, err := envSeconds("AUTH_PASSWORD_RESET_TTL", time.Hour)
 	if err != nil {
 		return Auth{}, err
 	}
 	return Auth{
-		Tenant:            Tenant(),
-		PasswordMinLength: passwordMinLength,
-		PasswordResetTTL:  passwordResetTTL,
+		Tenant:           Tenant(),
+		PasswordResetTTL: passwordResetTTL,
 	}, nil
 }
