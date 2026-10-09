@@ -380,6 +380,7 @@ func loadConfigurationWith(t *testing.T, values map[string]string) (appconfig.Co
 		"CACHE_STORE", "SESSION_DRIVER", "QUEUE_CONNECTION", "FILESYSTEM_DISK",
 		"LOG_FORMAT", "REDIS_URL",
 		"SESSION_SECURE", "SESSION_COOKIE", "SESSION_SECURE_COOKIE", "SESSION_TTL", "CSRF_TTL",
+		"SESSION_PATH", "SESSION_DOMAIN", "SESSION_SAME_SITE",
 		"DB_MAX_OPEN_CONNS", "DB_MAX_IDLE_CONNS", "DB_CONN_MAX_LIFETIME",
 		// The retired block, cleared for the same reason as the rest: one of
 		// these exported in a shell refuses every case below, and the message

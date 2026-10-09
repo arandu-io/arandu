@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"net/http"
+	"strings"
 	"time"
 )
 
@@ -28,8 +28,7 @@ const (
 	SessionRedis SessionDriver = "redis"
 )
 
-// Session is where session state is kept, how long it lasts, and how the cookie
-// that carries its id is scoped.
+// Session is where session state is kept and how long it lasts.
 //
 // Whether the cookie is HTTPS-only is not here. The framework's loader reads
 // SESSION_SECURE_COOKIE into Config.Framework.Session.Secure, and that one value
@@ -38,6 +37,10 @@ const (
 // works and a form that answers 419, or the other way round. The name of the
 // cookie is not here either, because it is not configurable: the CSRF token is
 // bound to the session the cookie of that name carries.
+//
+// Nor is the scope of the cookie. The session store writes it for path /, for
+// the host that answered, with SameSite=Lax, and takes none of the three, so a
+// setting for any of them would be read and then ignored.
 type Session struct {
 	Driver SessionDriver
 
@@ -48,14 +51,6 @@ type Session struct {
 	// purpose: a token that outlives the page it was rendered on is a token that
 	// can be replayed.
 	CSRFTTL time.Duration
-
-	// Path and Domain scope the cookie.
-	Path   string
-	Domain string
-
-	// SameSite is Lax by default, which keeps the session out of cross-site
-	// form posts while leaving ordinary navigation working.
-	SameSite http.SameSite
 }
 
 // loadSession reads the session settings, against the cache stores that are
@@ -87,6 +82,24 @@ func loadSession(cache Cache) (Session, error) {
 		return Session{}, fmt.Errorf("SESSION_SECURE is retired; remove it. " +
 			"SESSION_SECURE_COOKIE decides the Secure attribute: set it to false only to serve over http outside APP_ENV=dev")
 	}
+	// The three variables that scoped the cookie are refused for the same
+	// reason, when they ask for a cookie the store does not write: a
+	// SESSION_DOMAIN written to share sessions across subdomains would be
+	// dropped in silence, and every subdomain would sign in on its own. The
+	// value that states what the store already writes asks for nothing and is
+	// not refused -- every .env copied from an older .env.example carries
+	// SESSION_PATH=/.
+	for _, retired := range []struct{ name, written string }{
+		{"SESSION_PATH", "/"},
+		{"SESSION_DOMAIN", ""},
+		{"SESSION_SAME_SITE", "lax"},
+	} {
+		if value := env(retired.name, ""); value != "" && !strings.EqualFold(value, retired.written) {
+			return Session{}, fmt.Errorf("%s is retired; remove it. "+
+				"The session cookie is written for path /, for the host that answered and with SameSite=Lax, "+
+				"and nothing reads %s=%q", retired.name, retired.name, value)
+		}
+	}
 	ttl, err := envSeconds("SESSION_TTL", 12*time.Hour)
 	if err != nil {
 		return Session{}, err
@@ -101,10 +114,7 @@ func loadSession(cache Cache) (Session, error) {
 		// the CSRF issuer are built in bootstrap/app.go, from this struct, and
 		// they take a duration rather than reading one -- so whoever assembles
 		// the application is who states it, and that is this package.
-		TTL:      ttl,
-		CSRFTTL:  csrfTTL,
-		Path:     env("SESSION_PATH", "/"),
-		Domain:   env("SESSION_DOMAIN", ""),
-		SameSite: http.SameSiteLaxMode,
+		TTL:     ttl,
+		CSRFTTL: csrfTTL,
 	}, nil
 }

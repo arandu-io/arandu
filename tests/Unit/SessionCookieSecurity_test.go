@@ -74,3 +74,44 @@ func TestTheRetiredSessionVariableIsRefusedAtBoot(t *testing.T) {
 		t.Errorf("the boot refused the two session lines an older .env.example wrote: %v", err)
 	}
 }
+
+// TestTheCookieScopeVariablesAreRefusedAtBoot: SESSION_PATH, SESSION_DOMAIN and
+// SESSION_SAME_SITE were read into the configuration and then taken by nothing,
+// because the session store writes its cookie for path /, for the host that
+// answered, with SameSite=Lax. A value that asks for another cookie is refused
+// naming the variable; the value that states what the store already writes is
+// no request, and SESSION_PATH=/ is in every .env copied from an older
+// .env.example, so it is accepted.
+func TestTheCookieScopeVariablesAreRefusedAtBoot(t *testing.T) {
+	for _, c := range []struct {
+		name, value string
+	}{
+		{"SESSION_PATH", "/app"},
+		{"SESSION_DOMAIN", "example.test"},
+		{"SESSION_DOMAIN", ".example.test"},
+		{"SESSION_SAME_SITE", "strict"},
+		{"SESSION_SAME_SITE", "none"},
+	} {
+		t.Run(c.name+"="+c.value, func(t *testing.T) {
+			_, err := loadConfigurationWith(t, map[string]string{c.name: c.value})
+			if err == nil {
+				t.Fatalf("the boot accepted %s=%s, which nothing reads: the cookie is written without it", c.name, c.value)
+			}
+			for _, want := range []string{c.name + " is retired", "SameSite=Lax"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error = %q, want it to contain %q", err, want)
+				}
+			}
+		})
+	}
+
+	for _, values := range []map[string]string{
+		{"SESSION_PATH": "/", "SESSION_DOMAIN": ""},
+		{"SESSION_SAME_SITE": "lax"},
+		{"SESSION_SAME_SITE": "Lax"},
+	} {
+		if _, err := loadConfigurationWith(t, values); err != nil {
+			t.Errorf("the boot refused %v, which states the cookie the store writes: %v", values, err)
+		}
+	}
+}

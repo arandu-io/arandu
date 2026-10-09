@@ -41,6 +41,7 @@ func unstatedEnv(t *testing.T) {
 	for _, key := range []string{
 		"APP_ENV", "APP_DEBUG", "APP_URL", "GEO_ENABLED", "GEO_INDEXING_ENABLED", "GEO_SURFACES",
 		"SESSION_SECURE", "SESSION_COOKIE", "SESSION_SECURE_COOKIE", "SESSION_DRIVER", "SESSION_TTL", "CSRF_TTL", "CACHE_STORE", "REDIS_URL",
+		"SESSION_PATH", "SESSION_DOMAIN", "SESSION_SAME_SITE",
 	} {
 		t.Setenv(key, "")
 	}
@@ -175,5 +176,21 @@ func TestTheSessionCookieIsUnreadableByScriptAndNotSentCrossSite(t *testing.T) {
 	if cookie.SameSite != http.SameSiteLaxMode {
 		t.Errorf("SameSite = %v, want Lax: the session is sent with cross-site requests, which is the "+
 			"request CSRF protection exists to refuse", cookie.SameSite)
+	}
+}
+
+// TestTheSessionCookieIsScopedToTheWholeHost pins the scope the boot holds a
+// deployment to. SESSION_PATH, SESSION_DOMAIN and SESSION_SAME_SITE are refused
+// at boot, and the refusal says the cookie is written for path / and for the
+// host that answered; a store that started writing another scope would make
+// that sentence false, and this is what notices.
+func TestTheSessionCookieIsScopedToTheWholeHost(t *testing.T) {
+	cookie := sessionCookie(t, map[string]string{"APP_ENV": "prod"})
+
+	if cookie.Path != "/" {
+		t.Errorf("the session cookie is written for path %q, want /: the refusal of SESSION_PATH says otherwise", cookie.Path)
+	}
+	if cookie.Domain != "" {
+		t.Errorf("the session cookie is written for domain %q, want none (host-only): the refusal of SESSION_DOMAIN says otherwise", cookie.Domain)
 	}
 }
