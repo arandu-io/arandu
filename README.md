@@ -171,9 +171,10 @@ repository missing its policy to a tenant read off the request instead of the
 build, a warning stays the to-do it is, and a new project is never red for code
 the generator wrote.
 
-6,973 lines of production code and 9,593 of test, across 49 test files, the
-example resource included — small on purpose: it is what a project starts
-from, not what it grows into.
+12,831 lines of Go outside the tests and 11,800 in them, across 59 test files,
+the example resource included, counted with `wc -l` over the tracked `.go`
+files — small on purpose: it is what a project starts from, not what it grows
+into.
 
 ## The rest of Arandu
 
