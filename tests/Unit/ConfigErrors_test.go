@@ -14,7 +14,7 @@ func TestInvalidBooleanConfigurationIsReportedAtBoot(t *testing.T) {
 	t.Setenv("APP_ENV", "dev")
 	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
 	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
-	t.Setenv("SESSION_SECURE", "sometimes")
+	t.Setenv("GEO_ENABLED", "sometimes")
 
 	base, err := bootstrap.LoadConfiguration()
 	if err != nil {
@@ -22,9 +22,9 @@ func TestInvalidBooleanConfigurationIsReportedAtBoot(t *testing.T) {
 	}
 	_, err = appconfig.From(base)
 	if err == nil {
-		t.Fatal("From accepted an invalid SESSION_SECURE value")
+		t.Fatal("From accepted an invalid GEO_ENABLED value")
 	}
-	for _, want := range []string{"SESSION_SECURE", `"sometimes"`, "boolean"} {
+	for _, want := range []string{"GEO_ENABLED", `"sometimes"`, "boolean"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error = %q, want it to contain %q", err, want)
 		}
@@ -226,7 +226,7 @@ func TestLoadPreservesTheFrameworkBootstrapError(t *testing.T) {
 	t.Setenv("APP_ENV", "dev")
 	t.Setenv("APP_KEY", "short")
 	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
-	t.Setenv("SESSION_SECURE", "sometimes")
+	t.Setenv("GEO_ENABLED", "sometimes")
 
 	_, err := appconfig.Load()
 	if err == nil {
@@ -235,7 +235,7 @@ func TestLoadPreservesTheFrameworkBootstrapError(t *testing.T) {
 	if !strings.Contains(err.Error(), "APP_KEY") {
 		t.Errorf("error = %q, want it to preserve the APP_KEY bootstrap error", err)
 	}
-	if strings.Contains(err.Error(), "SESSION_SECURE") {
+	if strings.Contains(err.Error(), "GEO_ENABLED") {
 		t.Errorf("error = %q, and the later application error masked the bootstrap error", err)
 	}
 }
@@ -379,7 +379,7 @@ func loadConfigurationWith(t *testing.T, values map[string]string) (appconfig.Co
 		"APP_URL", "GEO_ENABLED", "GEO_INDEXING_ENABLED", "GEO_SURFACES",
 		"CACHE_STORE", "SESSION_DRIVER", "QUEUE_CONNECTION", "FILESYSTEM_DISK",
 		"LOG_FORMAT", "REDIS_URL",
-		"SESSION_SECURE", "SESSION_TTL", "CSRF_TTL",
+		"SESSION_SECURE", "SESSION_COOKIE", "SESSION_SECURE_COOKIE", "SESSION_TTL", "CSRF_TTL",
 		"DB_MAX_OPEN_CONNS", "DB_MAX_IDLE_CONNS", "DB_CONN_MAX_LIFETIME",
 		// The retired block, cleared for the same reason as the rest: one of
 		// these exported in a shell refuses every case below, and the message

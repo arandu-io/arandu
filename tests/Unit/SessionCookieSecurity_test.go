@@ -1,29 +1,23 @@
 package unit_test
 
 import (
+	"strings"
 	"testing"
 )
 
-// TestTheSessionCookieIsSecureUnlessTheEnvironmentNamesDevelopment.
+// TestTheSessionCookieIsSecureUnlessTheEnvironmentIsDev reads the one decision
+// of the Secure attribute through the configuration a boot loads.
 //
-// The attribute was derived from the parsed environment, and that value cannot
-// answer the question the derivation asks. APP_ENV is parsed into a typed
-// environment whose default is development, so by the time it is a value,
-// "nobody wrote the variable" and "somebody wrote development" are the same
-// word -- and the derivation dropped Secure for both.
+// The framework's loader is its only reader: SESSION_SECURE_COOKIE when it is
+// written, and otherwise Secure in every environment except dev. This project
+// reads no variable of its own for it any more -- the session store, the CSRF
+// guest cookie and the flash cookie all take Config.Framework.Session.Secure --
+// so what is asserted is that value, under the three ways a deployment can
+// answer: by naming dev, by naming anything else, and by declaring the variable.
 //
-// The first of the two is an ordinary production deployment. TLS ends at the
-// proxy, the process listens on http inside the network, and APP_URL carries
-// that internal address; nothing names https and nothing names an environment.
-// That is the combination the cookie went out in the clear under, on every
-// request, with nothing said at boot.
-//
-// So the default is inverted: the attribute is present unless APP_ENV was
-// written and names development. What still removes it is SESSION_SECURE, the
-// variable somebody has to type -- development over http needs it off, because
-// a Secure cookie never reaches a browser on http://localhost, and that case
-// names itself.
-func TestTheSessionCookieIsSecureUnlessTheEnvironmentNamesDevelopment(t *testing.T) {
+// APP_URL takes no part. Behind a proxy that ends TLS the address this process
+// knows is http, and the browser's connection is https all the same.
+func TestTheSessionCookieIsSecureUnlessTheEnvironmentIsDev(t *testing.T) {
 	for _, c := range []struct {
 		name   string
 		appEnv string
@@ -31,58 +25,18 @@ func TestTheSessionCookieIsSecureUnlessTheEnvironmentNamesDevelopment(t *testing
 		secure string
 		want   bool
 	}{
-		{
-			name: "an environment that names nothing",
-			want: true,
-		},
-		{
-			name:   "an http address and no environment",
-			appURL: "http://app.internal:8080",
-			want:   true,
-		},
-		{
-			name:   "an https address and no environment",
-			appURL: "https://billing.example.test",
-			want:   true,
-		},
-		{
-			name:   "development, named",
-			appEnv: "dev",
-			appURL: "http://localhost:8080",
-			want:   false,
-		},
-		{
-			name:   "staging, named",
-			appEnv: "staging",
-			appURL: "http://app.internal:8080",
-			want:   true,
-		},
-		{
-			name:   "production, named",
-			appEnv: "prod",
-			appURL: "http://app.internal:8080",
-			want:   true,
-		},
-		{
-			name:   "SESSION_SECURE removes it outside development",
-			appEnv: "prod",
-			appURL: "https://billing.example.test",
-			secure: "false",
-			want:   false,
-		},
-		{
-			name:   "SESSION_SECURE restores it inside development",
-			appEnv: "dev",
-			appURL: "https://localhost:8443",
-			secure: "true",
-			want:   true,
-		},
+		{name: "dev, named", appEnv: "dev", appURL: "http://localhost:8080", want: false},
+		{name: "dev, with an https address", appEnv: "dev", appURL: "https://localhost:8443", want: false},
+		{name: "staging over http, nothing declared", appEnv: "staging", appURL: "http://app.internal:8080", want: true},
+		{name: "prod over http, nothing declared", appEnv: "prod", appURL: "http://app.internal:8080", want: true},
+		{name: "prod, declared false to serve over http", appEnv: "prod", appURL: "http://app.example.test", secure: "false", want: false},
+		{name: "dev, declared true", appEnv: "dev", appURL: "https://localhost:8443", secure: "true", want: true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			cfg, err := loadConfigurationWith(t, map[string]string{
-				"APP_ENV":        c.appEnv,
-				"APP_URL":        c.appURL,
-				"SESSION_SECURE": c.secure,
+				"APP_ENV":               c.appEnv,
+				"APP_URL":               c.appURL,
+				"SESSION_SECURE_COOKIE": c.secure,
 				// APP_DEBUG follows APP_ENV when nothing writes it, and one
 				// left in the shell refuses the named-production case at
 				// Validate -- an error about a variable no case here sets,
@@ -92,10 +46,31 @@ func TestTheSessionCookieIsSecureUnlessTheEnvironmentNamesDevelopment(t *testing
 			if err != nil {
 				t.Fatalf("loading the configuration: %v", err)
 			}
-			if cfg.Session.Secure != c.want {
-				t.Errorf("Session.Secure = %t, want %t (APP_ENV=%q APP_URL=%q SESSION_SECURE=%q)",
-					cfg.Session.Secure, c.want, c.appEnv, c.appURL, c.secure)
+			if got := cfg.Framework.Session.Secure; got != c.want {
+				t.Errorf("Framework.Session.Secure = %t, want %t (APP_ENV=%q APP_URL=%q SESSION_SECURE_COOKIE=%q)",
+					got, c.want, c.appEnv, c.appURL, c.secure)
 			}
 		})
+	}
+}
+
+// TestTheRetiredSessionVariableIsRefusedAtBoot: SESSION_SECURE was read by
+// this project, and nothing reads it now. A deployment that still writes it is
+// told which variable replaced it, rather than having its decision dropped
+// without a word. Left empty, as .env.example used to write it, it is no
+// decision and is not refused.
+func TestTheRetiredSessionVariableIsRefusedAtBoot(t *testing.T) {
+	_, err := loadConfigurationWith(t, map[string]string{"SESSION_SECURE": "false"})
+	if err == nil {
+		t.Fatal("the boot accepted SESSION_SECURE=false, a variable nothing reads")
+	}
+	for _, want := range []string{"SESSION_SECURE is retired", "SESSION_SECURE_COOKIE"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to contain %q", err, want)
+		}
+	}
+
+	if _, err := loadConfigurationWith(t, map[string]string{"SESSION_SECURE": "", "SESSION_COOKIE": "arandu_session"}); err != nil {
+		t.Errorf("the boot refused the two session lines an older .env.example wrote: %v", err)
 	}
 }

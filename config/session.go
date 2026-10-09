@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
-	hconfig "github.com/arandu-io/hesape/config"
 )
 
 // SessionDriver is the cache store session state is kept in.
@@ -32,6 +30,14 @@ const (
 
 // Session is where session state is kept, how long it lasts, and how the cookie
 // that carries its id is scoped.
+//
+// Whether the cookie is HTTPS-only is not here. The framework's loader reads
+// SESSION_SECURE_COOKIE into Config.Framework.Session.Secure, and that one value
+// is what the session store, the CSRF guest cookie and the flash cookie are all
+// built with: three cookies that disagreed about Secure would be a session that
+// works and a form that answers 419, or the other way round. The name of the
+// cookie is not here either, because it is not configurable: the CSRF token is
+// bound to the session the cookie of that name carries.
 type Session struct {
 	Driver SessionDriver
 
@@ -43,19 +49,9 @@ type Session struct {
 	// can be replayed.
 	CSRFTTL time.Duration
 
-	// Cookie is the name of the cookie carrying the session id.
-	Cookie string
-
 	// Path and Domain scope the cookie.
 	Path   string
 	Domain string
-
-	// Secure marks the cookie HTTPS-only. It is present unless the environment
-	// names itself as development, rather than absent unless something names
-	// production: an environment nobody named is the one running behind a proxy
-	// that terminates TLS, and a cookie that travels in the clear because a
-	// variable was never written is the failure that looks like nothing at all.
-	Secure bool
 
 	// SameSite is Lax by default, which keeps the session out of cross-site
 	// form posts while leaving ordinary navigation working.
@@ -80,9 +76,16 @@ func loadSession(cache Cache) (Session, error) {
 	default:
 		return Session{}, fmt.Errorf("SESSION_DRIVER has unsupported value %q; expected memory or redis", driver)
 	}
-	secure, err := loadSessionSecure()
-	if err != nil {
-		return Session{}, err
+	// SESSION_SECURE is retired and refused rather than ignored, for the
+	// reason a retired MAIL_ variable is: SESSION_SECURE=false written for a
+	// deployment served over http would otherwise be dropped in silence, and
+	// the first sign would be every session disappearing between two
+	// requests. SESSION_COOKIE is not refused, though nothing reads it either:
+	// every .env copied from an older .env.example carries
+	// SESSION_COOKIE=arandu_session, a line that never changed anything.
+	if env("SESSION_SECURE", "") != "" {
+		return Session{}, fmt.Errorf("SESSION_SECURE is retired; remove it. " +
+			"SESSION_SECURE_COOKIE decides the Secure attribute: set it to false only to serve over http outside APP_ENV=dev")
 	}
 	ttl, err := envSeconds("SESSION_TTL", 12*time.Hour)
 	if err != nil {
@@ -100,38 +103,8 @@ func loadSession(cache Cache) (Session, error) {
 		// the application is who states it, and that is this package.
 		TTL:      ttl,
 		CSRFTTL:  csrfTTL,
-		Cookie:   env("SESSION_COOKIE", "arandu_session"),
 		Path:     env("SESSION_PATH", "/"),
 		Domain:   env("SESSION_DOMAIN", ""),
-		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	}, nil
-}
-
-// loadSessionSecure answers whether the session cookie carries Secure.
-//
-// The attribute is present unless APP_ENV was written and names development.
-// An environment that names nothing gets it, and that is the direction the
-// default has to fail in: the deployment that names nothing is the ordinary one
-// behind a proxy, where TLS ends at the proxy and this process listens on http
-// inside the network. Neither the scheme this process sees nor a variable
-// nobody wrote can report that the browser's connection is https, and guessing
-// the permissive way puts the session id on the network in the clear on every
-// request, with nothing said at boot.
-//
-// APP_ENV is read here rather than taken from the parsed environment because
-// that value cannot answer the question. The parse turns an absent variable
-// into development, so "nobody wrote it" and "somebody wrote dev" arrive as one
-// word -- and only the second of the two may drop the attribute. Comparing the
-// exact spelling is the whole test, because a value that is neither dev,
-// staging nor prod never arrives: the boot refuses it before the session is
-// built.
-//
-// SESSION_SECURE removes the attribute whatever the environment says, and
-// development served over http needs one of the two -- a Secure cookie never
-// reaches a browser on http://localhost, so the session disappears between
-// requests. Naming APP_ENV=dev is the other, and it is what .env.example
-// already sets.
-func loadSessionSecure() (bool, error) {
-	return envBool("SESSION_SECURE", env("APP_ENV", "") != string(hconfig.EnvDev))
 }

@@ -17,18 +17,19 @@ import (
 // What this file checks is the three attributes that decide who can, read off
 // the cookie rather than off the configuration that produced it.
 //
-// Secure used to be derived from APP_ENV alone, and APP_ENV has a default of
-// development -- the one environment where the cookie is allowed to travel over
-// http. A deployment that set neither APP_ENV nor SESSION_SECURE therefore sent
-// its sessions unprotected, and nothing said so at the boot or afterwards.
+// Secure has one reader, the framework's loader: SESSION_SECURE_COOKIE when it
+// is written, and otherwise Secure in every environment except dev. APP_ENV
+// left unset counts as dev there, as it does for APP_DEBUG and every other
+// development surface, so a deployment fixes an unnamed environment by naming
+// it rather than by a second variable.
 
 // unstatedEnv puts one test in a directory with no .env and blanks the variables
 // that decide the cookie, so what is asserted is a property of the code and not
 // of the shell the suite was started from.
 //
 // It is not loadConfigurationWith, which the rest of this suite uses: that one
-// states APP_ENV=dev, and an environment that states nothing is exactly the
-// subject here. Blank is how absent is spelled -- every reader of these
+// states APP_ENV=dev, and an environment that states nothing is one of the
+// cases here. Blank is how absent is spelled -- every reader of these
 // variables falls back on an empty value -- and t.Setenv puts back whatever the
 // caller had.
 func unstatedEnv(t *testing.T) {
@@ -39,24 +40,9 @@ func unstatedEnv(t *testing.T) {
 	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
 	for _, key := range []string{
 		"APP_ENV", "APP_DEBUG", "APP_URL", "GEO_ENABLED", "GEO_INDEXING_ENABLED", "GEO_SURFACES",
-		"SESSION_SECURE", "SESSION_SECURE_COOKIE", "SESSION_DRIVER", "SESSION_TTL", "CSRF_TTL", "CACHE_STORE", "REDIS_URL",
+		"SESSION_SECURE", "SESSION_COOKIE", "SESSION_SECURE_COOKIE", "SESSION_DRIVER", "SESSION_TTL", "CSRF_TTL", "CACHE_STORE", "REDIS_URL",
 	} {
 		t.Setenv(key, "")
-	}
-}
-
-// TestAnUnnamedEnvironmentDoesNotUndoAnHTTPSDeployment is the regression.
-//
-// APP_ENV was the whole of what decided this, and it falls back to development
-// -- the one environment where the cookie may travel over http. So a deployment
-// that named its address and not its environment served every session in the
-// clear, and nothing said so at the boot or on any request afterwards.
-func TestAnUnnamedEnvironmentDoesNotUndoAnHTTPSDeployment(t *testing.T) {
-	cookie := sessionCookie(t, map[string]string{"APP_URL": "https://app.example.test"})
-
-	if !cookie.Secure {
-		t.Error("an application serving on https writes its session cookie without Secure when APP_ENV is " +
-			"unset: the environment falls back to development, and the credential goes out over the network")
 	}
 }
 
@@ -64,7 +50,8 @@ func TestAnUnnamedEnvironmentDoesNotUndoAnHTTPSDeployment(t *testing.T) {
 // environment.
 //
 // The store is built the way bootstrap/app.go builds it -- the same
-// constructor, the same three settings out of the same loaded configuration --
+// constructor, the same three settings out of the same loaded configuration,
+// Secure from the framework's half of it --
 // and the backend is left to its in-process default, because what is read here
 // is the cookie and no session outlives the call. Nothing is booted: this
 // answers what the bytes on the wire say.
@@ -80,7 +67,7 @@ func sessionCookie(t *testing.T, values map[string]string) *http.Cookie {
 	if err != nil {
 		t.Fatalf("loading the configuration: %v", err)
 	}
-	store := security.NewSessionStore(cfg.Framework.App.Key, cfg.Session.TTL, cfg.Session.Secure, nil)
+	store := security.NewSessionStore(cfg.Framework.App.Key, cfg.Session.TTL, cfg.Framework.Session.Secure, nil)
 
 	// Rotate rather than Start, because it is the call a sign-in makes: keeping
 	// the id somebody arrived holding is session fixation, and this is the seam
@@ -104,10 +91,8 @@ func sessionCookie(t *testing.T, values map[string]string) *http.Cookie {
 // TestTheSessionCookieIsHTTPSOnlyWhereverItWasStatedToBe walks the ways an
 // environment can answer the question and reads the answer off the cookie.
 //
-// Both variables are here because either is enough on its own: a deployment that
-// says what it wants of the cookie does not also have to say what environment it
-// is, and one that says what environment it is does not have to spell the cookie
-// out.
+// The variable decides when it is written; the environment decides when it is
+// not, and only dev drops the attribute. The address never decides.
 func TestTheSessionCookieIsHTTPSOnlyWhereverItWasStatedToBe(t *testing.T) {
 	for _, c := range []struct {
 		name  string
@@ -134,34 +119,34 @@ func TestTheSessionCookieIsHTTPSOnlyWhereverItWasStatedToBe(t *testing.T) {
 			about: "the session travels over the network as the plain credential it is",
 		},
 		{
-			name:  "SESSION_SECURE alone, with no environment named",
-			env:   map[string]string{"SESSION_SECURE": "true"},
+			name:  "no environment named, which counts as dev",
+			env:   map[string]string{},
+			want:  false,
+			about: "APP_ENV left unset is dev for every development surface, and naming the environment is the fix",
+		},
+		{
+			name:  "SESSION_SECURE_COOKIE alone, with no environment named",
+			env:   map[string]string{"SESSION_SECURE_COOKIE": "true"},
 			want:  true,
 			about: "the variable answers the question by itself",
 		},
 		{
-			name:  "SESSION_SECURE off, deliberately, with no environment named",
-			env:   map[string]string{"SESSION_SECURE": "false"},
+			name:  "SESSION_SECURE_COOKIE off, declared, in production",
+			env:   map[string]string{"APP_ENV": "prod", "SESSION_SECURE_COOKIE": "false"},
 			want:  false,
-			about: "a stated no is a decision, and it is the silent no the refusal was written against",
+			about: "a declared no is how a deployment served over http outside dev says so",
 		},
 		{
-			name:  "SESSION_SECURE overriding a stated environment",
-			env:   map[string]string{"APP_ENV": "prod", "SESSION_SECURE": "false"},
+			name:  "an https address in dev",
+			env:   map[string]string{"APP_ENV": "dev", "APP_URL": "https://app.example.test"},
 			want:  false,
-			about: "the variable is what a deployment reaches for when the environment name is not the whole story",
-		},
-		{
-			name:  "an https address with no environment named",
-			env:   map[string]string{"APP_URL": "https://app.example.test"},
-			want:  true,
-			about: "the address is stated by every deployment, because its absolute links are built from it",
+			about: "the address takes no part: dev is where http://localhost has to keep working",
 		},
 		{
 			name:  "a production environment on a plain address",
 			env:   map[string]string{"APP_ENV": "prod", "APP_URL": "http://app.example.test"},
 			want:  true,
-			about: "the environment kept the attribute before the address was consulted, and consulting it must not take the attribute away",
+			about: "behind a proxy that ends TLS the address is http and the browser's connection is not",
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
