@@ -7,6 +7,8 @@
 package routes
 
 import (
+	"time"
+
 	"github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/framework/security"
@@ -37,6 +39,18 @@ type Deps struct {
 	// session" and stops; whether this subject may touch this record is the
 	// Policy's answer, and the Policy still runs.
 	Sessions *security.SessionStore
+
+	// Tokens is what RequireToken asks who a bearer token acts as: the
+	// personal access tokens this application issued. A route a program calls
+	// with a token sits behind it instead of behind the session, and the
+	// Policy still decides every record, exactly as it does for a browser.
+	Tokens middleware.TokenResolver
+
+	// Idempotency is where Idempotent keeps the answer to a write that carried
+	// an Idempotency-Key, and the lock that keeps two copies of it from running
+	// at once. It is the cache store CACHE_STORE names: the in-process one for
+	// a single replica, the shared one when there are several.
+	Idempotency middleware.IdempotencyStore
 }
 
 // Web registers the browser-facing routes.
@@ -94,5 +108,17 @@ func Web(r *http.Router, d Deps) {
 	notes.Resource("notes", d.Note)
 	notes.ResourceAction("POST", "notes", "publish", d.Note.Publish)
 	notes.Resource("notes.comments", d.Comment)
+
+	// The same two writes for a program holding a personal access token, and
+	// answered by the same actions: the guard is the token instead of the
+	// session, and a retry that carries the same Idempotency-Key is answered
+	// from the store and writes nothing twice. A bearer request with no
+	// session cookie is left to RequireToken by the CSRF check, because the
+	// header is not something a browser attaches by itself.
+	api := r.Group("/api", middleware.RequireToken(d.Tokens))
+	api.Action("POST", "/notes", d.Note.Store,
+		middleware.Idempotent(d.Idempotency, 24*time.Hour)).Name("api.notes.store")
+	api.Action("POST", "/notes/{id}/publish", d.Note.Publish,
+		middleware.Idempotent(d.Idempotency, 24*time.Hour)).Name("api.notes.publish")
 	// arandu:end custom
 }

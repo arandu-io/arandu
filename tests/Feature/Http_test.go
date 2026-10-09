@@ -14,11 +14,13 @@ import (
 	"github.com/arandu-io/framework/arandutest"
 	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/http/middleware"
+	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/config"
 	hhttp "github.com/arandu-io/hesape/http"
 	"github.com/arandu-io/hesape/routing"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
+	appmiddleware "github.com/arandu-io/arandu/app/Http/Middleware"
 	"github.com/arandu-io/arandu/bootstrap"
 	"github.com/arandu-io/arandu/routes"
 )
@@ -95,7 +97,13 @@ func TestTheRootRouteDoesNotSwallowEveryPath(t *testing.T) {
 // verbatim would put a literal {$} in every link to the landing page.
 func TestTheHomeRouteIsAddressableByName(t *testing.T) {
 	r := fhttp.NewRouter()
-	routes.Web(r, routes.Deps{Home: controllers.NewHomeController("test", nil, "")})
+	// The token resolver and the idempotency store are guards' arguments, and a
+	// guard refuses nil at registration; neither is asked anything here.
+	routes.Web(r, routes.Deps{
+		Home:        controllers.NewHomeController("test", nil, ""),
+		Tokens:      appmiddleware.NewPersonalAccessTokens(nil),
+		Idempotency: cache.NewArrayStore(),
+	})
 
 	got, err := r.Table().URL("home")
 	if err != nil {

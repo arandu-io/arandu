@@ -59,6 +59,11 @@ var scopedByTenant = map[string]string{
 	// updates and the deletes all carry tenant_id beside the batch id -- so a
 	// batch id guessed from another tenant matches no row rather than one.
 	"job_batches": "the batch list, and a batch id from another tenant matches nothing",
+	// Read before the claim was written: Issue and Revoke authorize first and
+	// go through the model with their Grant, and Resolve reads under a system
+	// grant for the deployment's tenant, so a digest stored in another tenant
+	// resolves nobody.
+	"personal_access_tokens": "PersonalAccessTokenService reads and writes every token through the model's tenant scope, Resolve under the deployment's tenant",
 	// The example resource. Remove it with the list under "The example
 	// resource" in README.md.
 	"notes":    "the example resource: NoteService authorizes first and reads every note through the model's tenant scope",

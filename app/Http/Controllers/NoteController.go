@@ -144,7 +144,12 @@ func (c *NoteController) Create(ctx *hhttp.Context) error {
 	})
 }
 
-// Store takes the submitted form.
+// Store takes the submitted form, or the JSON body of a program.
+//
+// A client that asked for JSON is answered 201 with the note through its
+// Resource and its address in Location, rather than redirected: the same
+// action answers POST /notes from a browser and POST /api/notes from a
+// program holding a token.
 func (c *NoteController) Store(ctx *hhttp.Context) error {
 	var in requests.NoteRequest
 	if err := ctx.Bind(&in); err != nil {
@@ -154,6 +159,10 @@ func (c *NoteController) Store(ctx *hhttp.Context) error {
 	created, err := c.svc.Create(ctx.Ctx(), who, in)
 	if err != nil {
 		return err
+	}
+	if ctx.WantsJSON() {
+		ctx.Response.Header().Set("Location", ctx.URL("notes.show", created.ID))
+		return ctx.JSON(http.StatusCreated, resources.NewNoteResource(created))
 	}
 	return ctx.RedirectRoute("notes.show", created.ID)
 }

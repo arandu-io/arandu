@@ -50,6 +50,7 @@ import (
 
 	clients "github.com/arandu-io/arandu/app/Clients"
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
+	appmiddleware "github.com/arandu-io/arandu/app/Http/Middleware"
 	listeners "github.com/arandu-io/arandu/app/Listeners"
 	providers "github.com/arandu-io/arandu/app/Providers"
 	services "github.com/arandu-io/arandu/app/Services"
@@ -147,6 +148,10 @@ type App struct {
 	Users *services.UserService
 	// TwoFactor is the application-owned enrolment and challenge service.
 	TwoFactor *services.TwoFactorService
+	// Tokens issues, revokes and resolves the personal access tokens a
+	// program presents as a bearer token. The routes are given its resolver;
+	// it is returned for whatever issues tokens -- a page, a command, a test.
+	Tokens *services.PersonalAccessTokenService
 	// Notes is the example resource's service. The worker hands it to the
 	// nightly digest's handler. Remove it with the list under "The example
 	// resource" in README.md.
@@ -342,6 +347,19 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 		return App{}, fmt.Errorf("bootstrap: build two-factor service: %w", err)
 	}
 
+	// The personal access tokens, over the accounts they act as and for the
+	// tenant every sign-in belongs to.
+	tokens := services.NewPersonalAccessTokenService(db, userService, cfg.Auth.Tenant)
+
+	// Where Idempotent keeps the answers it replays: the store the rate limit
+	// counts in, for the reason the limit counts there -- a key one replica
+	// remembers is run again by the next. Every store this application builds
+	// can hold a lock; one that could not is refused here, at the boot.
+	idempotency, ok := limitStore.GetStore().(middleware.IdempotencyStore)
+	if !ok {
+		return App{}, fmt.Errorf("bootstrap: the cache store %q cannot hold a lock, and Idempotent keeps its keys in it", cfg.Cache.Store)
+	}
+
 	// GEO is native and opt-in at the deployment boundary. The application owns
 	// only the catalog: adding a public route to this project means deciding
 	// explicitly whether it belongs in this list. Indexing remains disabled by
@@ -364,6 +382,10 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 		// and it has to be: two stores over one key would agree about the
 		// signature and disagree about which sessions exist.
 		Sessions: sessions,
+		// What a route a program calls asks about the bearer token, and where
+		// a retried write finds its first answer.
+		Tokens:      appmiddleware.NewPersonalAccessTokens(tokens),
+		Idempotency: idempotency,
 		// The example resource, and the one nested under it. Remove them with
 		// the list under "The example resource" in README.md.
 		Note:    controllers.NewNoteController(notes),
@@ -441,6 +463,11 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 			// CSRFProtect checks every write and issues the token every page
 			// carries: view.New reads it off the request, so no controller
 			// issues one by hand.
+			//
+			// A request with Authorization: Bearer and no session cookie
+			// carries nothing a browser attaches by itself, so it goes on to
+			// RequireToken, which authenticates it or answers 401; the origin
+			// check still refuses one a browser reports as cross-site.
 			middleware.CSRFProtect(csrf, sessions.IDFromRequest),
 			httpmiddleware.OverrideMethod(),
 		).
@@ -524,7 +551,7 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 		// Notes is the example resource's. Remove it with the list under "The
 		// example resource" in README.md.
 		Notes:  notes,
-		Kernel: k, DB: db, Users: userService, TwoFactor: twoFactorService,
+		Kernel: k, DB: db, Users: userService, TwoFactor: twoFactorService, Tokens: tokens,
 		EmailCodes: emailCodes, Sessions: sessions, Scheduler: sched,
 		Relay: relay, Queue: queueStore, Mail: mailer, Notifier: notifier, Cache: stores.SharedStore(),
 	}, nil
