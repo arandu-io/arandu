@@ -187,9 +187,11 @@ var invoiceTable = model.NewTable(model.TableSpec{
 constructor `Invoices(db)`, the typed query `InvoiceQuery` and the collection
 `InvoiceCollection`, each method a forward of a line or two with no type
 parameter. It re-renders `database/factories/InvoiceFactory.go` too, outside its
-custom block. Run it after changing an entity — `aru dev` and `aru build` run it
-first, and `aru doctor` reports a file that is behind as `model-query-stale` —
-and never edit the generated file. Everything else reaches the table through it:
+custom block, once there is one: `aru make:module` writes no factory, and
+`aru make:factory Invoice` does. Run it after changing an entity — `aru dev`
+and `aru build` run it first, and `aru doctor` reports a file that is behind as
+`model-query-stale` — and never edit the generated file. Everything else
+reaches the table through it:
 
 ```go
 large, err := models.Invoices(db).Where("total", ">=", 100_000).Latest().Get(ctx, g)
