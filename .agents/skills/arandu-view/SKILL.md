@@ -60,7 +60,8 @@ clause, which it would reject.
 `resources/views/notes/` is the example resource's four screens — a listing
 through the `DataTable` component, a record, and the create and edit forms
 built from `Field`, `Textarea` and `Checkbox` — and the place to look for a
-working page of each kind.
+working page of each kind. `resources/views/partials/notes_table.kyse.go` is
+the listing's table, the one fragment the project ships.
 
 ## The page the controller hands over
 
@@ -70,6 +71,32 @@ the middleware issued for this request. `@csrf` and the layout's `hx-headers`
 read that token off the page. A controller never issues one itself; a page
 drawn outside the middleware that protects forms is the only one that needs
 `WithToken`.
+
+## A page, or a fragment
+
+Every navigation is answered with the whole document: a direct visit, a link
+the layout's `hx-boost` turned into an htmx request, a history restore. The
+answer never changes on `HX-Boosted`, so a reload shows the same page.
+
+A fragment is what one element asks for on purpose: `hx-get` or `hx-post`, with
+an `hx-target` naming the element it replaces.
+
+- Its view lives in `resources/views/partials/` and has no `@extends`.
+- Its page draws it with `@include('partials.<name>')`, which hands the page's
+  data over unchanged, so the page and the fragment come from one template.
+- The controller answers it with
+  `ctx.Fragment(http.StatusOK, "partials.<name>", data)` when `ctx.IsHTMX()` and
+  `ctx.Header("HX-Target")` names that element, and with the page otherwise.
+  Both answers carry `Vary: HX-Request, HX-Target`.
+- `bootstrap/app.go` links the partials package with a blank import, as it
+  links the layouts: a view nobody imports is never registered.
+
+`NoteController.Index` and `partials/notes_table.kyse.go` are the example.
+
+A rejected form is not a fragment. The action returns the `validation.Errors`,
+the router sends the browser back to the form -- htmx follows that as a
+navigation -- and the page after it shows the messages through `view.New`.
+There is no 422 to swap.
 
 ## The procedure
 

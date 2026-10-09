@@ -39,7 +39,7 @@ no reason excuses nothing.
 
 ## The findings you will actually meet
 
-**`grant-not-received`** — a repository method takes no `security.Grant`. Every
+**`grant-not-received`** — a repository method takes no `auth.Grant`. Every
 caller gets the row, whoever asked. Add the Grant as the parameter before the id,
 start the method with `if err := g.Check(Action...); err != nil { return err }`
 — a Grant that is taken and never checked is `grant-not-checked` — and take it
@@ -48,7 +48,7 @@ from the Policy.
 **`tenant-from-request`** — the tenant is read from a path segment, a form
 field or a query; `tenant-from-header` is the same finding for a header. A
 tenant that arrives with the request is a tenant the caller chose. Read it with
-`data.Tenant(g)`.
+`auth.Tenant(g)`.
 
 **`repository-without-policy`** — a repository is reachable with no Policy
 deciding. Write the Policy; the generator writes one that denies everything, and
@@ -74,6 +74,16 @@ zero.
 
 **`retired-module`** — an import names a module that no longer exists. The line
 says what replaced it.
+
+**`import-not-canonical`** — a file names a symbol through a framework bridge
+package rather than through the path the symbol lives at: `security.Grant` for
+`auth.Grant`, `data.DB` for `database.DB`, `fhttp.Context` for
+`hhttp.Context`. The bridge only aliases or forwards, so the code is correct
+today, and it stops compiling when the bridges are removed in v1.0.0. The line
+names each symbol and its path; `aru imports:catalog` prints the whole table for
+the framework version in `go.mod`. Import that path, and keep the framework
+import only for what the framework declares itself, such as `Router` and
+`SessionStore`. It is a warning because nothing is wrong yet.
 
 **`model-query-stale`** — a `<Entity>Query.go`, or a factory `aru model:build`
 renders, is missing, behind its entity, or left over from one that is gone. A
@@ -136,6 +146,7 @@ the run; a warning fails it only under `--strict`.
 | `rollback-does-nothing` | warning | a migration that declares neither a `Down` nor that it is irreversible |
 | `driver-not-linked` | warning | an engine `.env.example` names whose connector the project does not import |
 | `retired-module` | warning | an import of a module whose repository was deleted |
+| `import-not-canonical` | warning | a framework symbol named through a bridge package rather than through the path `aru imports:catalog` gives it |
 | `model-query-stale` | error | a generated query or factory missing, behind its entity, or left from one that is gone |
 | `model-core-outside-models` | error | the model core used outside a package that declares entities |
 | `test-is-not-run` | warning | a file named `...Test.go`, or a test function in a file whose name does not end in `_test.go` |

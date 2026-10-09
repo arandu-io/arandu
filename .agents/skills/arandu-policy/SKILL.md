@@ -1,13 +1,13 @@
 ---
 name: arandu-policy
-description: Authorization in an Arandu (Go) application. Use when writing or changing who may read or change a record, when a Model or service call will not compile, when something asks for a security.Grant, or when the request mentions "permissions", "roles", "who can access", "authorize", "multi-tenant", "tenant isolation", or "this method needs a Grant". Also use when tempted to remove a parameter to make code compile — here that parameter is the only thing making the query safe. Covers Policy, Grant, data.Tenant, re-authorizing the row, and SystemGrant.
+description: Authorization in an Arandu (Go) application. Use when writing or changing who may read or change a record, when a Model or service call will not compile, when something asks for an auth.Grant, or when the request mentions "permissions", "roles", "who can access", "authorize", "multi-tenant", "tenant isolation", or "this method needs a Grant". Also use when tempted to remove a parameter to make code compile — here that parameter is the only thing making the query safe. Covers Policy, Grant, auth.Tenant, re-authorizing the row, and SystemGrant.
 license: MIT
 ---
 
 # Authorization, and why it will not compile without it
 
-`security.Grant` has only unexported fields. Nothing outside the package that
-defines it can build one. Every read and write through a Model takes one: the
+`auth.Grant`, from `github.com/arandu-io/hesape/auth`, has only unexported
+fields. Nothing outside the package that defines it can build one. Every read and write through a Model takes one: the
 terminals of the generated query — `First`, `Get`, `Value` — and the entity's
 `Save` and `Delete` all ask for it:
 
@@ -15,30 +15,39 @@ terminals of the generated query — `First`, `Get`, `Value` — and the entity'
 found, err := models.Invoices(s.db).WhereKey(id).First(ctx, g) // no Grant, no compile
 ```
 
-and the tenant is read off it with `data.Tenant(g)` — never from the path, the
+and the tenant is read off it with `auth.Tenant(g)` — never from the path, the
 body or a header. So a service that reaches the database without asking a
 Policy has nothing to pass. That is the whole design: the safe path is not
 documented, the unsafe path is absent.
 
 ## The procedure
 
-**1. The Policy decides; `security.Authorize` issues.** A policy is a
-`security.Policy[T]`, and its only method is `Can`: it returns `nil` to allow and
+**1. The Policy decides; `auth.Authorize` issues.** A policy is an
+`auth.Policy[T]`, and its only method is `Can`: it returns `nil` to allow and
 an error to deny. It never builds a Grant. `app/Policies/NotePolicy.go`, the
 example resource, is the model to follow for a rule about the row — only a
 note's author may change it; this is the shape:
 
 ```go
+import (
+	"context"
+	"fmt"
+
+	"github.com/arandu-io/hesape/auth"
+
+	models "<module>/app/Models" // <module> is the path go.mod declares
+)
+
 const (
-	InvoiceView security.Action = "invoice.view"
-	InvoiceList security.Action = "invoice.list"
+	InvoiceView auth.Action = "invoice.view"
+	InvoiceList auth.Action = "invoice.list"
 )
 
 type InvoicePolicy struct{}
 
-var _ security.Policy[models.Invoice] = InvoicePolicy{}
+var _ auth.Policy[models.Invoice] = InvoicePolicy{}
 
-func (InvoicePolicy) Can(_ context.Context, s security.Subject, a security.Action, inv models.Invoice) error {
+func (InvoicePolicy) Can(_ context.Context, s auth.Subject, a auth.Action, inv models.Invoice) error {
 	// Tenant isolation comes first and applies to every action.
 	if inv.ID != "" && inv.TenantID != s.Tenant {
 		return fmt.Errorf("invoice belongs to another tenant")
@@ -58,12 +67,12 @@ Actions are constants named entity first, the way the generator writes them
 check, and there is no default branch that allows — the function denies by
 falling through.
 
-**2. The service asks, then reads.** `security.Authorize(ctx, policy, subject,
+**2. The service asks, then reads.** `auth.Authorize(ctx, policy, subject,
 action, resource)` runs `Can` and, only when it returns `nil`, issues the Grant:
 
 ```go
-func (s *InvoiceService) Get(ctx context.Context, actor security.Subject, id string) (*models.Invoice, error) {
-	g, err := security.Authorize(ctx, s.policy, actor, policies.InvoiceView, models.Invoice{})
+func (s *InvoiceService) Get(ctx context.Context, actor auth.Subject, id string) (*models.Invoice, error) {
+	g, err := auth.Authorize(ctx, s.policy, actor, policies.InvoiceView, models.Invoice{})
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +82,7 @@ func (s *InvoiceService) Get(ctx context.Context, actor security.Subject, id str
 		return nil, err
 	}
 	// The row is authorized too, now that it is in hand.
-	if _, err := security.Authorize(ctx, s.policy, actor, policies.InvoiceView, *found); err != nil {
+	if _, err := auth.Authorize(ctx, s.policy, actor, policies.InvoiceView, *found); err != nil {
 		return nil, err
 	}
 	return found, nil
@@ -101,7 +110,7 @@ You are missing a Grant, and the answer is never to remove the parameter.
 - **In a test**: build the subject and go through the Policy, so the test proves
   the refusal as well as the success.
 - **In a scheduler, a migration or a queue worker**: there is no subject, and
-  `security.SystemGrant` is the named escape hatch for exactly that. It is
+  `auth.SystemGrant` is the named escape hatch for exactly that. It is
   exported and auditable on purpose. `aru doctor` reports a call to it as
   `system-grant-outside-scope` anywhere but `database/seeders`, `app/Jobs`, a
   command (`app/Console`, `routes/console.go`, `cmd/`) and `main.go` — a

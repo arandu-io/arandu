@@ -14,9 +14,11 @@ there is no `database/specs/` here -- so there is nothing to generate it again
 from, and it is not regenerated. `--force` would keep what sits between the
 `// arandu:begin custom` and `// arandu:end custom` markers and drop every edit
 outside them: the `user_id` author column in `Note.go` and in the migration, the
-two lines of `NoteService.Create` that set it, and the example header of each
-file. The build would then stop at `Note.OwnedBy`, which the policy's ownership
-rule calls. Change these files directly.
+two lines of `NoteService.Create` that set it, the table moved into
+`resources/views/partials/` with the branch of `NoteController.Index` that
+answers it alone, and the example header of each file. The build would then
+stop at `Note.OwnedBy`, which the policy's ownership rule calls. Change these
+files directly.
 
 ## What it is made of
 
@@ -24,11 +26,12 @@ rule calls. Change these files directly.
 | --- | --- |
 | `app/Models/Note.go` | the entity and its table, with custom blocks for settings and local scopes |
 | `app/Models/NoteQuery.go` | `Notes`, the typed query and the collection, written by `aru model:build` and never by hand |
-| `app/Policies/NotePolicy.go` | who may do what: the rule `security.Authorize` asks before it issues a Grant |
+| `app/Policies/NotePolicy.go` | who may do what: the rule `auth.Authorize` asks before it issues a Grant |
 | `app/Services/NoteService.go` | the domain, and the only caller of the Model entry point on a request's path |
 | `app/Http/Controllers/NoteController.go` | the actions the routes dispatch to |
 | `app/Http/Requests/NoteRequest.go` | the input contract of create and update, with its form tags. Authorization stays in the Policy |
 | `resources/views`, under the resource | the four screens, which share one row struct |
+| `resources/views/partials/notes_table.kyse.go` | the listing's table, which the index screen includes and `Index` also answers alone |
 | `tests/Unit/Note_test.go` | that reads authorize before the Model is queried |
 
 ## Its fields
@@ -47,14 +50,14 @@ Grant, and its tenant never comes from a path segment, a body, a query or a head
 There is one way, and the compiler is what says so.
 
 ```go
-g, err := security.Authorize(ctx, policy, subject, action, models.Note{})
+g, err := auth.Authorize(ctx, policy, subject, action, models.Note{})
 if err != nil {
     return err
 }
 record, err := models.Notes(db).FindOrFail(ctx, g, id)
 ```
 
-Every terminal of `NoteQuery` takes `security.Grant`, and nothing outside the
+Every terminal of `NoteQuery` takes `auth.Grant`, and nothing outside the
 security package can build one. The Service owns the database handle, authorizes first,
 and then spends that Grant on the Model. A Controller has neither dependency and
 cannot grow a second persistence path.
@@ -83,14 +86,19 @@ return ctx.RedirectRoute("notes.show", created.ID)
   one in the model and one in the service's `fill`, a new migration that adds
   the column, and its input on the create and edit forms.
 - **An error is returned, never mapped.** The router answers it:
-  `validation.Errors` goes back to the form with the messages and what was typed,
-  a missing row is 404, a refusal is 403, and an error with an `HTTPStatus() int`
-  method is that status.
+  `validation.Errors` goes back to the form with the messages and what was typed
+  (303, or 204 with `HX-Redirect` for htmx; a client that asked for JSON gets a
+  422 problem document instead), a missing row is 404, a refusal is 403, and an
+  error with an `HTTPStatus() int` method is that status.
 - **A screen's page** is `view.New(ctx, title)`: the title, what a rejected form
   left in the flash, and the CSRF token the middleware issued. The controller
   takes the service and nothing else.
 - **The listing** is the Model's `SimplePaginate`, newest first, and the key
-  is one the Model generates on insert.
+  is one the Model generates on insert. Its table is
+  `resources/views/partials/notes_table.kyse.go`: the page includes it, and the
+  next-page link asks for it alone with `hx-target` naming its element.
+  `Index` answers that request, and only that one, with `ctx.Fragment`, and
+  says `Vary: HX-Request, HX-Target` on every answer.
 
 ## What the policy allows
 
@@ -113,11 +121,12 @@ The gates, all of them, as `AGENTS.md` lists them:
 
 ```sh
 export GOWORK=off
-aru model:build
+aru model:build --check
 aru view:build
 gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
-go build ./...
 go vet ./...
+bash tests/test-layout-guard.sh
 go test -race ./...
+go build ./...
 aru doctor
 ```

@@ -119,12 +119,13 @@ nobody can explain.
 
 ```sh
 export GOWORK=off
-aru model:build
+aru model:build --check
 aru view:build
 gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
-go build ./...
 go vet ./...
+bash tests/test-layout-guard.sh
 go test -race ./...
+go build ./...
 aru doctor
 ```
 
@@ -232,10 +233,10 @@ untyped rows, and `aru doctor` reports it as `model-core-outside-models`.
 
 ## What the generated code guarantees, and you must not undo
 
-- Every service method takes the acting `security.Subject` and asks the Policy
-  through `security.Authorize` before it touches a row, and every Model read and
+- Every service method takes the acting `auth.Subject` and asks the Policy
+  through `auth.Authorize` before it touches a row, and every Model read and
   write — `FindOrFail`, `First`, `Get`, `SimplePaginate`, `Save`, `Delete` —
-  takes the `security.Grant` that call issued. Removing it to make something
+  takes the `auth.Grant` that call issued. Removing it to make something
   compile is removing the only thing that makes the query safe.
 - The controller takes the service and nothing else. Who is asking is
   `ctx.User()`, which the route guard put on the request; the input is
@@ -243,10 +244,12 @@ untyped rows, and `aru doctor` reports it as `model-core-outside-models`.
   token are `view.New(ctx, title)`. No controller loads the session or issues a
   token.
 - An action returns its error and the router answers it: `validation.Errors`
-  back to the form, a missing row 404, a refusal 403, a duplicate key 409, and
+  back to the form with a redirect, or as a 422 problem document to a client
+  that asked for JSON; a missing row 404, a refusal 403, a duplicate key 409, and
   an error with an `HTTPStatus() int` method that status. Do not map them by
-  hand.
-- The tenant comes from `data.Tenant(g)`. Never from a path segment, a body, a
+  hand, and do not answer a rejected form with a 422 of your own: htmx throws
+  its body away, and a reload posts the form again.
+- The tenant comes from `auth.Tenant(g)`. Never from a path segment, a body, a
   query or a header.
 - The generated policy denies every action, with no allow-everything branch to
   delete later. Open it deliberately, one action at a time.

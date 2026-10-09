@@ -29,7 +29,7 @@ and from then on two implementations drift.
 3. The `notes` resource is the worked example of the mandatory path:
    `app/Http/Controllers/NoteController.go` takes the subject with
    `ctx.User()`, `app/Services/NoteService.go` asks the Policy with
-   `security.Authorize`, and only the `Grant` that returns reaches
+   `auth.Authorize`, and only the `Grant` that returns reaches
    `models.Notes(db)`.
 4. Two tests stand for tenant isolation. `tests/Feature/TenantScope_test.go`
    reads every table with a `tenant_id` column from the database and fails
@@ -45,7 +45,7 @@ and from then on two implementations drift.
 ## 2. Answer these before writing a migration
 
 1. Is this the login identity, or data an organization owns?
-2. Which tenant owns each row? (It will come from `data.Tenant(g)`, never from
+2. Which tenant owns each row? (It will come from `auth.Tenant(g)`, never from
    a path, a body, a query string or a header.)
 3. Which Policy action authorizes the read, and which the write? A read is
    authorized exactly like a write.
@@ -63,7 +63,7 @@ Write the schema only once each answer is written down.
 
 The flow is fixed:
 
-`login identity → membership → organization (the tenant) → subject → Policy → security.Grant → data.Tenant(g) → the row`
+`login identity → membership → organization (the tenant) → subject → Policy → auth.Grant → auth.Tenant(g) → the row`
 
 - A membership links a login to an organization. The organization is the
   tenant of everything it owns.
@@ -148,12 +148,13 @@ documents, and stays disabled unless `Config.Enabled` is true.
 
   ```sh
   export GOWORK=off
-  aru model:build
+  aru model:build --check
   aru view:build
   gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
-  go build ./...
   go vet ./...
+  bash tests/test-layout-guard.sh
   go test -race ./...
+  go build ./...
   aru doctor
   ```
 
