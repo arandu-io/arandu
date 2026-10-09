@@ -244,12 +244,11 @@ there, do not reshape it until the rule stops matching. A count rule
 not that the file is wrong. Each rule reads one function, file or call by name,
 so a clean report means none of these shapes was found, not that none exists.
 
-The sign-in screens `go run github.com/arandu-io/ui@v0.20.0 auth` publishes
-still report `input-read-by-hand` and `html-template-in-app` in
-`app/Http/Controllers/Auth`. Those are the kit's to fix, and republishing a kit
-release that fixes them brings the fix. `session-loaded-in-controller` does not
-read that directory at all, because signing in is where a session is first
-loaded.
+The sign-in screens `go run github.com/arandu-io/ui@v0.22.0 auth` publishes, once
+wired, report nothing. A finding in `app/Http/Controllers/Auth` after an older
+kit is the kit's to fix, and republishing a kit release brings the fix.
+`session-loaded-in-controller` does not read that directory at all, because
+signing in is where a session is first loaded.
 
 ### The CSRF exemption
 
