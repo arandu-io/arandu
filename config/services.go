@@ -31,6 +31,10 @@ type Services struct {
 	// URL the digest is not sent. Remove it with the list under "The example
 	// resource" in README.md.
 	Newsletter Credential
+	// NewsletterWebhook is the secret the newsletter provider signs what it
+	// posts back with, in Secret. With none, /webhooks/newsletter answers 404.
+	// Remove it with the list under "The example resource" in README.md.
+	NewsletterWebhook Credential
 }
 
 func loadServices() Services {
@@ -53,6 +57,9 @@ func loadServices() Services {
 		Newsletter: Credential{
 			URL:    env("NEWSLETTER_API_URL", ""),
 			Secret: env("NEWSLETTER_TOKEN", ""),
+		},
+		NewsletterWebhook: Credential{
+			Secret: env("NEWSLETTER_WEBHOOK_SECRET", ""),
 		},
 	}
 }

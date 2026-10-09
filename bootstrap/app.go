@@ -386,10 +386,13 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 		// a retried write finds its first answer.
 		Tokens:      appmiddleware.NewPersonalAccessTokens(tokens),
 		Idempotency: idempotency,
-		// The example resource, and the one nested under it. Remove them with
-		// the list under "The example resource" in README.md.
+		// The example resource, the one nested under it, and what the
+		// newsletter provider posts back. Remove them with the list under
+		// "The example resource" in README.md.
 		Note:    controllers.NewNoteController(notes),
 		Comment: controllers.NewCommentController(services.NewCommentService(db, notes)),
+		NewsletterWebhook: controllers.NewNewsletterWebhookController(cfg.Services.NewsletterWebhook.Secret,
+			services.NewNewsletterEventService(db, cfg.Auth.Tenant)),
 	}
 
 	k := foundation.New(fw)
@@ -464,11 +467,15 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 			// carries: view.New reads it off the request, so no controller
 			// issues one by hand.
 			//
-			// A request with Authorization: Bearer and no session cookie
-			// carries nothing a browser attaches by itself, so it goes on to
-			// RequireToken, which authenticates it or answers 401; the origin
-			// check still refuses one a browser reports as cross-site.
-			middleware.CSRFProtect(csrf, sessions.IDFromRequest),
+			// Two kinds of write are left to their own guard. A request with
+			// Authorization: Bearer and no session cookie carries nothing a
+			// browser attaches by itself, so it goes on to RequireToken, which
+			// authenticates it or answers 401; the origin check still refuses
+			// one a browser reports as cross-site. And /webhooks/ is exempt by
+			// name, here where it can be read: a provider posts with no
+			// session and no token, and every route under it verifies the
+			// provider's signature before it does anything.
+			middleware.CSRFProtect(csrf, sessions.IDFromRequest, middleware.CSRFExcept("/webhooks/")),
 			httpmiddleware.OverrideMethod(),
 		).
 		Register(

@@ -26,9 +26,12 @@ type Deps struct {
 	Home *controllers.HomeController
 
 	// Note is the example resource, and Comment the resource nested under it.
-	// Remove both with the list under "The example resource" in README.md.
-	Note    *controllers.NoteController
-	Comment *controllers.CommentController
+	// NewsletterWebhook receives what the newsletter provider reports about
+	// the digests. Remove the three with the list under "The example resource"
+	// in README.md.
+	Note              *controllers.NoteController
+	Comment           *controllers.CommentController
+	NewsletterWebhook *controllers.NewsletterWebhookController
 
 	// Sessions is what the route guards read: RequireAuth refuses a request
 	// without a session, and LoadSubject lets a public page know who is looking.
@@ -97,8 +100,9 @@ func Web(r *http.Router, d Deps) {
 	// needs in Deps above.
 
 	// The example resource, behind the sign-in guard: the controllers read who
-	// is asking from what the guard puts on the request. Remove these lines with
-	// the list under "The example resource" in README.md.
+	// is asking from what the guard puts on the request. Remove these lines,
+	// down to the webhook, with the list under "The example resource" in
+	// README.md.
 	//
 	// notes.publish is a named action on one note: POST /notes/{id}/publish.
 	// notes.comments nests shallow: the listing, the form and the store answer
@@ -120,5 +124,10 @@ func Web(r *http.Router, d Deps) {
 		middleware.Idempotent(d.Idempotency, 24*time.Hour)).Name("api.notes.store")
 	api.Action("POST", "/notes/{id}/publish", d.Note.Publish,
 		middleware.Idempotent(d.Idempotency, 24*time.Hour)).Name("api.notes.publish")
+
+	// What the newsletter provider posts back. No guard: the controller
+	// verifies the provider's signature before anything else, and /webhooks/
+	// is exempt from the CSRF check in bootstrap/app.go for that reason.
+	r.Action("POST", "/webhooks/newsletter", d.NewsletterWebhook.Store).Name("webhooks.newsletter")
 	// arandu:end custom
 }
