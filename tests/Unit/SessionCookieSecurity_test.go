@@ -115,3 +115,21 @@ func TestTheCookieScopeVariablesAreRefusedAtBoot(t *testing.T) {
 		}
 	}
 }
+
+// TestAMalformedSecureCookieDecisionStopsTheBoot: the one decision of the
+// Secure attribute is a boolean, and a value that is not one -- a typo, a stray
+// space -- is refused at boot rather than read as the default. The default
+// differs between dev and everywhere else, so falling back on it in silence
+// would be a decision nobody wrote.
+func TestAMalformedSecureCookieDecisionStopsTheBoot(t *testing.T) {
+	for _, value := range []string{"sometimes", " true"} {
+		_, err := loadConfigurationWith(t, map[string]string{"SESSION_SECURE_COOKIE": value})
+		if err == nil {
+			t.Errorf("the boot accepted SESSION_SECURE_COOKIE=%q and fell back on a default", value)
+			continue
+		}
+		if !strings.Contains(err.Error(), "SESSION_SECURE_COOKIE") {
+			t.Errorf("error = %q, want it to name SESSION_SECURE_COOKIE", err)
+		}
+	}
+}
