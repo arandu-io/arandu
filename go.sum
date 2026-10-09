@@ -1,5 +1,5 @@
-github.com/arandu-io/framework v0.53.0 h1:sSmt6n+bNQFT9KmpqTT60iPUf3fcIwlpzz1W2cJzXRo=
-github.com/arandu-io/framework v0.53.0/go.mod h1:3XoBbP5aTegK2E7PB6wumpTAXduqUeoOwZHJdUuZ6HQ=
+github.com/arandu-io/framework v0.54.0 h1:PZ1CGy1qqXbuITnUDh1DQTl2mhAAO/IbScrjHvjqMLs=
+github.com/arandu-io/framework v0.54.0/go.mod h1:3XoBbP5aTegK2E7PB6wumpTAXduqUeoOwZHJdUuZ6HQ=
 github.com/arandu-io/hesape v0.50.3 h1:ZStwsDSelPyedO/0pUc41NkekhL9/wuMRY2eKVW8560=
 github.com/arandu-io/hesape v0.50.3/go.mod h1:EGvD/xu7BKqX/sT4p/XN+igAb5tBagA/VwoEqeVV1b0=
 github.com/arandu-io/hesape/database/connectors/sqlite v0.11.0 h1:L/FuxmnItWErW0swelDrWLHcUKcDeGCcHJpE6y3LEFw=
