@@ -61,7 +61,8 @@ var scopedByTenant = map[string]string{
 	"job_batches": "the batch list, and a batch id from another tenant matches nothing",
 	// The example resource. Remove it with the list under "The example
 	// resource" in README.md.
-	"notes": "the example resource: NoteService authorizes first and reads every note through the model's tenant scope",
+	"notes":    "the example resource: NoteService authorizes first and reads every note through the model's tenant scope",
+	"comments": "the example resource's comments: CommentService loads the note under its own policy, then authorizes and reads every comment through the model's tenant scope",
 }
 
 func TestEveryTableWithATenantColumnIsOneThatFiltersByTenant(t *testing.T) {

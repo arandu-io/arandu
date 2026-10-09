@@ -109,6 +109,8 @@ func (c *NoteController) Show(ctx *hhttp.Context) error {
 		IndexURL:  ctx.URL("notes.index"),
 		EditURL:   ctx.URL("notes.edit", found.ID),
 		DeleteURL: ctx.URL("notes.destroy", found.ID),
+		// The resource nested under this one, by its route name and the note.
+		CommentsURL: ctx.URL("notes.comments.index", found.ID),
 	})
 }
 

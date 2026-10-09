@@ -23,9 +23,10 @@ import (
 type Deps struct {
 	Home *controllers.HomeController
 
-	// Note is the example resource. Remove it with the list under "The example
-	// resource" in README.md.
-	Note *controllers.NoteController
+	// Note is the example resource, and Comment the resource nested under it.
+	// Remove both with the list under "The example resource" in README.md.
+	Note    *controllers.NoteController
+	Comment *controllers.CommentController
 
 	// Sessions is what the route guards read: RequireAuth refuses a request
 	// without a session, and LoadSubject lets a public page know who is looking.
@@ -81,9 +82,15 @@ func Web(r *http.Router, d Deps) {
 	// in this file: it prints the line to paste in this block, and the field it
 	// needs in Deps above.
 
-	// The example resource, behind the sign-in guard: the controller reads who
-	// is asking from what the guard puts on the request. Remove it with the list
-	// under "The example resource" in README.md.
-	r.Group("", middleware.RequireAuth(d.Sessions)).Resource("notes", d.Note)
+	// The example resource, behind the sign-in guard: the controllers read who
+	// is asking from what the guard puts on the request. Remove these lines with
+	// the list under "The example resource" in README.md.
+	//
+	// notes.comments nests shallow: the listing, the form and the store answer
+	// under /notes/{note}/comments, and the record at /comments/{comment}. The
+	// note in the path is where the person navigated, never whose data it is.
+	notes := r.Group("", middleware.RequireAuth(d.Sessions))
+	notes.Resource("notes", d.Note)
+	notes.Resource("notes.comments", d.Comment)
 	// arandu:end custom
 }

@@ -316,6 +316,11 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	})
 	geoModule := fwgeo.NewModule(cfg.Geo, geoCatalog)
 
+	// The example resource's service, built once: the comments under a note
+	// read the note through it, under the note's own policy. Remove it with the
+	// list under "The example resource" in README.md.
+	notes := services.NewNoteService(db)
+
 	// The controllers, built here and handed to the routes. A controller that
 	// constructed its own collaborators would be a controller no test can pin.
 	deps := routes.Deps{
@@ -324,9 +329,10 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 		// and it has to be: two stores over one key would agree about the
 		// signature and disagree about which sessions exist.
 		Sessions: sessions,
-		// The example resource. Remove it with the list under "The example
-		// resource" in README.md.
-		Note: controllers.NewNoteController(services.NewNoteService(db)),
+		// The example resource, and the one nested under it. Remove them with
+		// the list under "The example resource" in README.md.
+		Note:    controllers.NewNoteController(notes),
+		Comment: controllers.NewCommentController(services.NewCommentService(db, notes)),
 	}
 
 	k := foundation.New(fw)

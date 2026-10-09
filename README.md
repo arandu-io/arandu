@@ -84,38 +84,54 @@ There is no command for it. Delete these files:
 
 ```text
 .agents/skills/notes/SKILL.md
+app/Http/Controllers/CommentController.go
 app/Http/Controllers/NoteController.go
+app/Http/Requests/CommentRequest.go
 app/Http/Requests/NoteRequest.go
+app/Models/Comment.go
+app/Models/CommentQuery.go        (generated; aru model:build also removes it once Comment.go is gone)
 app/Models/Note.go
 app/Models/NoteQuery.go           (generated; aru model:build also removes it once Note.go is gone)
+app/Policies/CommentPolicy.go
 app/Policies/NotePolicy.go
+app/Services/CommentService.go
 app/Services/NoteService.go
+database/factories/CommentFactory.go
 database/factories/NoteFactory.go
 database/migrations/2026_10_01_000001_create_notes_table.go
+database/migrations/2026_10_09_000001_create_comments_table.go
 database/seeders/NoteSeeder.go
+resources/views/comments/         (the directory, four views)
 resources/views/notes/            (the directory, four views)
 resources/views/partials/notes_table.kyse.go
+storage/framework/views/comments/ (the directory, compiled output)
 storage/framework/views/notes/    (the directory, compiled output)
 storage/framework/views/partials/notes_table.go   (compiled output)
+tests/Feature/CommentTenantScope_test.go
+tests/Feature/Comments_test.go
 tests/Feature/Notes_test.go
+tests/Unit/Comment_test.go
 tests/Unit/Note_test.go
 ```
 
 and these lines, each marked with a comment naming this section:
 
 ```text
-routes/web.go                       Note *controllers.NoteController
-routes/web.go                       r.Group("", middleware.RequireAuth(d.Sessions)).Resource("notes", d.Note)
-bootstrap/app.go                    Note: controllers.NewNoteController(services.NewNoteService(db)),
+routes/web.go                       Note    *controllers.NoteController
+routes/web.go                       Comment *controllers.CommentController
+routes/web.go                       notes := r.Group("", middleware.RequireAuth(d.Sessions)), and the lines that use it
+bootstrap/app.go                    notes := services.NewNoteService(db)
+bootstrap/app.go                    Note:    controllers.NewNoteController(notes),
+bootstrap/app.go                    Comment: controllers.NewCommentController(services.NewCommentService(db, notes)),
 bootstrap/app.go                    _ ".../storage/framework/views/partials"   (once no other partial is left)
 database/seeders/seeders.go         NoteSeeder{},
 database/seeders/DatabaseSeeder.go  return NoteSeeder{}.Run(ctx, d)   (becomes: return nil)
-tests/Feature/TenantScope_test.go   "notes": "...",
+tests/Feature/TenantScope_test.go   "notes": "...", and "comments": "...",
 ```
 
-A database that already ran the migration keeps the table: in development run
+A database that already ran the migrations keeps the tables: in development run
 `aru migrate:fresh` after deleting the files; anywhere else add a migration
-that drops `notes`. Then `aru view:build`, `go test ./...` and `aru doctor`.
+that drops `comments` and `notes`. Then `aru view:build`, `go test ./...` and `aru doctor`.
 
 `aru doctor` checks this tree against the architecture rules — from a
 repository missing its policy to a tenant read off the request instead of the

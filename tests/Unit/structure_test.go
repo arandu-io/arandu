@@ -292,7 +292,11 @@ func TestEachSuiteHoldsWhatItsNameSays(t *testing.T) {
 	// called with, and NewServer puts a listener on a port and answers over it.
 	// A test that does the second and not the first was reading as booting
 	// nothing.
-	boots := regexp.MustCompile(`tests\.App\(|tests\.Kernel\(|bootstrap\.Dispatch\(|bootstrap\.Open\(|httptest\.NewRequest\(|httptest\.NewServer\(|migratedDB\(`)
+	//
+	// tests.Booted is the application built and booted, which is what Feature
+	// means; a file whose fixture calls it boots as surely as one that calls
+	// tests.App.
+	boots := regexp.MustCompile(`tests\.App\(|tests\.Booted\(|tests\.Kernel\(|bootstrap\.Dispatch\(|bootstrap\.Open\(|httptest\.NewRequest\(|httptest\.NewServer\(|migratedDB\(`)
 
 	for _, suite := range []string{"Feature", "Unit"} {
 		dir := filepath.Join(tests.Root(t), "tests", suite)
