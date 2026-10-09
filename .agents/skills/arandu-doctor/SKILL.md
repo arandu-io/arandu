@@ -1,6 +1,6 @@
 ---
 name: arandu-doctor
-description: Read and act on aru doctor, the architecture checker of an Arandu (Go) application. Use when a doctor finding is reported, when a build passes but something feels unenforced, or before declaring any Arandu change finished — it is one of the gates. Also use when the request mentions "lint", "static analysis", "architecture check", "why is this failing", or a rule name such as grant-not-received, tenant-from-request, view-data-is-a-map or raw-output-is-not-a-component. Covers what each finding means, why it is never suppressed, and what the checker cannot see.
+description: Read and act on aru doctor, the architecture checker of an Arandu (Go) application. Use when a doctor finding is reported, when a build passes but something feels unenforced, or before declaring any Arandu change finished — it is one of the gates. Also use when the request mentions "lint", "static analysis", "architecture check", "why is this failing", or a rule name such as grant-not-received, tenant-from-request, view-data-is-a-map, raw-output-is-not-a-component, service-takes-http or input-read-by-hand. Covers what each finding means, why it is never suppressed, and what the checker cannot see.
 license: MIT
 ---
 
@@ -106,10 +106,40 @@ Three more checks run only under `--profile=performance`:
 conventional profile, and each says so in its own first lines. The ones above
 run on every profile.
 
+## The structural warnings
+
+Nineteen rules, from `input-read-by-hand` to `subject-built-by-hand` at the end
+of the table below, report code that works and lives in the wrong place: a
+controller that reads the form field by field, validates, writes JSON or a 422
+by hand, loads the session or redirects to a literal path; a service that takes
+an HTTP type, sits in a subpackage, or grows past 600 lines; a controller past
+12 actions or one that picks the operation from a form field; markup outside a
+view, a client outside `app/Clients`, a model rule that reaches the database,
+the network or the clock, a fragment that is not a partial, a helper written
+again, SQL outside a repository, a constructor nothing wires, and a `Subject`
+that writes its own roles. All are warnings.
+
+The correction for each is the row of "Where each kind of code lives" in
+`AGENTS.md` that names the kind of code the finding is about: move the code
+there, do not reshape it until the rule stops matching. A count rule
+(`service-file-too-large`, `controller-too-many-actions`) says where to look,
+not that the file is wrong. Each rule reads one function, file or call by name,
+so a clean report means none of these shapes was found, not that none exists.
+
+The sign-in screens `go run github.com/arandu-io/ui@v0.20.0 auth` publishes
+still report `input-read-by-hand` and `html-template-in-app` in
+`app/Http/Controllers/Auth`. Those are the kit's to fix, and republishing a kit
+release that fixes them brings the fix. `session-loaded-in-controller` does not
+read that directory at all, because signing in is where a session is first
+loaded.
+
 ## Every rule
 
-The whole set the doctor checks, with the severity it reports. An error fails
-the run; a warning fails it only under `--strict`.
+The whole set the doctor checks, with the severity it reports, in the order
+`aru doctor --list` prints them. An error fails the run; a warning fails it
+only under `--strict`. `tests/Unit/DoctorSkill_test.go` fails when a row here
+differs from the list it carries, and, when the `aru` on PATH is the release the
+Dockerfile pins, when that list differs from what `aru doctor --list` prints.
 
 | rule | severity | what it reports |
 | --- | --- | --- |
@@ -121,7 +151,6 @@ the run; a warning fails it only under `--strict`.
 | `policy-never-opened` | warning | a policy that denies every action |
 | `action-not-a-constant` | error | an action built from a value rather than named as a constant |
 | `enum-rule-not-derived` | error or warning | an `enum` rule that lists cases its type does not declare (error), or repeats the ones it does (warning) |
-| `resource-not-reauthorized` | warning | a method that reads a row and does not authorize the row it read |
 | `handler-reaches-data` | error | a controller, a middleware or a route file that uses the data package beyond `data.Query` |
 | `handler-reaches-the-model` | error | a controller, a middleware or a route file that opens a query on a model |
 | `controller-reaches-repository` | error | a controller, a middleware or a route file that imports `app/Repositories` |
@@ -131,31 +160,53 @@ the run; a warning fails it only under `--strict`.
 | `system-grant-outside-scope` | warning | a `SystemGrant` outside a seeder, a job and a command |
 | `sql-built-with-sprintf` | error | SQL assembled with `fmt.Sprintf` |
 | `sql-built-by-concatenation` | error | SQL assembled by concatenating a value |
-| `sql-without-tenant-scope` | error | a statement on a table other statements scope by `tenant_id`, without that filter |
 | `sensitive-field-not-redacted` | warning | a type holding a secret that does not redact itself |
 | `session-not-rotated` | error | a sign-in that authenticates and keeps the session id it arrived with |
 | `view-data-is-a-map` | error | a view handed a map |
 | `view-does-not-exist` | error | a view name that names no `.kyse.go` |
-| `view-keeps-state-in-the-browser` | error | an `x-` or `@` attribute with a value in a view |
-| `raw-output-is-not-a-component` | warning | `{!! x !!}` given a value rather than a component call |
 | `permission-not-declared` | error | code that uses a permission `arandu.mod.toml` declares false |
 | `permission-not-used` | warning | a permission `arandu.mod.toml` declares true and nothing uses |
+| `view-keeps-state-in-the-browser` | error | an `x-` or `@` attribute with a value in a view |
+| `sql-without-tenant-scope` | error | a statement on a table other statements scope by `tenant_id`, without that filter |
 | `outbox-not-registered` | error | code that stores domain events in a project that registers no outbox table |
-| `migrations-not-linked` | warning | migrations in a package nothing imports, so `aru migrate` never sees them |
-| `added-column-not-nullable` | warning | a column added to an existing table without `Nullable()` or a default |
-| `rollback-does-nothing` | warning | a migration that declares neither a `Down` nor that it is irreversible |
-| `driver-not-linked` | warning | an engine `.env.example` names whose connector the project does not import |
+| `resource-not-reauthorized` | warning | a method that reads a row and does not authorize the row it read |
+| `raw-output-is-not-a-component` | warning | `{!! x !!}` given a value rather than a component call |
 | `retired-module` | warning | an import of a module whose repository was deleted |
 | `import-not-canonical` | warning | a framework symbol named through a bridge package rather than through the path `aru imports:catalog` gives it |
-| `model-query-stale` | error | a generated query or factory missing, behind its entity, or left from one that is gone |
-| `model-core-outside-models` | error | the model core used outside a package that declares entities |
 | `test-is-not-run` | warning | a file named `...Test.go`, or a test function in a file whose name does not end in `_test.go` |
 | `test-outside-the-tests-tree` | warning | a test outside `tests/` whose name does not end in `_internal_test.go` |
 | `package-clause-is-capitalised` | warning | a package clause with a capital letter |
 | `scaffolding-ships` | warning | a file outside the tests that imports test scaffolding |
-| `profile-not-declared` | warning | `--profile=performance` on a project whose `arandu.mod.toml` does not list it |
+| `skills-out-of-date` | warning | a skill under `.agents/skills` copied from the skeleton or a `hyz-is` module that is behind what that origin hands out at the version the project pins |
+| `skills-missing` | warning | a skill the skeleton or a required `hyz-is` module hands out that this project does not have |
+| `migrations-not-linked` | warning | migrations in a package nothing imports, so `aru migrate` never sees them |
+| `added-column-not-nullable` | warning | a column added to an existing table without `Nullable()` or a default |
+| `rollback-does-nothing` | warning | a migration that declares neither a `Down` nor that it is irreversible |
+| `driver-not-linked` | warning | an engine `.env.example` names whose connector the project does not import |
+| `profile-not-declared` | warning | `--profile=performance`: a project whose `arandu.mod.toml` does not list that profile |
 | `join-across-aggregates` | error | `--profile=performance`: a statement that reads two tables |
 | `transaction-across-aggregates` | error | `--profile=performance`: a transaction that writes two aggregates |
+| `model-query-stale` | error | a generated query or factory missing, behind its entity, or left from one that is gone |
+| `model-core-outside-models` | error | the model core used outside a package that declares entities |
+| `input-read-by-hand` | warning | a controller that reads the form, the query or the body field by field instead of `ctx.Bind` into the request |
+| `validate-called-by-controller` | warning | a controller that calls `Validate()` on the request, or `validation.Validate`, which is the service's call |
+| `json-written-by-hand` | warning | a controller that encodes JSON onto the response writer, or writes its own status with it, instead of a resource and `ctx.JSON` |
+| `invalid-form-answered-by-hand` | warning | a controller that answers a rejected form with a 422 of its own instead of returning the `validation.Errors` |
+| `session-loaded-in-controller` | warning | a controller outside `app/Http/Controllers/Auth` that loads the session instead of reading `ctx.User()` |
+| `redirect-to-literal-path` | warning | a redirect in a controller to a path written as a literal rather than a named route |
+| `html-template-in-app` | warning | a file under `app/` that imports `html/template` |
+| `service-takes-http` | warning | a file under `app/Services` that names the request, the response writer, the HTTP context, the session, a cookie or `template.HTML` |
+| `service-subpackage` | warning | a directory under `app/Services` that holds Go |
+| `service-file-too-large` | warning | a file under `app/Services` longer than 600 lines |
+| `controller-too-many-actions` | warning | a controller type with more than 12 handler methods |
+| `operation-chosen-by-form-field` | warning | a handler that switches on a submitted field to call one service method or another |
+| `client-outside-clients` | warning | a request to another system — an `http.Client`, `http.Get`, `http.NewRequest`, the hesape HTTP client — made under `app/` outside `app/Clients` |
+| `model-rule-touches-io` | warning | a method in the custom block of a model that reaches the database, the network or the clock |
+| `fragment-without-partial` | warning | `ctx.Fragment` given a view outside `resources/views/partials` |
+| `helper-reimplemented` | warning | a function under `app/` that rewrites a helper the catalog already has, such as a slug, a CPF or a BRL formatter |
+| `raw-sql-outside-repository` | warning | a statement run outside `app/Repositories` and `database/` |
+| `generated-not-wired` | warning | a `New...` constructor of a controller or a service that nothing else names |
+| `subject-built-by-hand` | warning | a `Subject` literal outside the tests and `database/` that writes its own roles or actions |
 
 ## What it cannot see, and why that matters
 
