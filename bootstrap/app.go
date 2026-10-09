@@ -2,7 +2,7 @@
 //
 // It is the single place where everything is wired. The wiring is explicit and
 // visible -- no dependency appears by magic. If you want to know where the
-// user repository comes from, it is written here.
+// user service comes from, it is written here.
 //
 // `aru make:module` does NOT edit this file. It writes the code and prints the
 // three lines to paste, because a generator that edited it behind your back
@@ -67,16 +67,17 @@ import (
 	_ "github.com/arandu-io/arandu/database/migrations"
 
 	// Importing the views is what registers them: every generated view calls
-	// view.Register from init(), the same shape a database/sql driver has. Drop
-	// one and ctx.View("home") answers "no view named home" -- and drop the
-	// layouts one and every page fails instead, because a page renders its
-	// layout.
+	// view.Register from init(), the same shape a database/sql driver has. A
+	// view whose package nothing imports answers ctx.View with "no view named
+	// ..." -- and without the layouts every page fails instead, because a page
+	// renders its layout.
 	//
-	// One line per directory of views. `aru view:build` writes the generated
-	// package under storage/framework/views/, mirroring the source tree, and
-	// each directory is its own package. Adding a directory means adding a line
-	// here, and a view nobody can reach says so at the first request rather
-	// than never.
+	// `aru view:build` writes the generated package under
+	// storage/framework/views/, mirroring the source tree, and each directory
+	// is its own package. A directory whose data types a controller names is
+	// linked by that controller's import -- NoteController imports
+	// views/notes, so it has no line here. Any other directory needs one, and
+	// a view nobody links says so at the first request rather than never.
 
 	// The engines this binary can speak, and it speaks no other. Each connector
 	// is its own module and registers itself from init(), so the import is what
@@ -878,7 +879,7 @@ func cacheTLS(cfg appconfig.Cache) (*tls.Config, error) {
 
 // mailTransport picks the transport the configuration asked for.
 //
-// A switch here rather than a registry: there are four, they are all in this
+// A switch here rather than a registry: there are five, they are all in this
 // file, and a name that matches nothing is refused at boot rather than at the
 // first message. An application that starts and cannot send is one that finds
 // out from a customer.
@@ -896,7 +897,7 @@ func mailTransport(cfg appconfig.Mail) mail.Transport {
 	case appconfig.MailerResend:
 		// Both transports are in the core: each one is an HTTPS call to a
 		// documented endpoint, so there is no client library to make optional.
-		// Set MAIL_MAILER and MAIL_KEY and it sends.
+		// Set MAIL_URL to resend://<key> or sendgrid://<key> and it sends.
 		return mail.Resend{Key: cfg.Key}
 	case appconfig.MailerSendGrid:
 		return mail.SendGrid{Key: cfg.Key}
