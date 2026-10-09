@@ -15,8 +15,18 @@
  * character that changed.
  */
 @layer components {
+  /* The row wraps so the sentence a refused code carries, which the component
+   * draws inside the group after the squares, starts a line of its own. */
   .otp {
-    @apply flex w-fit items-center gap-2;
+    @apply flex w-fit flex-wrap items-center gap-2;
+  }
+
+  /* The rejection takes the whole row, under the squares rather than beside
+   * them. Its own width is left out of the group's, so the row is as wide as
+   * the squares and a long sentence wraps under them instead of widening it. */
+  .otp > [data-part='message'] {
+    @apply basis-full;
+    contain: inline-size;
   }
 
   .otp-square {

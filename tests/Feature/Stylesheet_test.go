@@ -13,7 +13,9 @@ import (
 
 	fhttp "github.com/arandu-io/framework/http"
 	fwview "github.com/arandu-io/framework/view"
+	"github.com/arandu-io/hesape/validation"
 	"github.com/arandu-io/hesape/view"
+	"github.com/arandu-io/kyse/components"
 
 	_ "github.com/arandu-io/arandu/assets"
 	"github.com/arandu-io/arandu/tests"
@@ -172,6 +174,46 @@ func TestPasswordKeepsItsRevealControlInsideTheInput(t *testing.T) {
 	for _, want := range wants {
 		if !regexp.MustCompile(want.expression).MatchString(compiled) {
 			t.Errorf("compiled stylesheet does not prove %s; run `aru view:build` after importing input-group.css", want.name)
+		}
+	}
+}
+
+// TestARefusedOneTimeCodeSaysWhyUnderItsSquares holds the CSS half of the
+// sentence components.OneTimeCode draws when a code is refused. The component
+// draws it inside the group, after the squares, because the group is its root;
+// the group is a flex row, so without these rules the sentence sits beside the
+// last square and runs off the side of a narrow screen.
+//
+// The markup is read as well as the stylesheet. A rule for a part the
+// component no longer draws as a direct child of .otp passes any check of the
+// stylesheet alone, and styles nothing.
+func TestARefusedOneTimeCodeSaysWhyUnderItsSquares(t *testing.T) {
+	refused := view.Page{Errors: validation.Errors{"email_code": {"Wrong code."}}}
+	markup := strings.TrimSpace(string(components.OneTimeCode(components.OneTimeCodeProps{
+		Name: "email_code", Label: "Email code", Page: refused,
+	})))
+	if !regexp.MustCompile(`^<div\s[^>]*class="otp"`).MatchString(markup) {
+		t.Fatalf("the one-time code's root is not a div of class otp, which is what the rules below select:\n%s", markup)
+	}
+	if n := strings.Count(markup, "<div"); n != 1 {
+		t.Fatalf("the one-time code draws %d divs, so the message may not be a direct child of .otp:\n%s", n, markup)
+	}
+	if !regexp.MustCompile(`<p\s+data-part="message"`).MatchString(markup) {
+		t.Fatalf("a refused one-time code draws no message part inside the group:\n%s", markup)
+	}
+
+	compiled := tests.File(t, filepath.Join("assets", "app.css"))
+	wants := []struct {
+		name       string
+		expression string
+	}{
+		{name: "the group wraps", expression: `(?s)\.otp\{[^}]*flex-wrap:wrap`},
+		{name: "the message takes the whole row", expression: `(?s)\.otp>\[data-part=(?:"message"|message|'message')\]\{[^}]*flex-basis:100%`},
+		{name: "the message does not widen the row", expression: `(?s)\.otp>\[data-part=(?:"message"|message|'message')\]\{[^}]*contain:inline-size`},
+	}
+	for _, want := range wants {
+		if !regexp.MustCompile(want.expression).MatchString(compiled) {
+			t.Errorf("compiled stylesheet does not prove %s; a refused code's sentence is drawn beside the squares. Run `aru view:build` after editing one-time-code.css", want.name)
 		}
 	}
 }
