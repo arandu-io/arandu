@@ -77,8 +77,9 @@ func Web(r *http.Router, d Deps) {
 	public.Routes(r)
 
 	// arandu:begin custom
-	// The routes of this application go here. `aru make:module` appends to this
-	// block and leaves everything else in the file alone.
+	// The routes of this application go here. `aru make:module` edits nothing
+	// in this file: it prints the line to paste in this block, and the field it
+	// needs in Deps above.
 
 	// The example resource, behind the sign-in guard: the controller reads who
 	// is asking from what the guard puts on the request. Remove it with the list

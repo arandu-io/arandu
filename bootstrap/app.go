@@ -429,7 +429,10 @@ func Build(cfg appconfig.Config, db *data.DB) (App, error) {
 			// This application: its routes, from routes/web.go. Its migrations
 			// arrive by the blank import above, not through here.
 			providers.NewAppServiceProvider(deps).WithDatabase(db),
-			// `aru make:module` adds the next modules here.
+			// A module this project installs is registered here, by hand, once
+			// it is constructed above. `aru make:module` edits nothing in this
+			// file: what it generates is a controller, and it prints the line
+			// for the routes.Deps literal above for you to paste.
 		)
 
 	// The shared store reports itself on the health check and gives its
