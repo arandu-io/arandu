@@ -1,5 +1,9 @@
 # Release Notes
 
+## [v0.34.0](https://github.com/arandu-io/arandu/compare/v0.33.0...v0.34.0) - 2026-10-09
+
+**Full Changelog**: https://github.com/arandu-io/arandu/compare/v0.33.0...v0.34.0
+
 ## [v0.33.0](https://github.com/arandu-io/arandu/compare/v0.32.0...v0.33.0) - 2026-10-09
 
 **Full Changelog**: https://github.com/arandu-io/arandu/compare/v0.32.0...v0.33.0
