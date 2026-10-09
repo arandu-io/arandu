@@ -519,7 +519,10 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	k.Register(sched)
 
 	return App{
-		Kernel: k, DB: db, Users: userService, TwoFactor: twoFactorService, Notes: notes,
+		// Notes is the example resource's. Remove it with the list under "The
+		// example resource" in README.md.
+		Notes:  notes,
+		Kernel: k, DB: db, Users: userService, TwoFactor: twoFactorService,
 		EmailCodes: emailCodes, Sessions: sessions, Scheduler: sched,
 		Relay: relay, Queue: queueStore, Mail: mailer, Notifier: notifier, Cache: stores.SharedStore(),
 	}, nil

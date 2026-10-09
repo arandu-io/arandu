@@ -51,26 +51,35 @@ bundle, and authorization the compiler charges for: a repository call with no
 
 ## The example resource
 
-A fresh project carries one small, complete resource, **notes**, so the first
+A fresh project carries one small, complete feature, **notes**, so the first
 thing you read is a whole module that works rather than an empty directory. It
-was written by `aru make:module note --fields "title:string!,body:text,pinned:bool" --tenant`,
-`aru make:factory Note` and `aru make:seeder Note`, and then opened by hand
-where the generator stops: an author column, the policy rules, and the author
-set from the signed-in subject. It is the reference for the shape of every
-module you add:
+has every step of the feature anatomy in `AGENTS.md`, each written by the `aru`
+generator for it and opened by hand where the generator stops --
+`.agents/skills/notes` names the command behind every file:
 
-- `NoteController` reads who is asking with `ctx.User()` behind
-  `middleware.RequireAuth`, binds the form with `ctx.Bind` and returns every
-  error to the router, which answers validation with the form, a missing row
-  with 404 and a refusal with 403;
-- `NoteService` validates, asks `NotePolicy` for a `Grant`, and reads and writes
-  through `models.Notes(db)` with `FindOrFail`, `SimplePaginate` and `Save`;
-- `NotePolicy` lets anybody signed in to the tenant read and write notes, and
-  only a note's author change or delete it;
-- `tests/Feature/Notes_test.go` proves the whole path in a browser, including a
-  note of another tenant (404) and another member's note (403).
+- **notes**, by `aru make:module note --fields "title:string!,body:text,pinned:bool" --tenant`:
+  `NoteController` reads who is asking with `ctx.User()`, binds the form with
+  `ctx.Bind` and returns every error to the router; `NoteService` validates,
+  asks `NotePolicy` for a `Grant` and reads and writes through
+  `models.Notes(db)`; anybody signed in to the tenant reads and writes notes,
+  and only a note's author changes, deletes or publishes one;
+- **comments nested under a note**, by `aru make:module comment --tenant --parent=notes`:
+  the service loads the note under the note's own policy and lists by it;
+- **publishing**, a named action of the resource (`aru make:controller --action=publish`)
+  over a transition of the entity, `Note.Publish`, which stores `note.published`
+  in the same transaction (`aru make:event`);
+- **a JSON answer** from the same routes through `NoteResource` (`aru make:resource`),
+  with problem documents for every refusal;
+- **a notification** to the author's bell menu (`aru make:notification`), sent by
+  a listener of the outbox (`aru make:listener`);
+- **a nightly digest**, a scheduled task that enqueues a job (`aru make:job`)
+  which hands the published notes to a newsletter client (`aru make:client`) --
+  the fake in the tests, nothing at all when no `NEWSLETTER_API_URL` is set.
 
-`aru migrate` creates the table and `aru db:seed` writes six notes in
+`tests/Feature/Notes_test.go` and `tests/Feature/Comments_test.go` prove each
+path, including another tenant's note (404) and another member's (403).
+
+`aru migrate` creates the tables and `aru db:seed` writes six notes in
 development, by two accounts nobody can sign in as. To use it in a browser,
 publish the sign-in screens with `go run github.com/arandu-io/ui@latest auth`,
 make your own account with
@@ -128,28 +137,33 @@ tests/Unit/NoteResource_test.go
 and these lines, each marked with a comment naming this section:
 
 ```text
-routes/web.go                       Note    *controllers.NoteController
-routes/web.go                       Comment *controllers.CommentController
-routes/web.go                       notes := r.Group("", middleware.RequireAuth(d.Sessions)), and the lines that use it
-bootstrap/app.go                    notes := services.NewNoteService(db).WithNewsletter(newsletter(cfg.Services.Newsletter))
-bootstrap/app.go                    Notes *services.NoteService, in App, and Notes: notes where App is returned
-bootstrap/app.go                    func newsletter, at the end of the file
-bootstrap/background.go             w.Handle(appjobs.SendNotesDigestName, appjobs.NewSendNotesDigestHandler(app.Notes))
-app/Providers/AppServiceProvider.go the notes.digest task in Schedule
-config/services.go                  Newsletter Credential, and its entry in loadServices
-.env.example                        NEWSLETTER_API_URL= and NEWSLETTER_TOKEN=
-bootstrap/app.go                    Note:    controllers.NewNoteController(notes),
-bootstrap/app.go                    Comment: controllers.NewCommentController(services.NewCommentService(db, notes)),
-bootstrap/app.go                    listeners.NewNotifyNoteAuthor(notifier),
-bootstrap/app.go                    _ ".../storage/framework/views/partials"   (once no other partial is left)
-database/seeders/seeders.go         NoteSeeder{},
-database/seeders/DatabaseSeeder.go  return NoteSeeder{}.Run(ctx, d)   (becomes: return nil)
-tests/Feature/TenantScope_test.go   "notes": "...", and "comments": "...",
+routes/web.go                        Note    *controllers.NoteController
+routes/web.go                        Comment *controllers.CommentController
+routes/web.go                        notes := r.Group("", middleware.RequireAuth(d.Sessions)), and the three lines that use it
+bootstrap/app.go                     Notes *services.NoteService, in App, and Notes: notes where Build returns App
+bootstrap/app.go                     listeners.NewNotifyNoteAuthor(notifier),
+bootstrap/app.go                     notes := services.NewNoteService(db).WithNewsletter(newsletter(cfg.Services.Newsletter))
+bootstrap/app.go                     Note:    controllers.NewNoteController(notes),
+bootstrap/app.go                     Comment: controllers.NewCommentController(services.NewCommentService(db, notes)),
+bootstrap/app.go                     _ ".../storage/framework/views/partials"   (once no other partial is left)
+bootstrap/app.go                     func newsletter, at the end of the file
+bootstrap/background.go              w.Handle(appjobs.SendNotesDigestName, appjobs.NewSendNotesDigestHandler(app.Notes))
+app/Providers/AppServiceProvider.go  the notes.digest task in Schedule
+config/services.go                   Newsletter Credential, and its entry in loadServices
+.env.example                         NEWSLETTER_API_URL= and NEWSLETTER_TOKEN=
+database/seeders/seeders.go          NoteSeeder{},
+database/seeders/DatabaseSeeder.go   return NoteSeeder{}.Run(ctx, d)   (becomes: return nil)
+tests/Feature/TenantScope_test.go    "notes": "...", and "comments": "...",
 ```
+
+then the imports the deletions leave unused, which `go build` names. What
+stays is the application's own: the notifier and its table, the listener list,
+the scheduler's tenants and the queue the provider schedules on.
 
 A database that already ran the migrations keeps the tables: in development run
 `aru migrate:fresh` after deleting the files; anywhere else add a migration
-that drops `comments` and `notes`. Then `aru view:build`, `go test ./...` and `aru doctor`.
+that drops `comments` and `notes` and the `published_at` it added. Then
+`aru model:build`, `aru view:build`, `go test ./...` and `aru doctor`.
 
 `aru doctor` checks this tree against the architecture rules — from a
 repository missing its policy to a tenant read off the request instead of the
