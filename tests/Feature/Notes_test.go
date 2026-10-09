@@ -472,3 +472,111 @@ func TestPublishingIsNeverAGet(t *testing.T) {
 		t.Fatal("a GET published the note")
 	}
 }
+
+// asJSON sends one request as a client that asked for JSON, and puts the
+// client back the way it was.
+func asJSON(client *arandutest.Client, send func(*arandutest.Client) *arandutest.Response) *arandutest.Response {
+	answer := send(client.WithHeader("Accept", "application/json"))
+	client.WithHeader("Accept", "")
+	return answer
+}
+
+// decodeJSON reads an answer that must be JSON of the given media type.
+func decodeJSON(t *testing.T, answer *arandutest.Response, mediaType string, into any) {
+	t.Helper()
+	if got := answer.Header("Content-Type"); !strings.HasPrefix(got, mediaType) {
+		t.Fatalf("Content-Type = %q, want %s", got, mediaType)
+	}
+	if err := json.Unmarshal([]byte(answer.GetContent()), into); err != nil {
+		t.Fatalf("the body is not JSON: %v\n%s", err, answer.GetContent())
+	}
+}
+
+// TestAJSONClientIsAnsweredThroughTheNoteResource: the same routes answer a
+// client that asked for JSON, through the JSON Resource, with the fields it
+// lists -- the tenant is not among them -- and the Vary that says the answer
+// depends on Accept.
+func TestAJSONClientIsAnsweredThroughTheNoteResource(t *testing.T) {
+	f := newNotesFixture(t)
+	address := f.write(t, f.ana, "Groceries")
+	id := strings.TrimPrefix(address, "/notes/")
+
+	shown := asJSON(f.ana, func(c *arandutest.Client) *arandutest.Response { return c.Get(address) }).AssertOk()
+	if vary := shown.Header("Vary"); !strings.Contains(vary, "Accept") {
+		t.Errorf("Vary = %q: the record answers HTML or JSON by Accept", vary)
+	}
+	var one struct {
+		Data map[string]any `json:"data"`
+	}
+	decodeJSON(t, shown, "application/json", &one)
+	if one.Data["id"] != id || one.Data["title"] != "Groceries" || one.Data["published_at"] != nil {
+		t.Errorf("data = %v, want the draft note %s", one.Data, id)
+	}
+	if _, leaked := one.Data["tenant_id"]; leaked {
+		t.Error("the tenant left in the answer, and the resource does not list it")
+	}
+
+	listed := asJSON(f.ana, func(c *arandutest.Client) *arandutest.Response { return c.Get("/notes") }).AssertOk()
+	var page struct {
+		Data struct {
+			Notes []map[string]any `json:"notes"`
+		} `json:"data"`
+	}
+	decodeJSON(t, listed, "application/json", &page)
+	if len(page.Data.Notes) != 1 || page.Data.Notes[0]["id"] != id {
+		t.Errorf("notes = %v, want the one note", page.Data.Notes)
+	}
+
+	browser := fromPage(t, f.ana, address)
+	publishedNow := asJSON(browser, func(c *arandutest.Client) *arandutest.Response {
+		return c.Post(address+"/publish", nil)
+	}).AssertOk()
+	decodeJSON(t, publishedNow, "application/json", &one)
+	if one.Data["published_at"] == nil {
+		t.Errorf("data = %v, want the published note", one.Data)
+	}
+}
+
+// TestAJSONClientIsRefusedWithProblemDocuments: what the router answers a page
+// with a status, it answers a JSON client with a problem document carrying the
+// same status -- a missing row, a refusal and a conflict with the row's state.
+func TestAJSONClientIsRefusedWithProblemDocuments(t *testing.T) {
+	f := newNotesFixture(t)
+	beas := f.write(t, f.bea, "Bea's plan")
+	anas := f.write(t, f.ana, "Groceries")
+	const elsewhere = "22222222-2222-4222-8222-222222222222"
+	theirs, err := factories.Notes(f.app.DB).State(func(n *models.Note) { n.UserID = f.anaID }).
+		CreateOne(context.Background(), auth.SystemGrant(policies.NoteCreate, elsewhere))
+	if err != nil {
+		t.Fatalf("creating a note in another tenant: %v", err)
+	}
+
+	browser := fromPage(t, f.ana, anas)
+	browser.Post(anas+"/publish", nil).AssertStatus(http.StatusSeeOther)
+
+	for _, refused := range []struct {
+		kind   string
+		status int
+		send   func(*arandutest.Client) *arandutest.Response
+	}{
+		{"another tenant's note", http.StatusNotFound, func(c *arandutest.Client) *arandutest.Response {
+			return c.Get("/notes/" + theirs.ID)
+		}},
+		{"another member's note published", http.StatusForbidden, func(c *arandutest.Client) *arandutest.Response {
+			return c.Post(beas+"/publish", nil)
+		}},
+		{"a note published twice", http.StatusConflict, func(c *arandutest.Client) *arandutest.Response {
+			return c.Post(anas+"/publish", nil)
+		}},
+	} {
+		answer := asJSON(browser, refused.send).AssertStatus(refused.status)
+		var problem struct {
+			Status int    `json:"status"`
+			Title  string `json:"title"`
+		}
+		decodeJSON(t, answer, "application/problem+json", &problem)
+		if problem.Status != refused.status || problem.Title == "" {
+			t.Errorf("%s: problem = %+v, want status %d with a title", refused.kind, problem, refused.status)
+		}
+	}
+}

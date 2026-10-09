@@ -91,7 +91,7 @@ func TestEveryDirectoryThatMustExistIsKept(t *testing.T) {
 	// in these, so ignoring their contents would ignore the code.
 	for _, d := range []string{
 		"app/Enums", "app/Events", "app/Jobs", "app/Listeners", "app/Mail",
-		"app/Http/Middleware", "app/Http/Requests", "app/Services",
+		"app/Http/Middleware", "app/Http/Requests", "app/Http/Resources", "app/Services",
 	} {
 		full := filepath.Join(root, d)
 		entries, err := os.ReadDir(full)

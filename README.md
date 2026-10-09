@@ -89,6 +89,7 @@ app/Http/Controllers/CommentController.go
 app/Http/Controllers/NoteController.go
 app/Http/Requests/CommentRequest.go
 app/Http/Requests/NoteRequest.go
+app/Http/Resources/NoteResource.go
 app/Models/Comment.go
 app/Models/CommentQuery.go        (generated; aru model:build also removes it once Comment.go is gone)
 app/Models/Note.go
@@ -114,6 +115,7 @@ tests/Feature/Comments_test.go
 tests/Feature/Notes_test.go
 tests/Unit/Comment_test.go
 tests/Unit/Note_test.go
+tests/Unit/NoteResource_test.go
 ```
 
 and these lines, each marked with a comment naming this section:

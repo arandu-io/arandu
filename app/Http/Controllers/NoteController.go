@@ -11,6 +11,7 @@ import (
 	"github.com/arandu-io/hesape/view"
 
 	requests "github.com/arandu-io/arandu/app/Http/Requests"
+	resources "github.com/arandu-io/arandu/app/Http/Resources"
 	models "github.com/arandu-io/arandu/app/Models"
 	services "github.com/arandu-io/arandu/app/Services"
 	views "github.com/arandu-io/arandu/storage/framework/views/notes"
@@ -67,14 +68,25 @@ var (
 // them gets the page, layout and title included, and a reload shows what was
 // on screen.
 //
-// One address, two representations chosen by request headers, so the answer
+// A client that asked for JSON gets the page of notes through the JSON
+// Resource instead, with the next page's address beside it.
+//
+// One address, three representations chosen by request headers, so the answer
 // says which headers: a cache that did not know would hand the table to a
-// navigation, or the page to the hole the table was in.
+// navigation, the page to the hole the table was in, or HTML to a client that
+// asked for JSON.
 func (c *NoteController) Index(ctx *hhttp.Context) error {
 	who, _ := ctx.User()
 	found, page, err := c.svc.List(ctx.Ctx(), who, pagination.ResolveCurrentPage(ctx.Request.URL, ""))
 	if err != nil {
 		return err
+	}
+
+	next := page.SetPath(ctx.URL("notes.index")).NextPageURL()
+
+	ctx.Response.Header().Add("Vary", "Accept, HX-Request, HX-Target")
+	if ctx.WantsJSON() {
+		return ctx.JSON(http.StatusOK, resources.NewNoteCollection(found).Next(next))
 	}
 
 	rows := make([]views.NoteRow, 0, len(found))
@@ -85,22 +97,28 @@ func (c *NoteController) Index(ctx *hhttp.Context) error {
 		Page:    view.New(ctx, "Notes"),
 		Notes:   rows,
 		NewURL:  ctx.URL("notes.create"),
-		NextURL: page.SetPath(ctx.URL("notes.index")).NextPageURL(),
+		NextURL: next,
 	}
 
-	ctx.Response.Header().Add("Vary", "HX-Request, HX-Target")
 	if ctx.IsHTMX() && ctx.Header("HX-Target") == views.NotesTableID {
 		return ctx.Fragment(http.StatusOK, "partials.notes_table", data)
 	}
 	return ctx.View("notes.index", data)
 }
 
-// Show renders one record.
+// Show renders one record, or answers it as JSON to a client that asked for
+// JSON. A missing row, a refusal and every other error are answered by the
+// router, as a problem document to that client.
 func (c *NoteController) Show(ctx *hhttp.Context) error {
 	who, _ := ctx.User()
 	found, err := c.svc.Get(ctx.Ctx(), who, ctx.Param("id"))
 	if err != nil {
 		return err
+	}
+
+	ctx.Response.Header().Add("Vary", "Accept")
+	if ctx.WantsJSON() {
+		return ctx.JSON(http.StatusOK, resources.NewNoteResource(found))
 	}
 
 	return ctx.View("notes.show", views.NotesShowData{
@@ -234,6 +252,9 @@ func (c *NoteController) Publish(ctx *hhttp.Context) error {
 	published, err := c.svc.Publish(ctx.Ctx(), who, ctx.Param("id"))
 	if err != nil {
 		return err
+	}
+	if ctx.WantsJSON() {
+		return ctx.JSON(http.StatusOK, resources.NewNoteResource(published))
 	}
 	return ctx.RedirectRoute("notes.show", published.ID)
 }
