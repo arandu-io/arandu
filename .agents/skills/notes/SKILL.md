@@ -8,10 +8,15 @@ license: MIT
 
 # The Note module
 
-Generated from a specification. If it needs to change, change the specification
-and generate again rather than editing the files by hand -- what falls outside
-what the specification can say goes between the `// arandu:begin custom` and
-`// arandu:end custom` markers, which survive regeneration.
+It is what `aru make:module note --fields "title:string!,body:text,pinned:bool"
+--tenant` writes, plus edits made by hand. No specification of it is kept --
+there is no `database/specs/` here -- so there is nothing to generate it again
+from, and it is not regenerated. `--force` would keep what sits between the
+`// arandu:begin custom` and `// arandu:end custom` markers and drop every edit
+outside them: the `user_id` author column in `Note.go` and in the migration, the
+two lines of `NoteService.Create` that set it, and the example header of each
+file. The build would then stop at `Note.OwnedBy`, which the policy's ownership
+rule calls. Change these files directly.
 
 ## What it is made of
 
@@ -19,8 +24,8 @@ what the specification can say goes between the `// arandu:begin custom` and
 | --- | --- |
 | `app/Models/Note.go` | the entity and its table, with custom blocks for settings and local scopes |
 | `app/Models/NoteQuery.go` | `Notes`, the typed query and the collection, written by `aru model:build` and never by hand |
-| `app/Policies/NotePolicy.go` | who may do what, and the only thing that issues a Grant |
-| `app/Services/NoteService.go` | the domain and the only consumer of the Model entry point |
+| `app/Policies/NotePolicy.go` | who may do what: the rule `security.Authorize` asks before it issues a Grant |
+| `app/Services/NoteService.go` | the domain, and the only caller of the Model entry point on a request's path |
 | `app/Http/Controllers/NoteController.go` | the actions the routes dispatch to |
 | `app/Http/Requests/NoteRequest.go` | the input contract of create and update, with its form tags. Authorization stays in the Policy |
 | `resources/views`, under the resource | the four screens, which share one row struct |
@@ -75,7 +80,8 @@ return ctx.RedirectRoute("notes.show", created.ID)
   on the request. There is no session lookup in the controller.
 - **The input** is `ctx.Bind` into `NoteRequest`: only the fields with a
   `form` tag are read, trimmed and converted. A new field is one line there,
-  one in the model and one in the service's `fill`.
+  one in the model and one in the service's `fill`, a new migration that adds
+  the column, and its input on the create and edit forms.
 - **An error is returned, never mapped.** The router answers it:
   `validation.Errors` goes back to the form with the messages and what was typed,
   a missing row is 404, a refusal is 403, and an error with an `HTTPStatus() int`
