@@ -30,8 +30,8 @@ note's author may change it; this is the shape:
 
 ```go
 const (
-	ActionInvoiceView security.Action = "invoice.view"
-	ActionInvoiceList security.Action = "invoice.list"
+	InvoiceView security.Action = "invoice.view"
+	InvoiceList security.Action = "invoice.list"
 )
 
 type InvoicePolicy struct{}
@@ -44,7 +44,7 @@ func (InvoicePolicy) Can(_ context.Context, s security.Subject, a security.Actio
 		return fmt.Errorf("invoice belongs to another tenant")
 	}
 	switch a {
-	case ActionInvoiceView, ActionInvoiceList:
+	case InvoiceView, InvoiceList:
 		if s.HasRole("member") {
 			return nil
 		}
@@ -53,15 +53,17 @@ func (InvoicePolicy) Can(_ context.Context, s security.Subject, a security.Actio
 }
 ```
 
-Actions are constants, tenant isolation is the first check, and there is no
-default branch that allows — the function denies by falling through.
+Actions are constants named entity first, the way the generator writes them
+(`InvoiceView`, as `NoteView` in the example), tenant isolation is the first
+check, and there is no default branch that allows — the function denies by
+falling through.
 
 **2. The service asks, then reads.** `security.Authorize(ctx, policy, subject,
 action, resource)` runs `Can` and, only when it returns `nil`, issues the Grant:
 
 ```go
 func (s *InvoiceService) Get(ctx context.Context, actor security.Subject, id string) (*models.Invoice, error) {
-	g, err := security.Authorize(ctx, s.policy, actor, policies.ActionInvoiceView, models.Invoice{})
+	g, err := security.Authorize(ctx, s.policy, actor, policies.InvoiceView, models.Invoice{})
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +73,7 @@ func (s *InvoiceService) Get(ctx context.Context, actor security.Subject, id str
 		return nil, err
 	}
 	// The row is authorized too, now that it is in hand.
-	if _, err := security.Authorize(ctx, s.policy, actor, policies.ActionInvoiceView, *found); err != nil {
+	if _, err := security.Authorize(ctx, s.policy, actor, policies.InvoiceView, *found); err != nil {
 		return nil, err
 	}
 	return found, nil
@@ -100,8 +102,12 @@ You are missing a Grant, and the answer is never to remove the parameter.
   the refusal as well as the success.
 - **In a scheduler, a migration or a queue worker**: there is no subject, and
   `security.SystemGrant` is the named escape hatch for exactly that. It is
-  exported and auditable on purpose. `aru doctor` reports a *handler* that
-  reaches for it, because a request always has a subject.
+  exported and auditable on purpose. `aru doctor` reports a call to it as
+  `system-grant-outside-scope` anywhere but `database/seeders`, `app/Jobs`, a
+  command (`app/Console`, `routes/console.go`, `cmd/`) and `main.go` — a
+  handler above all, because a request always has a subject. A call that
+  belongs somewhere else says why on its line, `//arandu:system-grant <reason>`,
+  and a marker with no reason excuses nothing.
 
 If none of those fits, the design is wrong rather than the compiler. Say so
 instead of working around it.
