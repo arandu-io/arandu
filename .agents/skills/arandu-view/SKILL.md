@@ -53,8 +53,9 @@ var _ view.Layout = InvoicesData{}
 @endsection
 ```
 
-The build tag is what keeps the compiler out of the file. Everything before the
-first tag is Go the compiler would reject; the tag is why it never sees it.
+The build tag is what keeps the compiler out of the file: Go reads the
+constraint, leaves the file out, and never parses the markup below the package
+clause, which it would reject.
 
 `resources/views/notes/` is the example resource's four screens — a listing
 through the `DataTable` component, a record, and the create and edit forms
@@ -82,9 +83,13 @@ of them, as `AGENTS.md` lists them.
 
 ## Directives
 
-`@extends` `@section`/`@endsection` `@yield` `@if`/`@elseif`/`@else`/`@endif`
-`@foreach`/`@endforeach` `@forelse`/`@empty`/`@endforelse` `@for`/`@endfor`
-`@go`/`@endgo` `@csrf`
+`@extends` `@section`/`@endsection` `@yield` `@include`
+`@if`/`@elseif`/`@else`/`@endif` `@foreach`/`@endforeach`
+`@forelse`/`@empty`/`@endforelse` `@for`/`@endfor` `@while`/`@endwhile`
+`@continue` `@break` `@go`/`@endgo` `@csrf` `@attributes`
+
+That is the whole set, and it is closed: what does not fit is written in Go,
+inside `@go`.
 
 `{{ }}` escapes. `{!! !!}` does not. `{{-- --}}` is stripped and never reaches
 the page.
@@ -107,11 +112,15 @@ component.
 
 **There is no Alpine, and no `x-` attribute does anything.** Alpine is not
 served, and pages run under `script-src 'self'` with no `unsafe-eval`, so an
-`x-on:click`, an `x-data` or an `@click` would be dead markup at best. `@` also
-starts a directive, so the compiler refuses the `@click` shorthand outright.
+`x-on:click`, an `x-data` or an `@click` would be dead markup at best. `@` at
+the start of a line opens a directive, so the compiler refuses an `@click`
+written there; inside a tag it compiles, and `aru doctor` fails it, and every
+`x-` attribute with a value, as `view-keeps-state-in-the-browser`.
 Client behaviour comes from `ui.js`, which is bound once on `document` and
 dispatches on `data-*` attributes: the attribute carries data or the name of a
 registered behaviour (`data-kyse-behavior`, `data-kyse-on-click`), never code.
+This project registers its own behaviours by name in `resources/js/custom.js`,
+with `arandu.ui.define` and `arandu.ui.action`.
 
 **No expression goes into an attribute the browser runs.** An event handler
 (`on*`), `hx-on*` and the `x-`/`:` families hold code, and the compiler refuses
@@ -120,8 +129,8 @@ attribute, where the escaper can see it. This is what keeps the escaping
 guaranteed, and it is also what the security policy requires: a string compiled
 into a function at run time would not execute.
 
-**A style attribute is refused too.** `style-src 'self'` drops `style="..."` as
-surely as it drops an inline script. Use a class.
+**A style attribute is refused too, by the browser.** `style-src 'self'` drops
+`style="..."` as surely as it drops an inline script. Use a class.
 
 **A loop binding is an ordinary Go name.** `@foreach(.Rows as row)` is fine, and
 so is `s`, `err` or `d`. What the compiler refuses is a Go predeclared
@@ -144,5 +153,8 @@ copy one out of the library either — a copy stops receiving fixes.
 
 No `node_modules`, no `package.json`, no bundler, no CDN. CSS is Tailwind
 through a standalone binary the CLI downloads and pins. If you are about to add
-a JavaScript dependency, you are about to be wrong: `resources/` holds no `.js`
-at all, and a test fails the build if one appears.
+a JavaScript dependency, you are about to be wrong: `resources/` holds one
+script, `resources/js/custom.js`, which `resources/js/js.go` embeds and the
+layout loads after `ui.js`. It is served as written, with no bundler between,
+and `tests/Unit/resources_test.go` fails if any other `.js` appears under
+`resources/` or if that one goes missing.
