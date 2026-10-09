@@ -1,6 +1,7 @@
 package unit_test
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -76,10 +77,11 @@ func TestTheRetiredSessionVariableIsRefusedAtBoot(t *testing.T) {
 }
 
 // TestTheCookieScopeVariablesAreRefusedAtBoot: SESSION_PATH, SESSION_DOMAIN and
-// SESSION_SAME_SITE were read into the configuration and then taken by nothing,
-// because the session store writes its cookie for path /, for the host that
-// answered, with SameSite=Lax. A value that asks for another cookie is refused
-// naming the variable; the value that states what the store already writes is
+// SESSION_SAME_SITE are taken by nothing, because the session store writes its
+// cookie for path /, for the host that answered, with SameSite=Lax. The
+// framework's loader refuses a value that asks for another cookie, naming the
+// variable and the value, and this project refuses nothing of its own: one
+// mistake, one message. The value that states what the store already writes is
 // no request, and SESSION_PATH=/ is in every .env copied from an older
 // .env.example, so it is accepted.
 func TestTheCookieScopeVariablesAreRefusedAtBoot(t *testing.T) {
@@ -97,7 +99,7 @@ func TestTheCookieScopeVariablesAreRefusedAtBoot(t *testing.T) {
 			if err == nil {
 				t.Fatalf("the boot accepted %s=%s, which nothing reads: the cookie is written without it", c.name, c.value)
 			}
-			for _, want := range []string{c.name + " is retired", "SameSite=Lax"} {
+			for _, want := range []string{c.name + " is " + strconv.Quote(c.value) + ", and nothing reads it", "SameSite=Lax"} {
 				if !strings.Contains(err.Error(), want) {
 					t.Errorf("error = %q, want it to contain %q", err, want)
 				}

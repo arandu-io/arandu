@@ -222,6 +222,36 @@ func TestFromRejectsInvalidFrameworkConfigurationWithoutPanicking(t *testing.T) 
 	}
 }
 
+// TestFromRefusesABaseWithNoSessionLifetime: the framework's loader never
+// answers a lifetime that is not positive, so only a configuration built in Go
+// can carry one, and the store built from it would expire every session as it
+// was written. From refuses it naming the field and the variable.
+func TestFromRefusesABaseWithNoSessionLifetime(t *testing.T) {
+	t.Setenv("APP_ENV", "dev")
+	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
+	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
+	t.Setenv("SESSION_LIFETIME", "")
+
+	base, err := bootstrap.LoadConfiguration()
+	if err != nil {
+		t.Fatalf("loading the framework configuration: %v", err)
+	}
+	if _, err := appconfig.From(base); err != nil {
+		t.Fatalf("From refused the lifetime the loader answered: %v", err)
+	}
+
+	base.Session.Lifetime = 0
+	_, err = appconfig.From(base)
+	if err == nil {
+		t.Fatal("From accepted a session lifetime of zero: every session would expire as it was written")
+	}
+	for _, want := range []string{"Session.Lifetime", "SESSION_LIFETIME"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to contain %q", err, want)
+		}
+	}
+}
+
 func TestLoadPreservesTheFrameworkBootstrapError(t *testing.T) {
 	t.Setenv("APP_ENV", "dev")
 	t.Setenv("APP_KEY", "short")
@@ -379,7 +409,7 @@ func loadConfigurationWith(t *testing.T, values map[string]string) (appconfig.Co
 		"APP_URL", "GEO_ENABLED", "GEO_INDEXING_ENABLED", "GEO_SURFACES",
 		"CACHE_STORE", "SESSION_DRIVER", "QUEUE_CONNECTION", "FILESYSTEM_DISK",
 		"LOG_FORMAT", "REDIS_URL",
-		"SESSION_SECURE", "SESSION_COOKIE", "SESSION_SECURE_COOKIE", "SESSION_TTL", "CSRF_TTL",
+		"SESSION_SECURE", "SESSION_COOKIE", "SESSION_SECURE_COOKIE", "SESSION_TTL", "SESSION_LIFETIME", "CSRF_TTL",
 		"SESSION_PATH", "SESSION_DOMAIN", "SESSION_SAME_SITE",
 		"DB_MAX_OPEN_CONNS", "DB_MAX_IDLE_CONNS", "DB_CONN_MAX_LIFETIME",
 		// The retired block, cleared for the same reason as the rest: one of

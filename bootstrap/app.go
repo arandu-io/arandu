@@ -232,12 +232,14 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 		return App{}, err
 	}
 
-	// The session, over the store SESSION_DRIVER named.
+	// The session, over the store SESSION_DRIVER named, for as long as
+	// SESSION_LIFETIME says and with the Secure attribute the CSRF and flash
+	// cookies carry: both are the framework's answers, read once by its loader.
 	backend, err := sessionBackend(cfg.Session, stores)
 	if err != nil {
 		return App{}, err
 	}
-	sessions := security.NewSessionStore(fw.App.Key, cfg.Session.TTL, fw.Session.Secure, backend)
+	sessions := security.NewSessionStore(fw.App.Key, fw.Session.Lifetime, fw.Session.Secure, backend)
 
 	// The rate limit counts in a store rather than in this process, which is the
 	// difference between one budget and one budget per replica -- on the

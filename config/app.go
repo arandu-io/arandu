@@ -86,6 +86,14 @@ func From(base bootstrap.Configuration) (Config, error) {
 	if err := base.App.Validate(); err != nil {
 		return Config{}, fmt.Errorf("framework application configuration: %w", err)
 	}
+	// The framework's loader never answers a lifetime that is not positive, so
+	// this is a base built in Go. A store built with it would expire every
+	// session as it was written, and the first sign would be a sign-in that
+	// signs nobody in.
+	if base.Session.Lifetime <= 0 {
+		return Config{}, fmt.Errorf("framework session configuration: Lifetime is %s, and a session has to last longer than that; "+
+			"SESSION_LIFETIME states it in minutes when the configuration is loaded, and a configuration built in Go states Session.Lifetime", base.Session.Lifetime)
+	}
 
 	auth, err := loadAuth()
 	if err != nil {

@@ -18,11 +18,11 @@ const DefaultTenant = "00000000-0000-4000-8000-000000000001"
 // table -- and a second configurable path would be a second way to do one
 // thing.
 //
-// It does not hold the session lifetime either, and that is a removal rather
-// than an omission. SESSION_TTL was read here as well as in Session, into a
-// field nothing ever asked for: the store is built from Session.TTL, so the
-// copy here answered no question and would have answered a different one the
-// day either read grew a rule the other had not. One variable, one reader.
+// It does not hold the session lifetime either. The store is built from
+// Config.Framework.Session.Lifetime, which the framework's loader reads from
+// SESSION_LIFETIME, and a copy here would answer no question -- and a
+// different one the day either reader grew a rule the other had not. One
+// variable, one reader.
 type Auth struct {
 	// Tenant is the tenant every login belongs to. A multi-tenant deployment
 	// resolves it per request instead: the sign-in screens `ui auth` publishes

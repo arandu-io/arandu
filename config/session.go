@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -28,28 +27,29 @@ const (
 	SessionRedis SessionDriver = "redis"
 )
 
-// Session is where session state is kept and how long it lasts.
+// Session is where session state is kept, and how long a CSRF token lasts.
 //
-// Whether the cookie is HTTPS-only is not here. The framework's loader reads
-// SESSION_SECURE_COOKIE into Config.Framework.Session.Secure, and that one value
-// is what the session store, the CSRF guest cookie and the flash cookie are all
-// built with: three cookies that disagreed about Secure would be a session that
-// works and a form that answers 419, or the other way round. The name of the
-// cookie is not here either, because it is not configurable: the CSRF token is
-// bound to the session the cookie of that name carries.
+// How long a session lasts is not here, and neither is whether its cookie is
+// HTTPS-only. The framework's loader reads both, because the session store
+// takes both: SESSION_LIFETIME, in minutes, into
+// Config.Framework.Session.Lifetime, and SESSION_SECURE_COOKIE into
+// Config.Framework.Session.Secure. The Secure value is also what the CSRF
+// guest cookie and the flash cookie are built with: three cookies that
+// disagreed about it would be a session that works and a form that answers
+// 419, or the other way round. A second reader of either variable here would
+// be a second answer the day one of them grew a rule the other had not.
 //
-// Nor is the scope of the cookie. The session store writes it for path /, for
-// the host that answered, with SameSite=Lax, and takes none of the three, so a
-// setting for any of them would be read and then ignored.
+// The name of the cookie is not here either, because it is not configurable:
+// the CSRF token is bound to the session the cookie of that name carries. Nor
+// is its scope -- the store writes it for path /, for the host that answered,
+// with SameSite=Lax -- and the framework's loader refuses a variable that asks
+// for another.
 type Session struct {
 	Driver SessionDriver
 
-	// TTL is how long a session survives without activity.
-	TTL time.Duration
-
-	// CSRFTTL is how long a CSRF token stays valid. Shorter than the session on
-	// purpose: a token that outlives the page it was rendered on is a token that
-	// can be replayed.
+	// CSRFTTL is how long a CSRF token stays valid. It is its own setting
+	// rather than the session's lifetime: a token that outlives the page it was
+	// rendered on is a token that can be replayed.
 	CSRFTTL time.Duration
 }
 
@@ -82,39 +82,19 @@ func loadSession(cache Cache) (Session, error) {
 		return Session{}, fmt.Errorf("SESSION_SECURE is retired; remove it. " +
 			"SESSION_SECURE_COOKIE decides the Secure attribute: set it to false only to serve over http outside APP_ENV=dev")
 	}
-	// The three variables that scoped the cookie are refused for the same
-	// reason, when they ask for a cookie the store does not write: a
-	// SESSION_DOMAIN written to share sessions across subdomains would be
-	// dropped in silence, and every subdomain would sign in on its own. The
-	// value that states what the store already writes asks for nothing and is
-	// not refused -- every .env copied from an older .env.example carries
-	// SESSION_PATH=/.
-	for _, retired := range []struct{ name, written string }{
-		{"SESSION_PATH", "/"},
-		{"SESSION_DOMAIN", ""},
-		{"SESSION_SAME_SITE", "lax"},
-	} {
-		if value := env(retired.name, ""); value != "" && !strings.EqualFold(value, retired.written) {
-			return Session{}, fmt.Errorf("%s is retired; remove it. "+
-				"The session cookie is written for path /, for the host that answered and with SameSite=Lax, "+
-				"and nothing reads %s=%q", retired.name, retired.name, value)
-		}
-	}
-	ttl, err := envSeconds("SESSION_TTL", 12*time.Hour)
-	if err != nil {
-		return Session{}, err
-	}
+	// SESSION_TTL, SESSION_PATH, SESSION_DOMAIN and SESSION_SAME_SITE are not
+	// refused here: the framework's loader refuses them as Load reads the
+	// environment, and a second refusal would be a second message for one mistake.
 	csrfTTL, err := envSeconds("CSRF_TTL", 2*time.Hour)
 	if err != nil {
 		return Session{}, err
 	}
 	return Session{
 		Driver: driver,
-		// The two lifetimes are read here, and here only. The session store and
-		// the CSRF issuer are built in bootstrap/app.go, from this struct, and
-		// they take a duration rather than reading one -- so whoever assembles
-		// the application is who states it, and that is this package.
-		TTL:     ttl,
+		// Read here, and here only. The CSRF issuer is built in
+		// bootstrap/app.go, from this struct, and it takes a duration rather
+		// than reading one -- so whoever assembles the application is who
+		// states it, and that is this package.
 		CSRFTTL: csrfTTL,
 	}, nil
 }

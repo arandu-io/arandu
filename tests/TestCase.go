@@ -82,6 +82,10 @@ func Kernel(t *testing.T, env config.Env, extra ...foundation.Module) *foundatio
 			LogLevel: slog.LevelError,
 			Editor:   "vscode",
 		},
+		// What the loader answers when SESSION_LIFETIME is not written. Left at
+		// zero, appconfig.From refuses it: every session would expire as it
+		// was written.
+		Session: fwbootstrap.Session{Lifetime: 2 * time.Hour},
 	}
 	// The App block is the one with rules -- the key length, the environment, the
 	// address -- and a test that writes it by hand is a test that can get them

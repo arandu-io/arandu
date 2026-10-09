@@ -40,7 +40,7 @@ func unstatedEnv(t *testing.T) {
 	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
 	for _, key := range []string{
 		"APP_ENV", "APP_DEBUG", "APP_URL", "GEO_ENABLED", "GEO_INDEXING_ENABLED", "GEO_SURFACES",
-		"SESSION_SECURE", "SESSION_COOKIE", "SESSION_SECURE_COOKIE", "SESSION_DRIVER", "SESSION_TTL", "CSRF_TTL", "CACHE_STORE", "REDIS_URL",
+		"SESSION_SECURE", "SESSION_COOKIE", "SESSION_SECURE_COOKIE", "SESSION_DRIVER", "SESSION_TTL", "SESSION_LIFETIME", "CSRF_TTL", "CACHE_STORE", "REDIS_URL",
 		"SESSION_PATH", "SESSION_DOMAIN", "SESSION_SAME_SITE",
 	} {
 		t.Setenv(key, "")
@@ -51,8 +51,8 @@ func unstatedEnv(t *testing.T) {
 // environment.
 //
 // The store is built the way bootstrap/app.go builds it -- the same
-// constructor, the same three settings out of the same loaded configuration,
-// Secure from the framework's half of it --
+// constructor, the same settings out of the same loaded configuration --
+// the lifetime and Secure both from the framework's half of it --
 // and the backend is left to its in-process default, because what is read here
 // is the cookie and no session outlives the call. Nothing is booted: this
 // answers what the bytes on the wire say.
@@ -68,7 +68,7 @@ func sessionCookie(t *testing.T, values map[string]string) *http.Cookie {
 	if err != nil {
 		t.Fatalf("loading the configuration: %v", err)
 	}
-	store := security.NewSessionStore(cfg.Framework.App.Key, cfg.Session.TTL, cfg.Framework.Session.Secure, nil)
+	store := security.NewSessionStore(cfg.Framework.App.Key, cfg.Framework.Session.Lifetime, cfg.Framework.Session.Secure, nil)
 
 	// Rotate rather than Start, because it is the call a sign-in makes: keeping
 	// the id somebody arrived holding is session fixation, and this is the seam
