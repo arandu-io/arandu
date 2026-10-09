@@ -4,6 +4,7 @@ package feature_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -106,17 +107,110 @@ func TestNotesAreWrittenReadChangedAndDeletedByTheirAuthor(t *testing.T) {
 	f.ana.Get(address).AssertStatus(http.StatusNotFound)
 }
 
+// count is how many notes the tenant holds, read past every policy.
+func (f notesFixture) count(t *testing.T) int {
+	t.Helper()
+	found, err := models.Notes(f.app.DB).Get(context.Background(),
+		auth.SystemGrant(policies.NoteList, bootstrap.Tenant()))
+	if err != nil {
+		t.Fatalf("counting the notes: %v", err)
+	}
+	return len(found)
+}
+
+// untitled is a note the request refuses: the title is blank once trimmed.
+var untitled = map[string]string{"title": "  ", "body": "Kept as typed."}
+
 func TestANoteWithoutATitleComesBackWithTheMessage(t *testing.T) {
 	f := newNotesFixture(t)
 
 	// The rejected form is drawn on the next page a browser navigates to, and a
 	// browser navigating says it wants HTML: that is what tells the page from
-	// the fragments and assets the same page asks for.
-	f.ana.WithHeader("Accept", "text/html")
+	// the fragments and assets the same page asks for. The Referer is the form
+	// the browser posted from, and it is where the answer sends it back.
+	browser := f.ana.WithHeader("Accept", "text/html")
+	browser.Get("/notes/create").AssertOk()
+	rejected := browser.WithHeader("Referer", "/notes/create").Post("/notes", untitled)
+	browser.WithHeader("Referer", "")
+
+	// 303 and nothing else. It tells the browser to GET the address it is sent
+	// to, so the entry the history keeps is that GET: a reload asks for the
+	// form again instead of posting it. A 307 or 308 would post it again, and a
+	// 422 with the form in its body would leave the POST as the entry a reload
+	// repeats.
+	rejected.AssertStatus(http.StatusSeeOther).AssertRedirect("/notes/create")
+	if got := rejected.Header("Cache-Control"); !strings.Contains(got, "no-store") {
+		t.Errorf("the answer to a rejected form is cacheable (Cache-Control %q), and it carries what one person typed", got)
+	}
+
+	browser.Get("/notes/create").AssertOk().AssertSee("Kept as typed.").AssertSee("is required")
+
+	// The reload: the same GET, which the flash has already been spent on.
+	browser.Get("/notes/create").AssertOk().AssertDontSee("Kept as typed.").AssertDontSee("is required")
+	browser.Get("/notes").AssertOk().AssertDontSee("Kept as typed.")
+	if got := f.count(t); got != 0 {
+		t.Fatalf("a rejected note and a reload left %d notes stored, want none", got)
+	}
+}
+
+// TestARejectedNoteFromHTMXIsANavigationBack: the create form posts with
+// hx-post, and htmx discards a 4xx body by default. What it does follow is
+// HX-Redirect, as a full navigation -- so the answer is the same redirect back
+// to the form, spelled the way htmx reads it, with no body to swap.
+func TestARejectedNoteFromHTMXIsANavigationBack(t *testing.T) {
+	f := newNotesFixture(t)
+
 	f.ana.Get("/notes/create").AssertOk()
-	f.ana.Post("/notes", map[string]string{"title": "  ", "body": "Kept as typed."}).AssertStatus(http.StatusSeeOther)
-	f.ana.Get("/notes/create").AssertOk().AssertSee("Kept as typed.").AssertSee("is required")
-	f.ana.Get("/notes").AssertOk().AssertDontSee("Kept as typed.")
+	rejected := f.ana.WithHeader("HX-Request", "true").WithHeader("Referer", "/notes/create").
+		Post("/notes", untitled)
+	f.ana.WithHeader("HX-Request", "").WithHeader("Referer", "")
+
+	rejected.AssertStatus(http.StatusNoContent).AssertRedirect("/notes/create")
+	if body := rejected.GetContent(); body != "" {
+		t.Errorf("the HTMX answer to a rejected form has a body htmx would swap in before navigating: %q", body)
+	}
+
+	// The navigation htmx makes is an ordinary GET, and it finds the messages.
+	f.ana.WithHeader("Accept", "text/html").Get("/notes/create").AssertOk().
+		AssertSee("Kept as typed.").AssertSee("is required")
+	if got := f.count(t); got != 0 {
+		t.Fatalf("a rejected note left %d notes stored, want none", got)
+	}
+}
+
+// TestARejectedNoteFromAJSONClientIsAProblemDocument: a client that asked for
+// JSON has no form to go back to. It gets 422 and the messages by field, and
+// nothing is left in the flash for a page nobody will load.
+func TestARejectedNoteFromAJSONClientIsAProblemDocument(t *testing.T) {
+	f := newNotesFixture(t)
+
+	f.ana.Get("/notes/create").AssertOk()
+	rejected := f.ana.WithHeader("Accept", "application/json").Post("/notes", untitled)
+	f.ana.WithHeader("Accept", "")
+
+	rejected.AssertStatus(http.StatusUnprocessableEntity)
+	if got := rejected.Header("Content-Type"); !strings.HasPrefix(got, "application/problem+json") {
+		t.Fatalf("Content-Type = %q, want application/problem+json", got)
+	}
+	var problem struct {
+		Status int                 `json:"status"`
+		Errors map[string][]string `json:"errors"`
+	}
+	if err := json.Unmarshal([]byte(rejected.GetContent()), &problem); err != nil {
+		t.Fatalf("the body is not a problem document: %v\n%s", err, rejected.GetContent())
+	}
+	if problem.Status != http.StatusUnprocessableEntity || len(problem.Errors["title"]) == 0 {
+		t.Fatalf("problem = %+v, want status 422 and a message for title", problem)
+	}
+	if _, typed := problem.Errors["body"]; typed {
+		t.Errorf("a field that passed has a message: %v", problem.Errors["body"])
+	}
+
+	f.ana.WithHeader("Accept", "text/html").Get("/notes/create").AssertOk().
+		AssertDontSee("Kept as typed.").AssertDontSee("is required")
+	if got := f.count(t); got != 0 {
+		t.Fatalf("a rejected note left %d notes stored, want none", got)
+	}
 }
 
 func TestAnotherMembersNoteIsReadButNotChanged(t *testing.T) {
