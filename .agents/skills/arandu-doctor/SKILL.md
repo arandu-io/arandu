@@ -6,132 +6,29 @@ license: MIT
 
 # Reading what the doctor says
 
+## When to use
+
+`aru doctor` reported something, a build passes and something still feels
+unenforced, or a change is about to be called finished -- the doctor is the
+last gate. Fixing what a finding points at is the family skill of that code;
+this skill says what the finding means.
+
+## Before you start
+
 `aru doctor` is this framework's architecture rules run as static analysis over
 the parsed tree. Without it, mandatory architecture is documentation nobody
-reads.
+reads. Run the `aru` the Dockerfile pins -- an older one checks fewer rules, and
+its clean report says less than it seems to.
 
-Every finding carries a file, a line, the rule name, what is wrong, and a **Why**
-that says what breaks. The Why is the field that matters: a finding that only
-says what is forbidden gets suppressed, and one that says what breaks gets
-fixed.
+## Contracts and imports
 
-```sh
-aru doctor            # every finding
-aru doctor --strict   # warnings fail too
-```
-
-## The procedure
-
-**1. Read the Why, not the rule name.** The rule name tells you which check
-fired. The Why tells you what a user of the application would experience. Fix
-the second one.
-
-**2. Fix the cause at the line it names.** Every finding points at real code.
-
-**3. Never suppress.** There is no ignore comment and no allow-list, deliberately.
-A finding you cannot fix is a design question, not a lint to silence. The one
-marker the doctor reads is `//arandu:system-grant <reason>`, on or above a
-`SystemGrant` call outside a seeder, a job or a command: it excuses
+Every finding carries a file, a line, the rule name, what is wrong, and a
+**Why** that says what breaks. An error fails the run; a warning fails it only
+under `--strict`. There is no ignore comment and no allow-list. The one marker
+the doctor reads is `//arandu:system-grant <reason>`, on or above an
+`auth.SystemGrant` call outside a seeder, a job and a command: it excuses
 `system-grant-outside-scope` on that line and nothing else, and a marker with
 no reason excuses nothing.
-
-**4. Run it again until it is clean, then run the other gates.**
-
-## The findings you will actually meet
-
-**`grant-not-received`** — a repository method takes no `auth.Grant`. Every
-caller gets the row, whoever asked. Add the Grant as the parameter before the id,
-start the method with `if err := g.Check(Action...); err != nil { return err }`
-— a Grant that is taken and never checked is `grant-not-checked` — and take it
-from the Policy.
-
-**`tenant-from-request`** — the tenant is read from a path segment, a form
-field or a query; `tenant-from-header` is the same finding for a header. A
-tenant that arrives with the request is a tenant the caller chose. Read it with
-`auth.Tenant(g)`.
-
-**`repository-without-policy`** — a repository is reachable with no Policy
-deciding. Write the Policy; the generator writes one that denies everything, and
-you open it action by action.
-
-**`resource-not-reauthorized`** — a method authorized the action and then read
-one row without authorizing the row. The first call answers "may this caller
-look at all"; the second answers "may this caller look at *this*". Skipping the
-second means any user of the same tenant sees the row.
-
-**`view-data-is-a-map`** — a view was handed a map. A typo in a key is then a
-blank space on a page that answered 200. Declare a struct that embeds
-`view.Page`.
-
-**`raw-output-is-not-a-component`** — `{!! x !!}` was given a value rather than a
-call. The raw form escapes nothing, so a value that ever comes from a person is
-stored cross-site scripting. Write `{{ x }}`, which escapes, or return it from a
-component function.
-
-**`policy-never-opened`** — a policy denies every action. On a new module this is
-correct and expected; it is a warning so that a fresh project is not red on day
-zero.
-
-**`retired-module`** — an import names a module that no longer exists. The line
-says what replaced it.
-
-**`import-not-canonical`** — a file names a symbol through a framework bridge
-package rather than through the path the symbol lives at: `security.Grant` for
-`auth.Grant`, `data.DB` for `database.DB`, `fhttp.Context` for
-`hhttp.Context`. The bridge only aliases or forwards, so the code is correct
-today, and it stops compiling when the bridges are removed in v1.0.0. The line
-names each symbol and its path; `aru imports:catalog` prints the whole table for
-the framework version in `go.mod`. Import that path, and keep the framework
-import only for what the framework declares itself, such as `Router` and
-`SessionStore`. It is a warning because nothing is wrong yet.
-
-**`model-query-stale`** — a `<Entity>Query.go`, or a factory `aru model:build`
-renders, is missing, behind its entity, or left over from one that is gone. A
-build compiles what is on disk, so the application would run against the query
-of an entity that is not the one in the source. Run `aru model:build`; in a
-pipeline that calls `go build` directly, `aru model:build --check` asks the same
-question.
-
-**`model-core-outside-models`** — the model core is used outside a package that
-declares entities, which here is `app/Models`: a `model.NewTable`, or a method
-called on a `*model.Table`, a `*model.Builder` or what `Base()` returns. The
-core hands back untyped rows, and a query written on it is a second way to reach
-the table, one the generated query does not describe. Call the generated
-constructor, `models.Notes(db)`, or write the query as a method on `*NoteQuery`
-in the custom block of the entity's file.
-
-Three more checks run only under `--profile=performance`:
-`profile-not-declared`, `join-across-aggregates` and
-`transaction-across-aggregates`. What they report is correct code on the
-conventional profile, and each says so in its own first lines. The ones above
-run on every profile.
-
-## The structural warnings
-
-Nineteen rules, from `input-read-by-hand` to `subject-built-by-hand` at the end
-of the table below, report code that works and lives in the wrong place: a
-controller that reads the form field by field, validates, writes JSON or a 422
-by hand, loads the session or redirects to a literal path; a service that takes
-an HTTP type, sits in a subpackage, or grows past 600 lines; a controller past
-12 actions or one that picks the operation from a form field; markup outside a
-view, a client outside `app/Clients`, a model rule that reaches the database,
-the network or the clock, a fragment that is not a partial, a helper written
-again, SQL outside a repository, a constructor nothing wires, and a `Subject`
-that writes its own roles. All are warnings.
-
-The correction for each is the row of "Where each kind of code lives" in
-`AGENTS.md` that names the kind of code the finding is about: move the code
-there, do not reshape it until the rule stops matching. A count rule
-(`service-file-too-large`, `controller-too-many-actions`) says where to look,
-not that the file is wrong. Each rule reads one function, file or call by name,
-so a clean report means none of these shapes was found, not that none exists.
-
-The sign-in screens `go run github.com/arandu-io/ui@v0.20.0 auth` publishes
-still report `input-read-by-hand` and `html-template-in-app` in
-`app/Http/Controllers/Auth`. Those are the kit's to fix, and republishing a kit
-release that fixes them brings the fix. `session-loaded-in-controller` does not
-read that directory at all, because signing in is where a session is first
-loaded.
 
 ## Every rule
 
@@ -208,7 +105,178 @@ Dockerfile pins, when that list differs from what `aru doctor --list` prints.
 | `generated-not-wired` | warning | a `New...` constructor of a controller or a service that nothing else names |
 | `subject-built-by-hand` | warning | a `Subject` literal outside the tests and `database/` that writes its own roles or actions |
 
-## What it cannot see, and why that matters
+## Procedure
+
+1. **Read the Why, not the rule name.** The rule name says which check fired;
+   the Why says what a user of the application would experience. Fix the
+   second one.
+2. **Fix the cause at the line it names**, by moving the code to the row of
+   "Where each kind of code lives" in `AGENTS.md` that names its kind -- not by
+   reshaping it until the rule stops matching.
+3. **Never suppress.** A finding you cannot fix is a design question, and the
+   answer goes in the report.
+4. **Run it again until it is clean**, then the other gates.
+
+### The findings you will meet most
+
+**`grant-not-received`** — a repository method takes no `auth.Grant`. Every
+caller gets the row, whoever asked. Add the Grant as the parameter before the id,
+start the method with `if err := g.Check(Action...); err != nil { return err }`
+— a Grant that is taken and never checked is `grant-not-checked` — and take it
+from the Policy.
+
+**`tenant-from-request`** — the tenant is read from a path segment, a form
+field or a query; `tenant-from-header` is the same finding for a header. A
+tenant that arrives with the request is a tenant the caller chose. Read it with
+`auth.Tenant(g)`.
+
+**`repository-without-policy`** — a repository is reachable with no Policy
+deciding. Write the Policy; the generator writes one that denies everything, and
+you open it action by action.
+
+**`resource-not-reauthorized`** — a method authorized the action and then read
+one row without authorizing the row. The first call answers "may this caller
+look at all"; the second answers "may this caller look at *this*". Skipping the
+second means any user of the same tenant sees the row.
+
+**`view-data-is-a-map`** — a view was handed a map. A typo in a key is then a
+blank space on a page that answered 200. Declare a struct that embeds
+`view.Page`.
+
+**`raw-output-is-not-a-component`** — `{!! x !!}` was given a value rather than a
+call. The raw form escapes nothing, so a value that ever comes from a person is
+stored cross-site scripting. Write `{{ x }}`, which escapes, or return it from a
+component function.
+
+**`policy-never-opened`** — a policy denies every action. On a new module this is
+correct and expected; it is a warning so that a fresh project is not red on day
+zero.
+
+**`retired-module`** — an import names a module that no longer exists. The line
+says what replaced it.
+
+**`import-not-canonical`** — a file names a symbol through a framework bridge
+package rather than through the path the symbol lives at: `security.Grant` for
+`auth.Grant`, `data.DB` for `database.DB`, `fhttp.Context` for
+`hhttp.Context`. The bridge only aliases or forwards, so the code is correct
+today, and it stops compiling when the bridges are removed in v1.0.0. The line
+names each symbol and its path; `aru imports:catalog` prints the whole table for
+the framework version in `go.mod`. Import that path, and keep the framework
+import only for what the framework declares itself, such as `Router` and
+`SessionStore`. It is a warning because nothing is wrong yet.
+
+**`model-query-stale`** — a `<Entity>Query.go`, or a factory `aru model:build`
+renders, is missing, behind its entity, or left over from one that is gone. A
+build compiles what is on disk, so the application would run against the query
+of an entity that is not the one in the source. Run `aru model:build`; in a
+pipeline that calls `go build` directly, `aru model:build --check` asks the same
+question.
+
+**`model-core-outside-models`** — the model core is used outside a package that
+declares entities, which here is `app/Models`: a `model.NewTable`, or a method
+called on a `*model.Table`, a `*model.Builder` or what `Base()` returns. The
+core hands back untyped rows, and a query written on it is a second way to reach
+the table, one the generated query does not describe. Call the generated
+constructor, `models.Notes(db)`, or write the query as a method on `*NoteQuery`
+in the custom block of the entity's file.
+
+Three more checks run only under `--profile=performance`:
+`profile-not-declared`, `join-across-aggregates` and
+`transaction-across-aggregates`. What they report is correct code on the
+conventional profile, and each says so in its own first lines. The ones above
+run on every profile.
+
+### The structural warnings
+
+Nineteen rules, from `input-read-by-hand` to `subject-built-by-hand` at the end
+of the table above, report code that works and lives in the wrong place: a
+controller that reads the form field by field, validates, writes JSON or a 422
+by hand, loads the session or redirects to a literal path; a service that takes
+an HTTP type, sits in a subpackage, or grows past 600 lines; a controller past
+12 actions or one that picks the operation from a form field; markup outside a
+view, a client outside `app/Clients`, a model rule that reaches the database,
+the network or the clock, a fragment that is not a partial, a helper written
+again, SQL outside a repository, a constructor nothing wires, and a `Subject`
+that writes its own roles. All are warnings.
+
+The correction for each is the row of "Where each kind of code lives" in
+`AGENTS.md` that names the kind of code the finding is about: move the code
+there, do not reshape it until the rule stops matching. A count rule
+(`service-file-too-large`, `controller-too-many-actions`) says where to look,
+not that the file is wrong. Each rule reads one function, file or call by name,
+so a clean report means none of these shapes was found, not that none exists.
+
+The sign-in screens `go run github.com/arandu-io/ui@v0.20.0 auth` publishes
+still report `input-read-by-hand` and `html-template-in-app` in
+`app/Http/Controllers/Auth`. Those are the kit's to fix, and republishing a kit
+release that fixes them brings the fix. `session-loaded-in-controller` does not
+read that directory at all, because signing in is where a session is first
+loaded.
+
+## Commands
+
+- `aru doctor`, every finding; `aru doctor --strict`, warnings fail too
+- `aru doctor --list`, every rule with its severity
+- `aru doctor --profile=performance`, three more checks for the performance profile
+- `aru imports:catalog`, the import path of each framework symbol
+- `aru model:build`, the fix for `model-query-stale`
+
+## Example
+
+The one marker the doctor reads, on a call that has a reason to be outside a
+seeder, a job and a command:
+
+```go compile
+package example
+
+import (
+	"context"
+
+	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/database"
+
+	models "<module>/app/Models"
+	policies "<module>/app/Policies"
+)
+
+// PublishedCount answers how many notes a tenant has published, for an
+// operator's report that runs with no subject behind it.
+func PublishedCount(ctx context.Context, db *database.DB, tenant string) (int, error) {
+	//arandu:system-grant the operator's report runs with no subject; the tenant is the one the operator named
+	g := auth.SystemGrant(policies.NoteList, tenant)
+	published, err := models.Notes(db).WhereNotNull("published_at").Get(ctx, g)
+	return len(published), err
+}
+```
+
+## Do not
+
+- Reshape code until a rule stops matching. A finding is about where the code
+  lives; code moved to the right place stops matching because it is right.
+- Treat a warning as noise because it is not an error. Structural rules start
+  as warnings so a new project is not red on day zero, not because they are
+  optional.
+- Write a marker without a reason, or put one on a line it does not excuse.
+- Run an older `aru` and call the report clean.
+
+## Extending it
+
+A project adds no rules and suppresses none. A rule that is wrong about correct
+code is a bug of the doctor, reported with the file and the line; a rule that
+should exist is a proposal to the framework.
+
+## Wiring
+
+None. The doctor reads the tree as it is; CI runs it on every push, without
+`--strict`.
+
+## Acceptance test
+
+`aru doctor` prints no finding on the change. `tests/Unit/DoctorSkill_test.go`
+holds the table above to the rule list, and to what `aru doctor --list` prints
+when the `aru` on PATH is the pinned release.
+
+## Limits
 
 It reads the parsed tree, not the running program.
 
@@ -217,5 +285,26 @@ It reads the parsed tree, not the running program.
 - Partition keys are not checked, because nothing in the code declares one.
 - A build tag is invisible to it, so a file excluded from the compiler is still
   read.
+- Each structural rule reads one function, file or call by name: a clean report
+  means none of those shapes was found, not that none exists.
 
 Trust it as evidence, never as proof.
+
+## Gates
+
+Run them all, in this order, as `AGENTS.md` lists them:
+
+```sh
+export GOWORK=off
+aru model:build --check
+aru view:build
+gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
+go vet ./...
+bash tests/test-layout-guard.sh
+go test -race ./...
+go build ./...
+aru doctor
+```
+
+<!-- arandu:begin custom -->
+<!-- arandu:end custom -->
