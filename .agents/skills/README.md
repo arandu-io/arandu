@@ -30,6 +30,7 @@ test, limits and the gates -- and holds the rules of its family and no other's.
 | `arandu-policy` | authorization, a Grant, the tenant, `SystemGrant` |
 | `arandu-doctor` | `aru doctor` reported something, or a change is about to be called finished |
 | `arandu-ecosystem` | permissions, organizations, balances, tags, Markdown, API docs, CPF/CNPJ, a helper -- before a new table or package |
+| `arandu-mcp` | the assistant can start `aru mcp`: ask it where code goes, the recipe, the doctor, and preview a generator |
 | `notes` | the example resource: what each of its files shows and which command wrote it |
 
 `tests/Unit/Skills_test.go` holds them to that: the sections, the gate block

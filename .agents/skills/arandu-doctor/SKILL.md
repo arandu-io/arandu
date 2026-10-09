@@ -57,7 +57,7 @@ Dockerfile pins, when that list differs from what `aru doctor --list` prints.
 | `system-grant-outside-scope` | warning | a `SystemGrant` outside a seeder, a job and a command |
 | `sql-built-with-sprintf` | error | SQL assembled with `fmt.Sprintf` |
 | `sql-built-by-concatenation` | error | SQL assembled by concatenating a value |
-| `sensitive-field-not-redacted` | warning | a type holding a secret that does not redact itself |
+| `sensitive-field-not-redacted` | warning | a struct under `app/` with a field named for a secret -- password, secret, token, apikey, cpf and the rest, as a whole word -- whose value reaches a log or JSON sink in the project's code, and that has no `LogValue` and `MarshalJSON` |
 | `session-not-rotated` | error | a sign-in that authenticates and keeps the session id it arrived with |
 | `view-data-is-a-map` | error | a view handed a map |
 | `view-does-not-exist` | error | a view name that names no `.kyse.go` |
@@ -69,7 +69,7 @@ Dockerfile pins, when that list differs from what `aru doctor --list` prints.
 | `resource-not-reauthorized` | warning | a method that reads a row and does not authorize the row it read |
 | `raw-output-is-not-a-component` | warning | `{!! x !!}` given a value rather than a component call |
 | `retired-module` | warning | an import of a module whose repository was deleted |
-| `import-not-canonical` | warning | a framework symbol named through a bridge package rather than through the path `aru imports:catalog` gives it |
+| `import-not-canonical` | warning | a framework symbol named through a bridge package rather than through the path `aru imports:catalog` gives it, in Go -- tests included -- and in a `.kyse.go` source |
 | `test-is-not-run` | warning | a file named `...Test.go`, or a test function in a file whose name does not end in `_test.go` |
 | `test-outside-the-tests-tree` | warning | a test outside `tests/` whose name does not end in `_internal_test.go` |
 | `package-clause-is-capitalised` | warning | a package clause with a capital letter |
@@ -102,7 +102,7 @@ Dockerfile pins, when that list differs from what `aru doctor --list` prints.
 | `fragment-without-partial` | warning | `ctx.Fragment` given a view outside `resources/views/partials` |
 | `helper-reimplemented` | warning | a function under `app/` that rewrites a helper the catalog already has, such as a slug, a CPF or a BRL formatter |
 | `raw-sql-outside-repository` | warning | a statement run outside `app/Repositories` and `database/` |
-| `generated-not-wired` | warning | a `New...` constructor of a controller or a service that nothing else names |
+| `generated-not-wired` | warning | an exported `New...` constructor under `app/Http/Controllers` or `app/Services` that nothing outside the tests names, unless it builds a test double a test constructs |
 | `subject-built-by-hand` | warning | a `Subject` literal outside the tests and `database/` that writes its own roles or actions |
 
 ## Procedure
@@ -158,12 +158,48 @@ says what replaced it.
 **`import-not-canonical`** — a file names a symbol through a framework bridge
 package rather than through the path the symbol lives at: `security.Grant` for
 `auth.Grant`, `data.DB` for `database.DB`, `fhttp.Context` for
-`hhttp.Context`. The bridge only aliases or forwards, so the code is correct
-today, and it stops compiling when the bridges are removed in v1.0.0. The line
-names each symbol and its path; `aru imports:catalog` prints the whole table for
-the framework version in `go.mod`. Import that path, and keep the framework
-import only for what the framework declares itself, such as `Router` and
-`SessionStore`. It is a warning because nothing is wrong yet.
+`hhttp.Context`. The bridges are old import paths whose symbols are aliases of
+a component's, kept so code written against them goes on compiling; each is
+removed in v1.0.0, and until then one type is spelled two ways, file by file.
+It reads every Go file, tests included, and every `.kyse.go` source -- its
+import lines and its `local.Name` uses, as text, so a sentence in the markup
+that spells `security.Grant` counts. The Go `aru view:build` writes is
+skipped: the finding goes to the import line of the source it was compiled
+from. Which path is canonical is read, symbol by symbol, from the framework
+source at the version `go.mod` requires; a type the framework declares, such as
+`Router` or `SessionStore`, is canonical where it is. That catalog is read from
+disk, so on a machine that has not downloaded the version the rule is silent.
+Import the path the finding names, and keep the framework import only for what
+the framework declares; `aru imports:catalog --fix` shows the rewrite for every
+file and `--apply` writes it. It is a warning because nothing is wrong yet.
+
+**`sensitive-field-not-redacted`** — a struct under `app/` has a field whose
+name carries a sensitive word (password, passwd, secret, token, apikey,
+creditcard, document, cpf, cnpj; a whole word, singular or plural) and whose
+type can hold one, and a value of it reaches a log or JSON sink in this
+project's code -- the message names the sink. slog, fmt and
+`observability.Dump` print every field, `json.Marshal` writes every exported
+one, and only the type can promise it never leaks. A type nothing logs or
+encodes is not reported, nor one with `LogValue` or `MarshalJSON`, nor one only
+encoded to JSON whose sensitive fields are all `json:"-"`; a count such as
+`MaxTokens int` is not a secret. It follows a value only inside one function:
+typed by the signature, by a composite literal, or by a name that is the type's
+in lower case -- not through another type's field, a call's result or a helper
+that logs. Add `LogValue() slog.Value` and `MarshalJSON` to the type, or tag
+the field `json:"-"` when JSON is the only sink.
+
+**`generated-not-wired`** — an exported `New...` constructor under
+`app/Http/Controllers` or `app/Services` is named by no file outside the tests:
+code nothing constructs is code the router never reaches, its tests pass, and a
+change to it changes nothing anybody sees. A call from `bootstrap/app.go`,
+`routes/web.go` or another constructor wires it. A test double -- Fake, Stub,
+Mock, Spy or Dummy as a word of the constructor, of the type it returns or of
+its file -- that a test constructs is not reported; a service named like
+production code whose only caller is its own test still is, which is the case
+the rule exists for. It compares names across the project, not types, so a
+function of the same name elsewhere hides a finding rather than inventing one.
+Paste the wiring `aru make:module` printed into `bootstrap/app.go` and
+`routes/web.go`, or delete what nothing reaches.
 
 **`model-query-stale`** — a `<Entity>Query.go`, or a factory `aru model:build`
 renders, is missing, behind its entity, or left over from one that is gone. A

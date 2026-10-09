@@ -23,6 +23,10 @@ already exists goes straight to the family skill of that code.
    scheduled job and an external client. `.agents/skills/notes` maps it.
 3. Answer the ownership questions in `arandu-ecosystem` before any table: a
    module of the ecosystem may already own the capability.
+4. If the client can start `aru mcp`, connect it (`arandu-mcp`): its
+   `feature_recipe` and `where_does_it_go` answer steps 1 to 3 below from the
+   contract of the pinned `aru`, and `generate` previews a generator before
+   it writes.
 
 ## Contracts and imports
 

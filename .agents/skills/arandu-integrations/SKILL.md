@@ -17,6 +17,10 @@ is `arandu-module`; the job or listener that makes it later is `arandu-async`.
 - Read the example's client: `app/Clients/NewsletterClient.go`, its fake
   `app/Clients/NewsletterFake.go`, the service that depends on it
   (`NoteService.SendDigest`) and `newsletter` at the end of `bootstrap/app.go`.
+- Read the example's received webhook: `NewsletterWebhookController.Store`,
+  `NewsletterEventService.Receive`, the `/webhooks/newsletter` route and the
+  `middleware.CSRFExcept("/webhooks/")` passed to `CSRFProtect` in
+  `bootstrap/app.go`.
 - Ask `arandu-ecosystem` first whether the client belongs here at all: a client
   another project would reuse, and an engine that wraps another technology --
   a model runtime, OCR, a camera -- is a `github.com/hyz-is/arandu-*` module.
@@ -30,7 +34,9 @@ is `arandu-module`; the job or listener that makes it later is `arandu-async`.
 | a request | only through the factory: `c.http.CreatePendingRequest().BaseURL(...)`, which carries a deadline, bounds the body and refuses an address inside the network |
 | a caller | a service, a job or a listener, through the interface; never a controller, a model or a view |
 | configuration | a `Credential` in `config/services.go`, read from the environment, named in `.env.example` |
-| webhook received | the signature checked with `webhook.Verify(secrets, timestamp, deliveryID, body, signature)` from `github.com/arandu-io/hesape/webhook`, then stored, then handed to a job; the answer is 2xx |
+| webhook received | `app/Http/Controllers/<Vendor>WebhookController.go`, `Store(ctx)`, under `/webhooks/`: it reads the raw body and checks `webhook.Verify(secrets, timestamp, deliveryID, body, signature)` from `github.com/arandu-io/hesape/webhook` -- the headers are `X-Arandu-Timestamp`, `X-Arandu-Delivery-ID` and `X-Arandu-Signature` -- and the timestamp's age, before it binds or stores anything; then a service records the delivery and the answer is 2xx |
+| CSRF | `/webhooks/` is exempt by name, in `bootstrap/app.go`: `middleware.CSRFProtect(csrf, sessions.IDFromRequest, middleware.CSRFExcept("/webhooks/"))`. A route under it has no protection but its own signature check |
+| webhook secret | a `Credential` in `config/services.go` (`NEWSLETTER_WEBHOOK_SECRET`), 32 bytes or more, named empty in `.env.example`; with none the controller answers 404 |
 | webhook sent | `webhook.NewPublisher(manager, resolver)` is an `events.Publisher`: a listener in `listeners.Each` that delivers outbox events, signed, with retries |
 | MCP | `app/Mcp/<Name>.go`: a tool with `Name`, `Description`, `Schema` and `Handle(ctx, r mcp.Request)`, calling a service with `r.Subject()`, from `github.com/arandu-io/mcp` |
 
@@ -48,9 +54,13 @@ is `arandu-module`; the job or listener that makes it later is `arandu-async`.
    with `WithNewsletter`; `bootstrap/app.go` builds the real client from the
    configuration, or leaves it nil when nothing is configured, so the
    application runs with no credential and a test passes the fake.
-4. **Receive a webhook** in a controller that reads the raw body, verifies the
-   signature, stores the delivery, dispatches a job and answers 2xx -- the
-   processing is the job's, so a slow step never times the sender out.
+4. **Receive a webhook** under `/webhooks/<vendor>`, in a controller that
+   reads the raw body, verifies the signature and the timestamp before
+   anything else, binds the request from the same bytes, hands it to a service
+   and answers 2xx. The service records the delivery -- the example stores an
+   event in the outbox under the delivery id, which the relay hands to the
+   listeners after the answer -- so a slow step never times the sender out. A
+   job dispatched from the service is the other way to do the work later.
 5. **Expose a capability to an assistant** with `aru make:mcp-tool ShowNote
    --service=Note` (`make:mcp-resource`, `make:mcp-prompt` for the other two
    kinds). It writes the type in `app/Mcp`, its test and the wiring; the module
@@ -99,6 +109,53 @@ func Offline() (*clients.NewsletterFake, *clients.NewsletterClient) {
 }
 ```
 
+A received webhook, reduced to its order: the signature over the exact
+bytes, then the request, then the service, then 202 -- as
+`NewsletterWebhookController.Store` does it:
+
+```go compile
+package example
+
+import (
+	"bytes"
+	"io"
+	"net/http"
+
+	"github.com/arandu-io/hesape/exception"
+	hhttp "github.com/arandu-io/hesape/http"
+	"github.com/arandu-io/hesape/webhook"
+
+	requests "<module>/app/Http/Requests"
+	services "<module>/app/Services"
+)
+
+// Receive refuses a delivery whose signature does not verify before it reads
+// a single field of it.
+func Receive(ctx *hhttp.Context, secrets webhook.SecretSet, events *services.NewsletterEventService) error {
+	body, err := io.ReadAll(ctx.Request.Body)
+	if err != nil {
+		return err
+	}
+	delivery := ctx.Header("X-Arandu-Delivery-ID")
+	if !webhook.Verify(secrets, ctx.Header("X-Arandu-Timestamp"), delivery, body, ctx.Header("X-Arandu-Signature")) {
+		return exception.Abort(http.StatusUnauthorized, "this delivery is not signed by the provider")
+	}
+	ctx.Request.Body = io.NopCloser(bytes.NewReader(body))
+	var in requests.NewsletterEventRequest
+	if err := ctx.Bind(&in); err != nil {
+		return err
+	}
+	if err := events.Receive(ctx.Ctx(), delivery, in); err != nil {
+		return err
+	}
+	return ctx.Status(http.StatusAccepted)
+}
+```
+
+The controller also refuses a timestamp more than five minutes from its clock,
+which this reduction leaves out: the signature covers the timestamp, so a
+captured delivery replayed later is refused even though it still verifies.
+
 An MCP tool, as `aru make:mcp-tool ShowNote --service=Note` writes it. It is
 not compiled here, because this project does not require the mcp module:
 
@@ -125,6 +182,9 @@ func (t ShowNote) Handle(ctx context.Context, r mcp.Request) (mcp.Response, erro
   as who is asking, exactly as a controller does.
 - Put a secret in code or in a test. A test gets the fake or a faked factory,
   and a credential comes from the environment.
+- Bind, validate or store a webhook's body before its signature verified, or
+  exempt a path from CSRF anywhere but the `CSRFExcept` in `bootstrap/app.go`.
+  A route under `/webhooks/` that skips the check is a form any site can post.
 
 ## Extending it
 
@@ -137,9 +197,15 @@ config struct and in its `LogValue` only if it is not a secret.
 - `config/services.go` and `.env.example`: the credential.
 - `bootstrap/app.go`: the client built once, from the credential, with
   `client.NewFactory(nil)`, and handed to the services that call it.
+- A received webhook: the controller built in `bootstrap/app.go` with its
+  secret and its service, handed to the routes through `Deps`, and its route
+  under `/webhooks/` in the custom block of `routes/web.go`, with no guard. The
+  `CSRFExcept("/webhooks/")` is already there; a vendor under another prefix
+  is a second argument to it, never a second exemption elsewhere.
 - MCP: the server composed in `bootstrap/app.go` and mounted in
   `routes/web.go` with `r.Action("POST", "/mcp", mcp.Web(d.MCP), ...)` behind a
-  guard; there is no `routes/ai.go`.
+  guard; there is no `routes/ai.go`. Behind `RequireToken` a client holding a
+  personal access token reaches it -- see `arandu-api`.
 
 ## Acceptance test
 
@@ -150,17 +216,22 @@ config struct and in its `LogValue` only if it is not a secret.
 - No test reaches the network: the fake, or a factory faked with `Fake`,
   answers inside the process, and `PreventStrayRequests(true)` makes a request
   nothing stubbed an error.
+- A received webhook, as `tests/Feature/NewsletterWebhook_test.go` does: a
+  delivery signed with `webhook.Sign` and no CSRF token answers 2xx and is
+  recorded; another secret, a changed body, no signature and an old timestamp
+  answer 401 with nothing recorded; no secret configured answers 404.
 
 ## Limits
 
-This project cannot receive a webhook, nor serve an MCP client holding a token,
-yet: `middleware.CSRFProtect` runs on every write before routing, and refuses a
-POST that carries neither a session cookie nor a CSRF token -- which is what a
-sender's delivery and a token client's call are. The signature or the token is
-the right guard for those routes; letting the pipeline hand them to it is a
-framework decision, reported rather than worked around here. There is no MCP
-example in this project, because requiring the mcp module is a decision for the
-project that exposes itself.
+The example verifies the wire format `github.com/arandu-io/hesape/webhook`
+sends, which is what another Arandu application delivers. A vendor that signs
+another way -- another header, another string signed -- is verified with that
+vendor's scheme in its own controller, still before anything else. A delivery
+the provider retries is recorded again; whatever acts on it keys on the
+delivery id, as every consumer of an at-least-once relay has to.
+
+There is no MCP example in this project, because requiring the mcp module is a
+decision for the project that exposes itself.
 
 ## Gates
 

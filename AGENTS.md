@@ -8,7 +8,9 @@ Read `.agents/skills/` before writing code. Start with `arandu-feature`: it
 classifies the change, walks the two tables below and names the family skill
 of each step -- `arandu-module`, `arandu-http`, `arandu-api`, `arandu-view`,
 `arandu-async`, `arandu-integrations`, `arandu-policy`, `arandu-doctor` and
-`arandu-ecosystem`.
+`arandu-ecosystem`. An assistant whose client can start an MCP server connects
+to `{"command": "aru", "args": ["mcp"]}` and asks it before guessing:
+`arandu-mcp` says which tool answers what.
 
 ## Feature anatomy
 
@@ -51,6 +53,8 @@ Beyond the eleven steps, each in the example:
 | a notification | `aru make:notification` | `app/Notifications/NotePublished.go`, over the database channel |
 | a job and its schedule | `aru make:job` | `app/Jobs/SendNotesDigest.go`, scheduled in `app/Providers/AppServiceProvider.go` |
 | an external client and its fake | `aru make:client` | `app/Clients/NewsletterClient.go`, `app/Clients/NewsletterFake.go` |
+| a received webhook, verified before anything else | `aru make:controller`, `aru make:event` | `app/Http/Controllers/NewsletterWebhookController.go` at `/webhooks/newsletter`, exempt from CSRF by `middleware.CSRFExcept("/webhooks/")` in `bootstrap/app.go` |
+| a write a program makes with a bearer token | none: a route in the `/api` group | `POST /api/notes` in `routes/web.go`, behind `RequireToken` and `Idempotent`; the tokens are `app/Services/PersonalAccessTokenService.go` |
 | a tool, resource or prompt of an MCP server | `aru make:mcp-tool`, `aru make:mcp-resource`, `aru make:mcp-prompt` | none: this project does not require the mcp module |
 | a console command | `aru make:command` | none |
 

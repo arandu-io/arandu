@@ -1,6 +1,6 @@
 ---
 name: notes
-description: Work with the example resource of this Arandu application -- notes, the comments nested under them, publishing a note, the JSON answers, the notification its author gets, the nightly digest and the newsletter client. Use when the request mentions notes or comments, when a notes route is involved, or when reading the example to copy its shape. It maps each step of the feature anatomy to the file that shows it and the aru command that wrote it.
+description: Work with the example resource of this Arandu application -- notes, the comments nested under them, publishing a note, the JSON answers, the notification its author gets, the nightly digest, the newsletter client, the webhook the newsletter provider posts back and the API a token client writes through. Use when the request mentions notes or comments, when a notes route is involved, or when reading the example to copy its shape. It maps each step of the feature anatomy to the file that shows it and the aru command that wrote it.
 license: MIT
 ---
 
@@ -34,6 +34,9 @@ hold the rules.
 | job and schedule | `app/Jobs/SendNotesDigest.go`, `AppServiceProvider.Schedule` | `aru make:job SendNotesDigest --event-name=notes.digest --fields "since:timestamp"` | the handler calls `NoteService.SendDigest`; the task by hand |
 | client | `app/Clients/NewsletterClient.go`, `app/Clients/NewsletterFake.go` | `aru make:client Newsletter` | `SendDigest` on the client, the interface and the fake |
 | nested resource | `app/Models/Comment.go` and the rest of the comment files | `aru make:module comment --fields "body:text!" --tenant --parent=notes` | the `user_id` author, the opened policy, the note key as text, the listing's index |
+| an API for a token client | the `/api` group in the custom block of `routes/web.go` | by hand: two `api.Action` lines pointing at `NoteController.Store` and `Publish` | the JSON branch of `Store`, answering 201 with `Location` |
+| a received webhook | `app/Http/Controllers/NewsletterWebhookController.go`, `app/Http/Requests/NewsletterEventRequest.go`, `app/Services/NewsletterEventService.go` | by hand, to the webhook card of `aru mcp`'s `where_does_it_go` | the signature and timestamp check before the bind, the 404 with no secret |
+| its event | `app/Events/NewsletterEventReceived.go` | `aru make:event NewsletterEventReceived --aggregate=newsletter_delivery --event-name=newsletter.event_received --fields "event:string,digest:string"` | the field `Event` renamed `Kind`: the generated one collides with the `Event` method |
 
 No specification is kept -- there is no `database/specs/` -- so there is
 nothing to generate the module from again. `--force` would keep what sits
@@ -66,6 +69,13 @@ refused (403); a note published twice is a conflict (409).
   transaction; draining the relay stores the author's notification.
 - **The scheduler and the worker**: the nightly task enqueues the digest, and
   the worker sends it to `NewsletterFake` -- no network, no credential.
+- **A token client**: `tests/Feature/NotesAPI_test.go` writes and publishes
+  with a personal access token and no session, sees the policy refuse another
+  member's note, replays a retried write once, and is refused 401 for an
+  unknown or revoked token, 403 cross-site and 419 riding a cookie.
+- **A webhook**: `tests/Feature/NewsletterWebhook_test.go` posts a signed
+  delivery with no CSRF token and sees it stored, and sees every unsigned,
+  altered or stale one refused with nothing stored.
 
 ## Before calling a change finished
 

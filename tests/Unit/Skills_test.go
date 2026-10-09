@@ -36,6 +36,7 @@ var familySkills = []string{
 	"arandu-policy",
 	"arandu-doctor",
 	"arandu-ecosystem",
+	"arandu-mcp",
 }
 
 // skillSections are the headings every family skill carries, in this order, so
