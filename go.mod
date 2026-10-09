@@ -17,7 +17,7 @@ require (
 )
 
 require (
-	github.com/arandu-io/kyse v0.30.0
+	github.com/arandu-io/kyse v0.32.0
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
