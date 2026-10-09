@@ -55,11 +55,56 @@ var skillSections = []string{
 	"## Gates",
 }
 
-// skillFile is one SKILL.md, by the name of its directory.
+// skillFile is one SKILL.md, by the name of its directory, with the source its
+// frontmatter records, if any.
 type skillFile struct {
-	name string
-	path string
-	body string
+	name   string
+	path   string
+	body   string
+	source string
+}
+
+// frontmatterSource is the source line of a skill's frontmatter, under
+// metadata or at the top.
+var frontmatterSource = regexp.MustCompile(`(?m)^\s*source:\s*(\S+)\s*$`)
+
+// sourceOf answers the source a skill's frontmatter records, or "".
+func sourceOf(body string) string {
+	rest, ok := strings.CutPrefix(body, "---\n")
+	if !ok {
+		return ""
+	}
+	front, _, ok := strings.Cut(rest, "\n---\n")
+	if !ok {
+		return ""
+	}
+	if m := frontmatterSource.FindStringSubmatch(front); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// writtenByAru reports whether aru wrote the skill: `aru make:module` and
+// `aru generate` leave one per module, stamped source: aru@<version>, from a
+// template the aru tests hold to its contract. This project's tests do not
+// hold it to this project's text, or every generated module would be red here
+// until somebody edited a file the next --force writes over.
+func writtenByAru(s skillFile) bool { return strings.HasPrefix(s.source, "aru@") }
+
+// coveredSkills are the skills this project answers for: every family skill,
+// and every other skill aru did not write.
+func coveredSkills(all []skillFile) []skillFile {
+	family := map[string]bool{}
+	for _, name := range familySkills {
+		family[name] = true
+	}
+	var out []skillFile
+	for _, s := range all {
+		if family[s.name] || !writtenByAru(s) {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // skillFiles reads every skill this project carries, sorted by name.
@@ -78,7 +123,12 @@ func skillFiles(t *testing.T) []skillFile {
 			t.Fatal(err)
 		}
 		rel, _ := filepath.Rel(root, path)
-		out = append(out, skillFile{name: filepath.Base(filepath.Dir(path)), path: filepath.ToSlash(rel), body: string(body)})
+		out = append(out, skillFile{
+			name:   filepath.Base(filepath.Dir(path)),
+			path:   filepath.ToSlash(rel),
+			body:   string(body),
+			source: sourceOf(string(body)),
+		})
 	}
 	if len(out) == 0 {
 		t.Fatal("no skill under .agents/skills")
@@ -127,23 +177,65 @@ func gateBlock(body string) string {
 	return rest[:end]
 }
 
+// gateDrift answers what is wrong with the gate blocks of the skills against
+// want, the block of AGENTS.md: a family skill without one, and a covered skill
+// with another.
+func gateDrift(want string, skills []skillFile) []string {
+	family := map[string]bool{}
+	for _, name := range familySkills {
+		family[name] = true
+	}
+	var out []string
+	for _, s := range coveredSkills(skills) {
+		got := gateBlock(s.body)
+		switch {
+		case got == "" && family[s.name]:
+			out = append(out, s.path+" has no gate block")
+		case got != "" && got != want:
+			out = append(out, s.path+" lists other gates than AGENTS.md:\n"+got+"\nwant:\n"+want)
+		}
+	}
+	return out
+}
+
 func TestTheGateBlockIsTheSameEverywhere(t *testing.T) {
 	want := gateBlock(tests.File(t, "AGENTS.md"))
 	if want == "" {
 		t.Fatal("AGENTS.md has no gate block opening with export GOWORK=off")
 	}
-	family := map[string]bool{}
-	for _, name := range familySkills {
-		family[name] = true
+	for _, problem := range gateDrift(want, skillFiles(t)) {
+		t.Error(problem)
 	}
-	for _, s := range skillFiles(t) {
-		got := gateBlock(s.body)
-		switch {
-		case got == "" && family[s.name]:
-			t.Errorf("%s has no gate block", s.path)
-		case got != "" && got != want:
-			t.Errorf("%s lists other gates than AGENTS.md:\n%s\nwant:\n%s", s.path, got, want)
-		}
+}
+
+// TestASkillAruWroteIsLeftToAru: a module skill aru stamped with its own
+// source carries aru's template, gate block included, and is not held to
+// AGENTS.md here. The same text without the stamp is.
+func TestASkillAruWroteIsLeftToAru(t *testing.T) {
+	want := "export GOWORK=off\naru model:build --check\n"
+	body := func(stamp string) string {
+		return "---\nname: products\n" + stamp + "---\n\n# The Product module\n\n" +
+			"```sh\nexport GOWORK=off\naru model:build\n```\n"
+	}
+	generated := skillFile{name: "products", path: "generated", body: body("metadata:\n  source: aru@0.64.0\n")}
+	generated.source = sourceOf(generated.body)
+	if generated.source != "aru@0.64.0" {
+		t.Fatalf("the source of a stamped skill read as %q", generated.source)
+	}
+	if drift := gateDrift(want, []skillFile{generated}); len(drift) != 0 {
+		t.Errorf("a skill aru wrote is held to AGENTS.md: %v", drift)
+	}
+
+	written := skillFile{name: "products", path: "written", body: body("")}
+	if drift := gateDrift(want, []skillFile{written}); len(drift) != 1 {
+		t.Errorf("a skill nobody stamped, with other gates, reported %v, want one problem", drift)
+	}
+
+	// A family skill is this project's whatever its stamp says.
+	family := skillFile{name: "arandu-feature", path: "family", body: body("metadata:\n  source: aru@0.64.0\n")}
+	family.source = sourceOf(family.body)
+	if drift := gateDrift(want, []skillFile{family}); len(drift) != 1 {
+		t.Errorf("a family skill stamped by aru reported %v, want one problem", drift)
 	}
 }
 
@@ -161,7 +253,7 @@ type snippet struct {
 func compilingSnippets(t *testing.T) []snippet {
 	t.Helper()
 	var out []snippet
-	for _, s := range skillFiles(t) {
+	for _, s := range coveredSkills(skillFiles(t)) {
 		var current *snippet
 		var code strings.Builder
 		for i, line := range strings.Split(s.body, "\n") {
@@ -323,7 +415,7 @@ func codeOf(body string) []string {
 func namedCommands(t *testing.T) []aruNamed {
 	t.Helper()
 	var out []aruNamed
-	for _, s := range skillFiles(t) {
+	for _, s := range coveredSkills(skillFiles(t)) {
 		for _, segment := range codeOf(s.body) {
 			calls := aruCall.FindAllStringSubmatchIndex(segment, -1)
 			for i, call := range calls {
