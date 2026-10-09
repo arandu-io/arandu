@@ -89,7 +89,7 @@ func Dispatch(command string, args []string) error {
 		return scheduleRun(ctx, app.Scheduler, args)
 
 	case "work":
-		return work(ctx, k, app.Queue, cfg.Queue, args)
+		return work(ctx, app, cfg.Queue, args)
 
 	case "vendor:publish":
 		// No boot. What a module publishes is declared by the module and

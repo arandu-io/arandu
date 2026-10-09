@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/arandu-io/framework/events"
 	"github.com/arandu-io/framework/foundation"
@@ -37,6 +38,7 @@ import (
 	"github.com/arandu-io/hesape/exception"
 	"github.com/arandu-io/hesape/geo"
 	hhttp "github.com/arandu-io/hesape/http"
+	"github.com/arandu-io/hesape/http/client"
 	httpmiddleware "github.com/arandu-io/hesape/http/middleware"
 	hnotifications "github.com/arandu-io/hesape/notifications"
 	"github.com/arandu-io/hesape/notifications/channels"
@@ -46,6 +48,7 @@ import (
 	"github.com/arandu-io/hesape/session"
 	"github.com/arandu-io/hesape/view"
 
+	clients "github.com/arandu-io/arandu/app/Clients"
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	listeners "github.com/arandu-io/arandu/app/Listeners"
 	providers "github.com/arandu-io/arandu/app/Providers"
@@ -144,6 +147,10 @@ type App struct {
 	Users *services.UserService
 	// TwoFactor is the application-owned enrolment and challenge service.
 	TwoFactor *services.TwoFactorService
+	// Notes is the example resource's service. The worker hands it to the
+	// nightly digest's handler. Remove it with the list under "The example
+	// resource" in README.md.
+	Notes *services.NoteService
 	// EmailCodes stores purpose-bound verification and reset codes.
 	EmailCodes onetime.CodeStore
 	// Sessions is the only store allowed to create authenticated identity, after
@@ -345,7 +352,7 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	// The example resource's service, built once: the comments under a note
 	// read the note through it, under the note's own policy. Remove it with the
 	// list under "The example resource" in README.md.
-	notes := services.NewNoteService(db)
+	notes := services.NewNoteService(db).WithNewsletter(newsletter(cfg.Services.Newsletter))
 
 	// The controllers, built here and handed to the routes. A controller that
 	// constructed its own collaborators would be a controller no test can pin.
@@ -468,7 +475,7 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 			jobs.NewModule(queueStore),
 			// This application: its routes, from routes/web.go. Its migrations
 			// arrive by the blank import above, not through here.
-			providers.NewAppServiceProvider(deps).WithDatabase(db),
+			providers.NewAppServiceProvider(deps).WithDatabase(db).WithQueue(queueStore),
 			// A module this project installs is registered here, by hand, once
 			// it is constructed above. `aru make:module` edits nothing in this
 			// file: what it generates is a controller, and it prints the line
@@ -495,17 +502,24 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	// The Locker is what keeps a Singleton task on one replica, and it is the
 	// one built above, beside the cache it comes from.
 	//
-	// Tenants is nil: a PerTenant task needs to know which tenants exist, and
-	// only the application knows where that list lives. Wire it and the
-	// scheduler expands the task to each of them, with its own Grant.
+	// Tenants is the list a PerTenant task expands to, each with its own
+	// Grant, and only the application knows where it lives. This one serves the
+	// one tenant every login belongs to, cfg.Auth.Tenant; an application with
+	// organizations answers them from its own table here.
 	// Recorder for the same reason as the worker: a scheduled task is
 	// investigated on the same page as a request, and costs nothing when
 	// nothing is recording.
-	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{Recorder: k.Recorder(), Locker: locker})
+	sched := scheduler.NewModule(k.Tasks(), scheduler.Options{
+		Recorder: k.Recorder(),
+		Locker:   locker,
+		Tenants: func(context.Context) ([]string, error) {
+			return []string{cfg.Auth.Tenant}, nil
+		},
+	})
 	k.Register(sched)
 
 	return App{
-		Kernel: k, DB: db, Users: userService, TwoFactor: twoFactorService,
+		Kernel: k, DB: db, Users: userService, TwoFactor: twoFactorService, Notes: notes,
 		EmailCodes: emailCodes, Sessions: sessions, Scheduler: sched,
 		Relay: relay, Queue: queueStore, Mail: mailer, Notifier: notifier, Cache: stores.SharedStore(),
 	}, nil
@@ -943,4 +957,19 @@ func mailTransport(cfg appconfig.Mail) mail.Transport {
 	default:
 		return mail.Log{}
 	}
+}
+
+// newsletter builds the example resource's newsletter client from its
+// credential, or answers nil when none is configured: NoteService then sends
+// no digest, and a project runs with no credential at all. Remove it with the
+// list under "The example resource" in README.md.
+func newsletter(c appconfig.Credential) clients.Newsletter {
+	if c.URL == "" {
+		return nil
+	}
+	return clients.NewNewsletterClient(clients.NewsletterConfig{
+		BaseURL: c.URL,
+		Token:   c.Secret,
+		Timeout: 10 * time.Second,
+	}, client.NewFactory(nil))
 }

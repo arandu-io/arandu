@@ -11,10 +11,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/arandu-io/framework/foundation"
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/hesape/queue"
 
+	appjobs "github.com/arandu-io/arandu/app/Jobs"
 	appconfig "github.com/arandu-io/arandu/config"
 )
 
@@ -132,7 +132,8 @@ func WorkerOptions(cfg appconfig.Queue, args []string) (queue.WorkerOptions, err
 }
 
 // work drains a job queue until interrupted.
-func work(ctx context.Context, k *foundation.Application, store queue.Queue, cfg appconfig.Queue, args []string) error {
+func work(ctx context.Context, app App, cfg appconfig.Queue, args []string) error {
+	k, store := app.Kernel, app.Queue
 	opts, err := WorkerOptions(cfg, args)
 	if err != nil {
 		return err
@@ -157,7 +158,7 @@ func work(ctx context.Context, k *foundation.Application, store queue.Queue, cfg
 	opts.Recorder = k.Recorder()
 
 	w := queue.NewWorker(store, opts)
-	registerHandlers(w)
+	registerHandlers(w, app)
 
 	if len(w.Names()) == 0 {
 		return fmt.Errorf("no job handlers are registered.\n" +
@@ -183,10 +184,14 @@ func work(ctx context.Context, k *foundation.Application, store queue.Queue, cfg
 //
 // Explicit, like the module registration in bootstrap.Build: read it top to
 // bottom and you know every kind of work this application does in the
-// background.
-func registerHandlers(w *queue.Worker) {
+// background. A handler takes the services Build made, from app, and never
+// builds its own.
+func registerHandlers(w *queue.Worker, app App) {
 	// arandu:begin custom
 	// w.HandleFunc("invoice.send", invoiceModule.SendInvoice)
+
+	// The example resource's nightly digest. Remove it with the list under
+	// "The example resource" in README.md.
+	w.Handle(appjobs.SendNotesDigestName, appjobs.NewSendNotesDigestHandler(app.Notes))
 	// arandu:end custom
-	_ = w
 }

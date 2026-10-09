@@ -90,8 +90,9 @@ func TestEveryDirectoryThatMustExistIsKept(t *testing.T) {
 	// A source directory that starts empty keeps a .gitkeep. Nothing is produced
 	// in these, so ignoring their contents would ignore the code.
 	for _, d := range []string{
-		"app/Enums", "app/Events", "app/Jobs", "app/Listeners", "app/Mail", "app/Notifications",
-		"app/Http/Middleware", "app/Http/Requests", "app/Http/Resources", "app/Services",
+		"app/Clients", "app/Enums", "app/Events", "app/Jobs", "app/Listeners", "app/Mail",
+		"app/Notifications", "app/Http/Middleware", "app/Http/Requests", "app/Http/Resources",
+		"app/Services",
 	} {
 		full := filepath.Join(root, d)
 		entries, err := os.ReadDir(full)

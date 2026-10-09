@@ -84,12 +84,15 @@ There is no command for it. Delete these files:
 
 ```text
 .agents/skills/notes/SKILL.md
+app/Clients/NewsletterClient.go
+app/Clients/NewsletterFake.go
 app/Events/NotePublished.go
 app/Http/Controllers/CommentController.go
 app/Http/Controllers/NoteController.go
 app/Http/Requests/CommentRequest.go
 app/Http/Requests/NoteRequest.go
 app/Http/Resources/NoteResource.go
+app/Jobs/SendNotesDigest.go
 app/Listeners/NotifyNoteAuthor.go
 app/Models/Comment.go
 app/Models/CommentQuery.go        (generated; aru model:build also removes it once Comment.go is gone)
@@ -116,6 +119,7 @@ tests/Feature/CommentTenantScope_test.go
 tests/Feature/Comments_test.go
 tests/Feature/Notes_test.go
 tests/Unit/Comment_test.go
+tests/Unit/NewsletterClient_test.go
 tests/Unit/Note_test.go
 tests/Unit/NotePublishedNotification_test.go
 tests/Unit/NoteResource_test.go
@@ -127,7 +131,13 @@ and these lines, each marked with a comment naming this section:
 routes/web.go                       Note    *controllers.NoteController
 routes/web.go                       Comment *controllers.CommentController
 routes/web.go                       notes := r.Group("", middleware.RequireAuth(d.Sessions)), and the lines that use it
-bootstrap/app.go                    notes := services.NewNoteService(db)
+bootstrap/app.go                    notes := services.NewNoteService(db).WithNewsletter(newsletter(cfg.Services.Newsletter))
+bootstrap/app.go                    Notes *services.NoteService, in App, and Notes: notes where App is returned
+bootstrap/app.go                    func newsletter, at the end of the file
+bootstrap/background.go             w.Handle(appjobs.SendNotesDigestName, appjobs.NewSendNotesDigestHandler(app.Notes))
+app/Providers/AppServiceProvider.go the notes.digest task in Schedule
+config/services.go                  Newsletter Credential, and its entry in loadServices
+.env.example                        NEWSLETTER_API_URL= and NEWSLETTER_TOKEN=
 bootstrap/app.go                    Note:    controllers.NewNoteController(notes),
 bootstrap/app.go                    Comment: controllers.NewCommentController(services.NewCommentService(db, notes)),
 bootstrap/app.go                    listeners.NewNotifyNoteAuthor(notifier),

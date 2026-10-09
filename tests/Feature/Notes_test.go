@@ -8,17 +8,23 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	frameevents "github.com/arandu-io/framework/events"
+	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/hesape/arandutest"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/events"
 	hnotifications "github.com/arandu-io/hesape/notifications"
+	"github.com/arandu-io/hesape/queue"
 
+	clients "github.com/arandu-io/arandu/app/Clients"
 	appevents "github.com/arandu-io/arandu/app/Events"
+	appjobs "github.com/arandu-io/arandu/app/Jobs"
 	models "github.com/arandu-io/arandu/app/Models"
 	notifications "github.com/arandu-io/arandu/app/Notifications"
 	policies "github.com/arandu-io/arandu/app/Policies"
+	services "github.com/arandu-io/arandu/app/Services"
 	"github.com/arandu-io/arandu/bootstrap"
 	factories "github.com/arandu-io/arandu/database/factories"
 	seeders "github.com/arandu-io/arandu/database/seeders"
@@ -633,5 +639,53 @@ func TestTheAuthorOfAPublishedNoteIsToldThroughTheOutbox(t *testing.T) {
 	}
 	if got := bell(f.beaID); len(got) != 0 {
 		t.Errorf("another member was told about a note they did not write: %v", got)
+	}
+}
+
+// TestTheNightlyDigestIsScheduledQueuedAndSentWithoutTheNetwork walks the
+// digest end to end: the schedule the application declares, run now on the
+// path the scheduler takes, enqueues the job; the worker runs it under the
+// Grant it rebuilt from the row; and the service hands the newsletter the
+// notes published in the window -- the fake, so nothing leaves the process
+// and no credential is needed.
+func TestTheNightlyDigestIsScheduledQueuedAndSentWithoutTheNetwork(t *testing.T) {
+	f := newNotesFixture(t)
+	ctx := context.Background()
+
+	var declared *scheduler.Registered
+	for _, task := range f.app.Scheduler.Scheduler().List() {
+		if task.ID == appjobs.SendNotesDigestName {
+			declared = &task
+		}
+	}
+	if declared == nil || declared.Spec != "0 2 * * *" || !declared.Singleton {
+		t.Fatalf("the digest is scheduled as %+v, want nightly at 02:00 on one replica", declared)
+	}
+
+	published := f.write(t, f.ana, "Groceries")
+	fromPage(t, f.ana, published).Post(published+"/publish", nil).AssertStatus(http.StatusSeeOther)
+	f.write(t, f.ana, "A draft")
+
+	if err := f.app.Scheduler.Scheduler().RunNow(ctx, appjobs.SendNotesDigestName, bootstrap.Tenant()); err != nil {
+		t.Fatalf("running the digest task: %v", err)
+	}
+	if pending, err := f.app.Queue.PendingSize(ctx, ""); err != nil || pending != 1 {
+		t.Fatalf("%d jobs queued (%v), want the digest", pending, err)
+	}
+
+	newsletter := &clients.NewsletterFake{}
+	w := queue.NewWorker(f.app.Queue, queue.WorkerOptions{Sleep: time.Millisecond})
+	w.Handle(appjobs.SendNotesDigestName, appjobs.NewSendNotesDigestHandler(
+		services.NewNoteService(f.app.DB).WithNewsletter(newsletter)))
+	if err := w.RunNextJob(ctx); err != nil {
+		t.Fatalf("running the digest job: %v", err)
+	}
+
+	if len(newsletter.Digests) != 1 {
+		t.Fatalf("the newsletter was handed %d digests (calls %v), want 1", len(newsletter.Digests), newsletter.Calls)
+	}
+	digest := newsletter.Digests[0]
+	if len(digest.Notes) != 1 || digest.Notes[0].Title != "Groceries" || digest.Key == "" {
+		t.Fatalf("digest = %+v, want the one published note, keyed by the job", digest)
 	}
 }

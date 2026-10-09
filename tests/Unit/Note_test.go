@@ -11,6 +11,7 @@ import (
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database/model"
 
+	clients "github.com/arandu-io/arandu/app/Clients"
 	models "github.com/arandu-io/arandu/app/Models"
 	policies "github.com/arandu-io/arandu/app/Policies"
 	services "github.com/arandu-io/arandu/app/Services"
@@ -109,6 +110,23 @@ func TestANoteIsPublishedOnceAtTheTimeItIsGiven(t *testing.T) {
 	}
 	if !n.PublishedAt.Equal(at) {
 		t.Errorf("a refused Publish moved PublishedAt to %v", n.PublishedAt)
+	}
+}
+
+// TestTheDigestReadsOnlyUnderAListGrant needs no database: a project with no
+// newsletter sends nothing, and a Grant for anything but note.list is refused
+// before the Model is asked for a query.
+func TestTheDigestReadsOnlyUnderAListGrant(t *testing.T) {
+	ctx := context.Background()
+	since := time.Now().Add(-24 * time.Hour)
+
+	if err := services.NewNoteService(nil).SendDigest(ctx, auth.SystemGrant(policies.NoteList, "t1"), since, "k"); err != nil {
+		t.Fatalf("with no newsletter the digest is not a failure: %v", err)
+	}
+
+	withNewsletter := services.NewNoteService(nil).WithNewsletter(&clients.NewsletterFake{})
+	if err := withNewsletter.SendDigest(ctx, auth.SystemGrant(policies.NoteView, "t1"), since, "k"); err == nil {
+		t.Fatal("a Grant for note.view read the digest")
 	}
 }
 

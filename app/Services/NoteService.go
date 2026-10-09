@@ -13,6 +13,7 @@ import (
 	"github.com/arandu-io/hesape/log"
 	"github.com/arandu-io/hesape/pagination"
 
+	clients "github.com/arandu-io/arandu/app/Clients"
 	appevents "github.com/arandu-io/arandu/app/Events"
 	requests "github.com/arandu-io/arandu/app/Http/Requests"
 	models "github.com/arandu-io/arandu/app/Models"
@@ -38,6 +39,10 @@ type NoteService struct {
 	// now is the clock the transitions are handed. The entity reads none of
 	// its own, so a test can pin the time here.
 	now func() time.Time
+	// newsletter is where the nightly digest goes, and nil when the project
+	// names no newsletter. The service depends on the interface, so a test
+	// hands it the fake and nothing leaves the process.
+	newsletter clients.Newsletter
 }
 
 // NewNoteService wires the service.
@@ -201,6 +206,47 @@ func (s *NoteService) Publish(ctx context.Context, actor auth.Subject, id string
 		return nil, err
 	}
 	return stored, nil
+}
+
+// digestSize bounds one digest: a listing is always a page, and so is what
+// goes to the newsletter.
+const digestSize = 50
+
+// WithNewsletter returns the service sending its digest to the newsletter.
+func (s *NoteService) WithNewsletter(newsletter clients.Newsletter) *NoteService {
+	s.newsletter = newsletter
+	return s
+}
+
+// SendDigest hands the newsletter the notes published since a time, newest
+// first, in the tenant of the Grant.
+//
+// It is the one method here that takes a Grant rather than a subject, because
+// its caller has no subject: the nightly job runs under the Grant the worker
+// rebuilt from the job's row, issued for note.list in one tenant. The Grant is
+// checked for that action before the read, and the read is scoped by its
+// tenant like every other. key identifies the digest across retries, so the
+// newsletter sends a repeated one once.
+//
+// A project that names no newsletter sends nothing, and that is not a failure.
+func (s *NoteService) SendDigest(ctx context.Context, g auth.Grant, since time.Time, key string) error {
+	if s.newsletter == nil {
+		return nil
+	}
+	if err := g.Check(policies.NoteList); err != nil {
+		return err
+	}
+	published, err := models.Notes(s.db).Where("published_at", ">=", since).
+		Latest("published_at").Limit(digestSize).Get(ctx, g)
+	if err != nil || len(published) == 0 {
+		return err
+	}
+
+	digest := clients.NewsletterDigest{Key: key, Notes: make([]clients.NewsletterNote, 0, len(published))}
+	for _, n := range published {
+		digest.Notes = append(digest.Notes, clients.NewsletterNote{Title: n.Title, PublishedAt: *n.PublishedAt})
+	}
+	return s.newsletter.SendDigest(ctx, digest)
 }
 
 // arandu:end custom

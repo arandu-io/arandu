@@ -27,6 +27,10 @@ type Services struct {
 	Cloudflare Credential
 	Stripe     Credential
 	Postmark   Credential
+	// Newsletter is where the example resource's nightly digest goes. With no
+	// URL the digest is not sent. Remove it with the list under "The example
+	// resource" in README.md.
+	Newsletter Credential
 }
 
 func loadServices() Services {
@@ -45,6 +49,10 @@ func loadServices() Services {
 			URL:    env("POSTMARK_API_URL", "https://api.postmarkapp.com"),
 			Key:    env("POSTMARK_MESSAGE_STREAM", "outbound"),
 			Secret: env("POSTMARK_SERVER_TOKEN", ""),
+		},
+		Newsletter: Credential{
+			URL:    env("NEWSLETTER_API_URL", ""),
+			Secret: env("NEWSLETTER_TOKEN", ""),
 		},
 	}
 }
