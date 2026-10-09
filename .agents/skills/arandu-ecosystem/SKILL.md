@@ -22,15 +22,21 @@ and from then on two implementations drift.
 
 1. `AGENTS.md`, then the other skills in `.agents/skills/`.
 2. `bootstrap/app.go`: the `Build` function constructs every collaborator, and
-   the `Register(...)` list is everything the application was given. If a
-   module is not in that list, the application does not have it.
+   what it passes to `k.Register` — the list after the middleware, then the
+   cache module and the scheduler below it — is everything the application was
+   given. If a module is not registered there, the application does not have
+   it.
 3. The `notes` resource is the worked example of the mandatory path:
    `app/Http/Controllers/NoteController.go` takes the subject with
    `ctx.User()`, `app/Services/NoteService.go` asks the Policy with
    `security.Authorize`, and only the `Grant` that returns reaches
    `models.Notes(db)`.
-4. `tests/Feature/TenantScope_test.go` is how this project proves a record of
-   one tenant is invisible to another. Any new table gets the same proof.
+4. Two tests stand for tenant isolation. `tests/Feature/TenantScope_test.go`
+   reads every table with a `tenant_id` column from the database and fails
+   until each one is claimed as read through the Grant;
+   `TestANoteOfAnotherTenantIsNotFound` in `tests/Feature/Notes_test.go` proves
+   the claim for notes: another tenant's row, read, changed or deleted, answers
+   404. Any new table gets both.
 5. `github.com/arandu-io/examples` is the public reference application: a
    category/post domain with Policies, Services, the generated queries,
    `PostRepository` for the read the query builder cannot say, and
@@ -94,12 +100,15 @@ you:
 go get github.com/hyz-is/arandu-wallet
 ```
 
-In `bootstrap/app.go`, construct it in `Build`, after the session store exists:
+In `bootstrap/app.go`, construct it in `Build`, after the session store exists.
+The CSRF issuer is the `csrf` value `Build` already made from
+`cfg.Session.CSRFTTL`, the one `middleware.CSRFProtect` checks; the
+configuration has no CSRF field of its own:
 
 ```go
 	walletModule, err := wallet.New(wallet.Config{
 		Tenant: cfg.Auth.Tenant,
-		CSRF:   cfg.CSRF,
+		CSRF:   csrf,
 	}, db, sessions)
 	if err != nil {
 		return App{}, err
@@ -150,8 +159,10 @@ documents, and stays disabled unless `Config.Enabled` is true.
 
 - `aru doctor` has no `driver-not-linked`, `model-core-outside-models` or
   `model-query-stale` finding.
-- A tenant-isolation test for every new table, read and write, in the shape of
-  `tests/Feature/TenantScope_test.go`.
+- For every new table with a tenant column, its claim in
+  `tests/Feature/TenantScope_test.go`, and a cross-tenant test, read and write,
+  in the shape of `TestANoteOfAnotherTenantIsNotFound` in
+  `tests/Feature/Notes_test.go`.
 - The Policy is asked before anything touches the database, and the tenant in
   every query came from the Grant.
 - Nothing in the diff is a second copy of what one of the five modules owns.
