@@ -31,11 +31,28 @@ tasks:
     cmds: [aru view:build]
 
   check:
-    desc: What CI runs
+    desc: The gates AGENTS.md lists, in its order
+    env:
+      GOWORK: 'off'
     cmds:
+      - aru model:build --check
+      - aru view:build
       # gofmt is the only Go tool that ignores build constraints, so it has to
       # be told to skip the .kyse.go sources -- they are markup, not Go, and the
-      # compiler already excludes them by the `kyse` build tag.
-      - gofmt -l $(find . -name '*.go' -not -name '*.kyse.go')
+      # compiler already excludes them by the `kyse` build tag -- and testdata/,
+      # which holds fixtures that are invalid on purpose. It also exits zero
+      # when it finds something, so what it prints is the answer.
+      - |
+        unformatted=$(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go' -exec gofmt -l {} +)
+        if [ -n "$unformatted" ]; then
+          echo "not gofmt'd:"
+          echo "$unformatted"
+          exit 1
+        fi
       - go vet ./...
+      - bash tests/test-layout-guard.sh
       - go test -race ./...
+      - go build ./...
+      # CI also builds the container image and runs govulncheck. Both need
+      # Docker or the network, so they are CI's and not this task's.
+      - aru doctor
