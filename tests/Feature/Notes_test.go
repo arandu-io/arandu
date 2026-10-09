@@ -9,9 +9,12 @@ import (
 	"strings"
 	"testing"
 
+	frameevents "github.com/arandu-io/framework/events"
 	"github.com/arandu-io/hesape/arandutest"
 	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/events"
 
+	appevents "github.com/arandu-io/arandu/app/Events"
 	models "github.com/arandu-io/arandu/app/Models"
 	policies "github.com/arandu-io/arandu/app/Policies"
 	"github.com/arandu-io/arandu/bootstrap"
@@ -367,5 +370,105 @@ func TestTheExampleNotesAreSeededInDevelopmentOnly(t *testing.T) {
 		if author.Password != factories.UnusablePassword {
 			t.Fatalf("the seeded author %s has a password somebody could type", author.Email)
 		}
+	}
+}
+
+// published is the note.published events waiting in the outbox of the
+// configured tenant: what the relay will hand the listeners.
+func (f notesFixture) published(t *testing.T) []events.Stored {
+	t.Helper()
+	pending, err := frameevents.NewOutbox(f.app.DB).Pending(context.Background(), bootstrap.Tenant(), 100)
+	if err != nil {
+		t.Fatalf("reading the outbox: %v", err)
+	}
+	var found []events.Stored
+	for _, e := range pending {
+		if e.Name == appevents.NotePublishedName {
+			found = append(found, e)
+		}
+	}
+	return found
+}
+
+func TestTheAuthorPublishesANoteOnceWithItsEvent(t *testing.T) {
+	f := newNotesFixture(t)
+	address := f.write(t, f.ana, "Groceries")
+
+	// The page offers the action while the note is a draft.
+	f.ana.Get(address).AssertOk().AssertSee("Draft").AssertSee(address + "/publish")
+
+	fromPage(t, f.ana, address).Post(address+"/publish", nil).
+		AssertStatus(http.StatusSeeOther).AssertRedirect(address)
+
+	note := f.stored(t, address)
+	if !note.Published() {
+		t.Fatalf("the note was not published: %+v", note)
+	}
+	f.ana.Get(address).AssertOk().AssertDontSee("Draft").AssertDontSee(address + "/publish")
+
+	// The row and its event were written together: one event, about this
+	// note, sealed with the Grant the policy issued for the publication.
+	stored := f.published(t)
+	if len(stored) != 1 {
+		t.Fatalf("%d note.published events in the outbox, want 1", len(stored))
+	}
+	var payload appevents.NotePublished
+	if err := stored[0].Decode(&payload); err != nil {
+		t.Fatalf("decoding the event: %v", err)
+	}
+	if stored[0].AggregateID != note.ID || payload.Author != f.anaID || payload.Title != "Groceries" ||
+		stored[0].Action != string(policies.NotePublish) {
+		t.Fatalf("event = %+v, payload = %+v, want this note's publication by %s", stored[0], payload, f.anaID)
+	}
+
+	// A second publication is a conflict with the row's state, and stores
+	// nothing more.
+	fromPage(t, f.ana, address).Post(address+"/publish", nil).AssertStatus(http.StatusConflict)
+	if got := len(f.published(t)); got != 1 {
+		t.Fatalf("publishing twice left %d events, want 1", got)
+	}
+}
+
+func TestAnotherMembersNoteIsNotPublished(t *testing.T) {
+	f := newNotesFixture(t)
+	address := f.write(t, f.bea, "Bea's plan")
+
+	fromPage(t, f.ana, address).Post(address+"/publish", nil).AssertStatus(http.StatusForbidden)
+
+	if note := f.stored(t, address); note.Published() {
+		t.Fatal("a refused publication published the note")
+	}
+	if got := len(f.published(t)); got != 0 {
+		t.Fatalf("a refused publication stored %d events", got)
+	}
+}
+
+func TestANoteOfAnotherTenantIsNotPublished(t *testing.T) {
+	f := newNotesFixture(t)
+	const elsewhere = "22222222-2222-4222-8222-222222222222"
+	theirs, err := factories.Notes(f.app.DB).State(func(n *models.Note) { n.UserID = f.anaID }).
+		CreateOne(context.Background(), auth.SystemGrant(policies.NoteCreate, elsewhere))
+	if err != nil {
+		t.Fatalf("creating a note in another tenant: %v", err)
+	}
+
+	fromPage(t, f.ana, "/notes").Post("/notes/"+theirs.ID+"/publish", nil).AssertStatus(http.StatusNotFound)
+
+	still, err := models.Notes(f.app.DB).Find(context.Background(), auth.SystemGrant(policies.NoteView, elsewhere), theirs.ID)
+	if err != nil || still.Published() {
+		t.Fatalf("the other tenant's note is now %+v (%v)", still, err)
+	}
+}
+
+// TestPublishingIsNeverAGet: the action changes state, so the route answers
+// POST and nothing else. A GET that published would be fired by a browser
+// prefetching the link.
+func TestPublishingIsNeverAGet(t *testing.T) {
+	f := newNotesFixture(t)
+	address := f.write(t, f.ana, "Groceries")
+
+	f.ana.Get(address + "/publish").AssertStatus(http.StatusMethodNotAllowed)
+	if f.stored(t, address).Published() {
+		t.Fatal("a GET published the note")
 	}
 }

@@ -4,12 +4,16 @@ package services
 
 import (
 	"context"
+	"time"
 
+	frameevents "github.com/arandu-io/framework/events"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database"
+	"github.com/arandu-io/hesape/events"
 	"github.com/arandu-io/hesape/log"
 	"github.com/arandu-io/hesape/pagination"
 
+	appevents "github.com/arandu-io/arandu/app/Events"
 	requests "github.com/arandu-io/arandu/app/Http/Requests"
 	models "github.com/arandu-io/arandu/app/Models"
 	policies "github.com/arandu-io/arandu/app/Policies"
@@ -29,11 +33,16 @@ const notePerPage = 25
 type NoteService struct {
 	db     *database.DB
 	policy policies.NotePolicy
+	// outbox stores the events a write produces, in the write's transaction.
+	outbox *events.Outbox
+	// now is the clock the transitions are handed. The entity reads none of
+	// its own, so a test can pin the time here.
+	now func() time.Time
 }
 
 // NewNoteService wires the service.
 func NewNoteService(db *database.DB) *NoteService {
-	return &NoteService{db: db}
+	return &NoteService{db: db, outbox: frameevents.NewOutbox(db), now: time.Now}
 }
 
 // Create walks the mandatory path: validate, Authorize, Grant, Model.
@@ -159,4 +168,39 @@ func (s *NoteService) fill(n *models.Note, in requests.NoteRequest) {
 
 // arandu:begin custom
 // Business rules beyond CRUD go here, and survive regeneration.
+
+// Publish makes a note public: the named action of the resource.
+//
+// The service orders it and the entity decides it. The row is read through
+// the Grant and authorized as the row it is; Note.Publish is the transition,
+// which refuses a note that is already published; and the row and the
+// note.published event are written in one transaction, so the relay never
+// hands over a publication that rolled back, and a publication is never stored
+// without its event.
+func (s *NoteService) Publish(ctx context.Context, actor auth.Subject, id string) (*models.Note, error) {
+	stored, err := s.Get(ctx, actor, id)
+	if err != nil {
+		return nil, err
+	}
+	g, err := auth.Authorize(ctx, s.policy, actor, policies.NotePublish, *stored)
+	if err != nil {
+		return nil, err
+	}
+	if err := stored.Publish(s.now()); err != nil {
+		return nil, err
+	}
+
+	err = database.Transaction(ctx, s.db, func(ctx context.Context) error {
+		if _, err := stored.Save(ctx, g); err != nil {
+			return err
+		}
+		published := appevents.NotePublished{Title: stored.Title, Author: stored.UserID}
+		return s.outbox.Store(ctx, g, []events.Event{published.Event(stored.ID)})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return stored, nil
+}
+
 // arandu:end custom

@@ -86,11 +86,13 @@ func Web(r *http.Router, d Deps) {
 	// is asking from what the guard puts on the request. Remove these lines with
 	// the list under "The example resource" in README.md.
 	//
+	// notes.publish is a named action on one note: POST /notes/{id}/publish.
 	// notes.comments nests shallow: the listing, the form and the store answer
 	// under /notes/{note}/comments, and the record at /comments/{comment}. The
 	// note in the path is where the person navigated, never whose data it is.
 	notes := r.Group("", middleware.RequireAuth(d.Sessions))
 	notes.Resource("notes", d.Note)
+	notes.ResourceAction("POST", "notes", "publish", d.Note.Publish)
 	notes.Resource("notes.comments", d.Comment)
 	// arandu:end custom
 }

@@ -28,6 +28,9 @@ const (
 	NoteUpdate auth.Action = "note.update"
 	// NoteDelete is removing one.
 	NoteDelete auth.Action = "note.delete"
+	// NotePublish is publishing one: the named action of the resource, beyond
+	// the five the generator writes.
+	NotePublish auth.Action = "note.publish"
 )
 
 // NotePolicy is the only authority over who does what with Note.
@@ -61,11 +64,11 @@ func (NotePolicy) Can(ctx context.Context, s auth.Subject, a auth.Action, n mode
 	case NoteList, NoteView, NoteCreate:
 		return nil
 
-	// A stored note is changed only by the account that wrote it. The service
-	// asks about the row it read, never about what the request claims the row
-	// is, so the owner here is the stored one -- and a note with no owner, the
-	// empty one included, is changed by nobody.
-	case NoteUpdate, NoteDelete:
+	// A stored note is changed, and published, only by the account that wrote
+	// it. The service asks about the row it read, never about what the request
+	// claims the row is, so the owner here is the stored one -- and a note with
+	// no owner, the empty one included, is changed by nobody.
+	case NoteUpdate, NoteDelete, NotePublish:
 		if n.OwnedBy(s.ID) {
 			return nil
 		}

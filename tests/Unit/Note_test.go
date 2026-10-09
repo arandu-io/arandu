@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database/model"
@@ -80,4 +81,35 @@ func TestTheNotePolicyDeniesWhatItDoesNotKnow(t *testing.T) {
 
 // arandu:begin custom
 // Tests for the rules you wrote go here, and survive regeneration.
+
+// TestANoteIsPublishedOnceAtTheTimeItIsGiven is the entity's own rule, with no
+// database and no clock: the time is an argument, and a second publication is
+// refused with the status the router answers it with.
+func TestANoteIsPublishedOnceAtTheTimeItIsGiven(t *testing.T) {
+	at := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	var n models.Note
+
+	if n.Published() {
+		t.Fatal("a new note is published")
+	}
+	if err := n.Publish(at); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if !n.Published() || !n.PublishedAt.Equal(at) {
+		t.Fatalf("PublishedAt = %v, want %v", n.PublishedAt, at)
+	}
+
+	err := n.Publish(at.Add(time.Hour))
+	if !errors.Is(err, models.ErrNoteAlreadyPublished) {
+		t.Fatalf("a second Publish = %v, want ErrNoteAlreadyPublished", err)
+	}
+	var status interface{ HTTPStatus() int }
+	if !errors.As(err, &status) || status.HTTPStatus() != 409 {
+		t.Errorf("the refusal answers %v, want 409", err)
+	}
+	if !n.PublishedAt.Equal(at) {
+		t.Errorf("a refused Publish moved PublishedAt to %v", n.PublishedAt)
+	}
+}
+
 // arandu:end custom

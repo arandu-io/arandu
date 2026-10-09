@@ -84,6 +84,7 @@ There is no command for it. Delete these files:
 
 ```text
 .agents/skills/notes/SKILL.md
+app/Events/NotePublished.go
 app/Http/Controllers/CommentController.go
 app/Http/Controllers/NoteController.go
 app/Http/Requests/CommentRequest.go
@@ -100,6 +101,7 @@ database/factories/CommentFactory.go
 database/factories/NoteFactory.go
 database/migrations/2026_10_01_000001_create_notes_table.go
 database/migrations/2026_10_09_000001_create_comments_table.go
+database/migrations/2026_10_09_000002_add_published_at_to_notes.go
 database/seeders/NoteSeeder.go
 resources/views/comments/         (the directory, four views)
 resources/views/notes/            (the directory, four views)

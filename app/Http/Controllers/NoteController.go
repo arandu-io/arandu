@@ -111,6 +111,8 @@ func (c *NoteController) Show(ctx *hhttp.Context) error {
 		DeleteURL: ctx.URL("notes.destroy", found.ID),
 		// The resource nested under this one, by its route name and the note.
 		CommentsURL: ctx.URL("notes.comments.index", found.ID),
+		// The named action, offered while there is something to publish.
+		PublishURL: c.publishURL(ctx, found),
 	})
 }
 
@@ -188,7 +190,7 @@ func (c *NoteController) Destroy(ctx *hhttp.Context) error {
 // has no route table, so a link written there could only be a literal. This
 // takes the context so it can ask for the route by name.
 func (c *NoteController) row(ctx *hhttp.Context, n *models.Note) views.NoteRow {
-	return views.NoteRow{
+	row := views.NoteRow{
 		ID:      n.ID,
 		URL:     ctx.URL("notes.show", n.ID),
 		Title:   n.Title,
@@ -196,9 +198,44 @@ func (c *NoteController) row(ctx *hhttp.Context, n *models.Note) views.NoteRow {
 		Pinned:  n.Pinned,
 		Created: n.CreatedAt.Format("2006-01-02 15:04"),
 	}
+	if n.PublishedAt != nil {
+		row.Published = n.PublishedAt.Format("2006-01-02 15:04")
+	}
+	return row
+}
+
+// publishURL is where the publish button posts, and empty once the note is
+// published, so the page offers the action only while it means something.
+// Whether this person may publish it is the policy's answer, given when the
+// button is pressed.
+func (c *NoteController) publishURL(ctx *hhttp.Context, n *models.Note) string {
+	if n.Published() {
+		return ""
+	}
+	return ctx.URL("notes.publish", n.ID)
 }
 
 // arandu:begin custom
 // Actions beyond the seven go here, and survive regeneration. Register them in
 // the custom block of routes/web.go.
+
+// Publish answers POST /notes/{id}/publish, the named action registered with
+// ResourceAction as notes.publish, behind the same guard as the rest of the
+// resource. `aru make:controller Note --resource --action=publish` writes this
+// method; it lives in the custom block because this controller was finished by
+// hand, and --force keeps nothing outside the block.
+//
+// It changes state, so it is a POST and never a GET. The transition is the
+// entity's rule and the service orders it; this reads who is asking, calls
+// the service and answers. An already published note is a 409 and another
+// member's a 403, both answered by the router from the error.
+func (c *NoteController) Publish(ctx *hhttp.Context) error {
+	who, _ := ctx.User()
+	published, err := c.svc.Publish(ctx.Ctx(), who, ctx.Param("id"))
+	if err != nil {
+		return err
+	}
+	return ctx.RedirectRoute("notes.show", published.ID)
+}
+
 // arandu:end custom

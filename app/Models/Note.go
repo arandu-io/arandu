@@ -20,14 +20,17 @@ import (
 type Note struct {
 	model.Model
 
-	ID        string    `db:"id"`
-	TenantID  string    `db:"tenant_id"`
-	UserID    string    `db:"user_id"`
-	Title     string    `db:"title"`
-	Body      string    `db:"body"`
-	Pinned    bool      `db:"pinned"`
-	CreatedAt time.Time `db:"created_at"`
-	UpdatedAt time.Time `db:"updated_at"`
+	ID       string `db:"id"`
+	TenantID string `db:"tenant_id"`
+	UserID   string `db:"user_id"`
+	Title    string `db:"title"`
+	Body     string `db:"body"`
+	Pinned   bool   `db:"pinned"`
+	// PublishedAt is when the note was published, and nil while it is a draft.
+	// Only Publish, below, sets it: no request field reaches it.
+	PublishedAt *time.Time `db:"published_at"`
+	CreatedAt   time.Time  `db:"created_at"`
+	UpdatedAt   time.Time  `db:"updated_at"`
 }
 
 // noteTable is the table Note is a row of.
@@ -61,5 +64,35 @@ func (n Note) LogValue() slog.Value {
 // OwnedBy reports whether the note was written by the subject with this id. A
 // note has an owner the moment it is stored, so an empty id owns nothing.
 func (n Note) OwnedBy(userID string) bool { return userID != "" && n.UserID == userID }
+
+// Published reports whether the note has been published.
+func (n Note) Published() bool { return n.PublishedAt != nil }
+
+// Publish is the transition from draft to published, at the time it is given.
+//
+// It is a rule of the entity and nothing else: it changes this row's fields
+// and reads no clock, no database and no Grant. NoteService.Publish decides
+// who may ask, passes the time, and saves the row with the event beside it.
+func (n *Note) Publish(at time.Time) error {
+	if n.Published() {
+		return ErrNoteAlreadyPublished
+	}
+	n.PublishedAt = &at
+	return nil
+}
+
+// ErrNoteAlreadyPublished refuses a second publication. The router answers it
+// 409: the request was understood, and the row is not in the state it needs.
+var ErrNoteAlreadyPublished error = noteConflict("this note is already published")
+
+// noteConflict is an error about the state of a note. Its HTTPStatus is what
+// the router answers, so no action maps it by hand.
+type noteConflict string
+
+// Error implements error.
+func (e noteConflict) Error() string { return string(e) }
+
+// HTTPStatus is 409 Conflict.
+func (noteConflict) HTTPStatus() int { return 409 }
 
 // arandu:end custom

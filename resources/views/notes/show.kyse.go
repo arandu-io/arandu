@@ -26,6 +26,10 @@ type NotesShowData struct {
 	// CommentsURL is the listing of this note's comments, the resource nested
 	// under it.
 	CommentsURL string
+	// PublishURL is where the publish button posts, the named action of the
+	// resource. It is empty once the note is published, and the button is not
+	// drawn then.
+	PublishURL string
 }
 
 // Compile-time proof that this page fits the layout it extends.
@@ -46,6 +50,12 @@ var _ view.Layout = NotesShowData{}
 	<div class="mt-2 flex items-center justify-between gap-4">
 		<h1 class="text-3xl font-semibold tracking-tight">{{ .Title }}</h1>
 		<div class="flex items-center gap-3">
+			@if(d.PublishURL != "")
+				<form method="post" action="{{ .PublishURL }}">
+					@csrf
+					<button class="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300" type="submit">Publish</button>
+				</form>
+			@endif
 			<a class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900" href="{{ .EditURL }}">Edit</a>
 			<button class="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950" type="button" hx-delete="{{ .DeleteURL }}" hx-confirm="Delete this note?">Delete</button>
 		</div>
@@ -67,6 +77,14 @@ var _ view.Layout = NotesShowData{}
 		<div class="grid grid-cols-3 gap-4 py-3">
 			<dt class="text-slate-500 dark:text-slate-400">Created</dt>
 			<dd class="col-span-2">{{ .Note.Created }}</dd>
+		</div>
+		<div class="grid grid-cols-3 gap-4 py-3">
+			<dt class="text-slate-500 dark:text-slate-400">Published</dt>
+			@if(d.Note.Published != "")
+				<dd class="col-span-2">{{ d.Note.Published }}</dd>
+			@else
+				<dd class="col-span-2">Draft</dd>
+			@endif
 		</div>
 	</dl>
 

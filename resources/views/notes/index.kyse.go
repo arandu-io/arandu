@@ -54,6 +54,9 @@ type NoteRow struct {
 	Pinned bool
 	// Created is the creation timestamp, already formatted.
 	Created string
+	// Published is when the note was published, already formatted, and empty
+	// while it is a draft.
+	Published string
 }
 
 // NoteIndexTable adapts the server page to the native Kyse DataTable.
