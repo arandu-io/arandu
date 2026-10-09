@@ -31,18 +31,18 @@ type NewsletterEventReceived struct {
 
 // Event turns the payload into the record the outbox stores.
 //
-// There is no Dispatch and no Publish, and that is the whole design: the entity
-// records the event next to the rule that produced it, the service stores it in
-// the SAME transaction as the write, and the relay publishes it afterwards.
+// There is no Dispatch and no Publish, and that is the whole design: the service
+// that makes the change stores the event in the SAME transaction as the write,
+// and the relay publishes it afterwards.
 //
-//	newsletter_delivery.Record(events.NewsletterEventReceived{
-//		// the fields above
-//	}.Event(newsletter_delivery.ID))
-//
-//	// then, inside database.Transaction, in the service:
-//	if err := outbox.Store(ctx, g, newsletter_delivery.PullEvents()); err != nil {
-//		return err
-//	}
+//	err := database.Transaction(ctx, s.db, func(ctx context.Context) error {
+//		if _, err := newsletterDelivery.Save(ctx, g); err != nil {
+//			return err
+//		}
+//		return s.outbox.Store(ctx, g, []events.Event{appevents.NewsletterEventReceived{
+//			// the payload's fields
+//		}.Event(newsletterDelivery.ID)})
+//	})
 //
 // Store outside database.Transaction returns ErrNoTransaction on purpose. An
 // event stored next to a row that then rolled back is worse than no event, and
