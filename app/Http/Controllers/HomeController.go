@@ -28,6 +28,7 @@ type HomeController struct {
 	// appName is what the page is titled. It comes from the configuration, and
 	// it arrives through the constructor rather than through a global read: a
 	// controller that reads the environment is a controller no test can pin.
+	// The brand is not drawn from it: view.New reads that off the request.
 	appName string
 
 	// people and tenant are how the id in a session becomes a name to greet. A
@@ -71,7 +72,9 @@ var _ http.Indexer = (*HomeController)(nil)
 // view.Page is the chrome the layout draws, embedded rather than repeated.
 // view.New fills the title, the flash and the CSRF token the middleware issued
 // for this request -- the token every write from this page carries, in the
-// sign-out form and in hx-headers. It also fills the navigation's addresses
+// sign-out form and in hx-headers. It fills the brand with the application
+// name the framework puts on every request, so this controller passes the name
+// only as the page's title. It also fills the navigation's addresses
 // from the route table, by name, and none of them is written here: the
 // published authentication UI owns the sign-in and sign-out routes, and in a
 // project without it those addresses are empty and the layout draws no link to
@@ -97,7 +100,6 @@ func (c *HomeController) Index(ctx *hhttp.Context) error {
 	}
 
 	page := view.New(ctx, c.appName)
-	page.AppName = c.appName
 	page.Authenticated = signedIn
 	page.UserName = name
 

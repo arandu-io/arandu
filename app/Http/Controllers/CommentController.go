@@ -31,9 +31,10 @@ import (
 // router -- validation.Errors back to the form with the messages and what was
 // typed, a missing row as 404, a refusal as 403 -- so no action maps one itself.
 //
-// view.New is the whole of a page's chrome: the title, what a rejected attempt
-// left in the flash, and the CSRF token the protecting middleware issued for this
-// request. No action issues a token, so the service is all this needs.
+// view.New is the whole of a page's chrome: the title, the application name the
+// framework put on the request, what a rejected attempt left in the flash, and
+// the CSRF token the protecting middleware issued for this request. No action
+// issues a token or passes the name, so the service is all this needs.
 type CommentController struct {
 	Controller
 
