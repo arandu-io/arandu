@@ -178,6 +178,44 @@ func TestPasswordKeepsItsRevealControlInsideTheInput(t *testing.T) {
 	}
 }
 
+// TestThePasswordMeterDrawsItsFill holds the CSS the strength bar of
+// components.Password needs to show anything. The bar is a .progress whose fill
+// is a span the behaviour widens as requirements are met. A span is inline,
+// and an inline box takes no width and no height, so without progress.css the
+// behaviour writes width:100% and the browser draws an empty track.
+//
+// The theme gives .progress a rule of its own, the track's height and colour,
+// and says nothing about layout; a check that the class has a rule passes with
+// the fill invisible. So the declarations are named: the bar lays its children
+// out as a flex row, which makes the span a box with a width, and the span
+// takes the bar's height.
+//
+// The markup is read as well. Both rules select a span directly inside the
+// element of class progress, and a component that drew the fill another way
+// would pass any check of the stylesheet alone and style nothing.
+func TestThePasswordMeterDrawsItsFill(t *testing.T) {
+	markup := string(components.Password(components.PasswordProps{
+		Name: "password", Label: "Password", Policy: validation.NewPassword(12),
+	}))
+	if !regexp.MustCompile(`(?s)class="progress[ "][^>]*>\s*<span\s+data-part="fill"`).MatchString(markup) {
+		t.Fatalf("components.Password no longer draws its strength fill as a span directly inside .progress, which is what the rules below select:\n%s", markup)
+	}
+
+	compiled := tests.File(t, filepath.Join("assets", "app.css"))
+	wants := []struct {
+		name       string
+		expression string
+	}{
+		{name: "the bar is a flex row, so the fill is a box with a width", expression: `(?s)\.progress\{[^}]*display:flex`},
+		{name: "the fill takes the height of the bar", expression: `(?s)\.progress>span\{[^}]*height:100%`},
+	}
+	for _, want := range wants {
+		if !regexp.MustCompile(want.expression).MatchString(compiled) {
+			t.Errorf("compiled stylesheet does not prove %s; the password strength bar stays an empty track. Import progress.css in resources/css/basecoat/components.css and run `aru view:build`", want.name)
+		}
+	}
+}
+
 // TestARefusedOneTimeCodeSaysWhyUnderItsSquares holds the CSS half of the
 // sentence components.OneTimeCode draws when a code is refused. The component
 // draws it inside the group, after the squares, because the group is its root;

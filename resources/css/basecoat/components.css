@@ -52,6 +52,9 @@
 @import "./components/alert.css";
 @import "./components/badge.css";
 @import "./components/meter.css";
+/* Also the strength bar of components.Password: without it the fill is an
+ * inline span, and an inline span has no width to grow. */
+@import "./components/progress.css";
 @import "./components/output.css";
 @import "./components/status.css";
 @import "./components/highlight.css";
@@ -81,5 +84,5 @@
 @import "./animations.css";
 
 /* Not imported, and on disk if you want them: accordion, button-group, chart,
- * collapsible, combobox, command, drawer, item, kbd, progress,
- * radio, range, select, switch, tooltip. */
+ * collapsible, combobox, command, drawer, item, kbd, radio, range, select,
+ * switch, tooltip. */
