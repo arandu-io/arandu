@@ -71,9 +71,11 @@ var _ http.Indexer = (*HomeController)(nil)
 // view.Page is the chrome the layout draws, embedded rather than repeated.
 // view.New fills the title, the flash and the CSRF token the middleware issued
 // for this request -- the token every write from this page carries, in the
-// sign-out form and in hx-headers. The navigation draws a link only for what
-// answers. The published authentication UI owns the sign-in and sign-out
-// routes; registration stays off until its handler is published as well.
+// sign-out form and in hx-headers. It also fills the navigation's addresses
+// from the route table, by name, and none of them is written here: the
+// published authentication UI owns the sign-in and sign-out routes, and in a
+// project without it those addresses are empty and the layout draws no link to
+// a screen that does not exist.
 func (c *HomeController) Index(ctx *hhttp.Context) error {
 	// Who is signed in, put on the request by the route's LoadSubject from the
 	// session cookie and never from the request body. No subject is the
@@ -98,9 +100,6 @@ func (c *HomeController) Index(ctx *hhttp.Context) error {
 	page.AppName = c.appName
 	page.Authenticated = signedIn
 	page.UserName = name
-	page.HomeURL = "/"
-	page.LoginURL = "/auth/login"
-	page.LogoutURL = "/auth/logout"
 
 	return ctx.View("home", views.HomeData{
 		Page: page,

@@ -71,22 +71,38 @@ import "github.com/arandu-io/kyse/components"
      and the failure reads like a broken session rather than a missing attribute. -->
 <body hx-boost="true" hx-headers='{"X-CSRF-Token": "{{ .CSRFToken() }}"}' class="bg-background text-foreground min-h-full antialiased">
 	<div class="mx-auto flex min-h-full w-full max-w-3xl flex-col px-6">
+		{{-- Every link below is drawn only when its address is not empty. The
+		     addresses come from the route table, filled by view.New under the
+		     names auth.login, auth.logout and auth.register, and a name the
+		     application never registered leaves its address empty: a project
+		     without the authentication UI has no sign-in screen, and a link to
+		     one would be a link to a 404. The brand is the application name, and
+		     it stays in the header as text when there is no home route to point
+		     at. --}}
 		<header class="flex items-center justify-between border-b py-6">
-			<a class="text-sm font-semibold tracking-tight" href="{{ .HomeLink() }}">{{ .BrandName() }}</a>
+			@if(.HomeLink() != "")
+				<a class="text-sm font-semibold tracking-tight" href="{{ .HomeLink() }}">{{ .BrandName() }}</a>
+			@else
+				<span class="text-sm font-semibold tracking-tight">{{ .BrandName() }}</span>
+			@endif
 			<nav class="flex items-center gap-3 text-sm">
 				{!! components.ThemeToggle(components.ThemeToggleProps{}) !!}
 				@if(!.SignedIn())
-					<a class="btn" data-variant="ghost" data-size="sm" href="{{ .LoginLink() }}">Sign in</a>
+					@if(.LoginLink() != "")
+						<a class="btn" data-variant="ghost" data-size="sm" href="{{ .LoginLink() }}">Sign in</a>
+					@endif
 					@if(.RegisterLink() != "")
 						<a class="btn" data-size="sm" href="{{ .RegisterLink() }}">Register</a>
 					@endif
 				@endif
 				@if(.SignedIn())
 					<span class="text-muted-foreground">{{ .SignedInName() }}</span>
-					<form method="post" action="{{ .LogoutLink() }}">
-						@csrf
-						<button class="btn" data-variant="ghost" data-size="sm" type="submit">Sign out</button>
-					</form>
+					@if(.LogoutLink() != "")
+						<form method="post" action="{{ .LogoutLink() }}">
+							@csrf
+							<button class="btn" data-variant="ghost" data-size="sm" type="submit">Sign out</button>
+						</form>
+					@endif
 				@endif
 			</nav>
 		</header>

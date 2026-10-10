@@ -2,10 +2,12 @@ package feature_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/arandu-io/framework/arandutest"
 	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/framework/http/middleware"
+	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/config"
 	hhttp "github.com/arandu-io/hesape/http"
@@ -72,6 +75,141 @@ func TestTheLandingPageGreetsWhoIsSignedIn(t *testing.T) {
 	}
 	tests.SignedIn(t, app, user.Subject()).Get("/").AssertOk().AssertSee("Ana Lima")
 	arandutest.NewClient(t, app.Kernel.Handler()).Get("/").OK().DontSee("Ana Lima")
+}
+
+// TestTheLandingPageOffersOnlyAddressesThatAnswer: every link and every form
+// the landing page draws, for a guest and for somebody signed in, leads to an
+// address the application answers.
+//
+// The navigation is built from the route table, and the authentication UI is
+// what registers the sign-in and sign-out routes. A project without it has
+// neither, so the header has nothing to offer there -- and an empty href, or
+// one written as a literal path, is a control that leads to the page it is on
+// or to a 404. With the UI published the same assertions hold, because then
+// the routes exist and every address answers.
+//
+// It asserts on addresses and statuses only. The words on the controls belong
+// to whichever layout the project has.
+func TestTheLandingPageOffersOnlyAddressesThatAnswer(t *testing.T) {
+	app := tests.Booted(t)
+	user, err := app.Users.Register(context.Background(), bootstrap.Tenant(), "Ana Lima", "ana@example.test", "a-long-enough-password")
+	if err != nil {
+		t.Fatalf("registering the account: %v", err)
+	}
+	signedIn := user.Subject()
+
+	for _, c := range []struct {
+		who     string
+		subject *auth.Subject
+	}{
+		{"a guest", nil},
+		{"somebody signed in", &signedIn},
+	} {
+		b := newBrowser(t, app, c.subject)
+		page := b.do(http.MethodGet, "/", nil)
+		if page.Code != http.StatusOK {
+			t.Fatalf("%s: GET / = %d, want 200", c.who, page.Code)
+		}
+		body := page.Body.String()
+
+		for _, empty := range emptyAddress.FindAllString(body, -1) {
+			t.Errorf("%s: the landing page draws %s, a control with nowhere to go", c.who, empty)
+		}
+
+		links := 0
+		for _, m := range linkAddress.FindAllStringSubmatch(body, -1) {
+			links++
+			if code := b.do(http.MethodGet, m[1], nil).Code; code == http.StatusNotFound || code == http.StatusMethodNotAllowed {
+				t.Errorf("%s: the landing page links %s, which answers %d", c.who, m[1], code)
+			}
+		}
+		if links == 0 {
+			t.Errorf("%s: the landing page links no address of this application, so nothing was checked", c.who)
+		}
+
+		// The forms last: with the authentication UI published, the sign-out
+		// form ends the session it is posted from.
+		token := csrfTokenFromPage(t, body)
+		for _, m := range formAddress.FindAllStringSubmatch(body, -1) {
+			code := b.do(http.MethodPost, m[1], url.Values{"_token": {token}}).Code
+			if code == http.StatusNotFound || code == http.StatusMethodNotAllowed {
+				t.Errorf("%s: the landing page posts a form to %s, which answers %d", c.who, m[1], code)
+			}
+		}
+	}
+}
+
+var (
+	// emptyAddress is a link or a form with an empty address.
+	emptyAddress = regexp.MustCompile(`(?:href|action)=""`)
+	// linkAddress is a link to an address of this application.
+	linkAddress = regexp.MustCompile(`href="(/[^"]*)"`)
+	// formAddress is a form posted to an address of this application.
+	formAddress = regexp.MustCompile(`<form[^>]*\saction="(/[^"]*)"`)
+)
+
+// browser sends requests straight to the application's handler and keeps the
+// cookies it is given, as a browser does, while answering the status of each
+// response -- which is the one thing this file asks and the shared client does
+// not hand back.
+type browser struct {
+	t       *testing.T
+	handler http.Handler
+	cookies map[string]string
+}
+
+// newBrowser returns a browser for app, holding a session for subject when one
+// is given. The session is started the way tests.SignedIn starts one: through
+// the store the route guards read, on an address only this handler has.
+func newBrowser(t *testing.T, app bootstrap.App, subject *auth.Subject) *browser {
+	t.Helper()
+	const signInHere = "/_tests/sign-in"
+	inner := app.Kernel.Handler()
+	b := &browser{t: t, cookies: map[string]string{}}
+	b.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != signInHere || subject == nil {
+			inner.ServeHTTP(w, r)
+			return
+		}
+		if _, err := app.Sessions.Start(r.Context(), w, *subject); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	if subject != nil {
+		if code := b.do(http.MethodGet, signInHere, nil).Code; code != http.StatusNoContent {
+			t.Fatalf("starting the session answered %d", code)
+		}
+	}
+	return b
+}
+
+// do sends one request, with a form body when form is not nil, and keeps the
+// cookies of the response.
+func (b *browser) do(method, path string, form url.Values) *httptest.ResponseRecorder {
+	b.t.Helper()
+	var body io.Reader
+	if form != nil {
+		body = strings.NewReader(form.Encode())
+	}
+	req := httptest.NewRequest(method, path, body)
+	if form != nil {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	for name, value := range b.cookies {
+		req.AddCookie(&http.Cookie{Name: name, Value: value})
+	}
+	rec := httptest.NewRecorder()
+	b.handler.ServeHTTP(rec, req)
+	for _, c := range rec.Result().Cookies() {
+		if c.MaxAge < 0 {
+			delete(b.cookies, c.Name)
+			continue
+		}
+		b.cookies[c.Name] = c.Value
+	}
+	return rec
 }
 
 // TestTheRootRouteDoesNotSwallowEveryPath guards a property of Go's router:
