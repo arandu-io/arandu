@@ -326,6 +326,18 @@ func TestANoteOfAnotherTenantIsNotFound(t *testing.T) {
 	}
 }
 
+// TestEveryNotePageDrawsTheAppName: NoteController hands view.New a title and
+// nothing else, and every page it draws carries the configured name as its
+// brand, put on the request before the route ran. A guest is sent to sign in
+// before any of them renders, so there is no guest half to check.
+func TestEveryNotePageDrawsTheAppName(t *testing.T) {
+	f := newNotesFixture(t)
+	address := f.write(t, f.ana, "Groceries")
+	for _, page := range []string{"/notes", "/notes/create", address, address + "/edit"} {
+		assertDrawsTheAppName(t, page, f.ana.Get(page).AssertOk().GetContent())
+	}
+}
+
 func TestNotesNeedSomebodySignedIn(t *testing.T) {
 	app := tests.Booted(t)
 	guest := arandutest.NewClient(t, app.Kernel.Handler())

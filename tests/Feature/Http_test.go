@@ -43,25 +43,57 @@ func TestTheLandingPageRenders(t *testing.T) {
 	if !strings.Contains(body, "<!doctype html>") {
 		t.Error("the layout did not render around the page")
 	}
-	// The application name, and not a literal from the page.
+	// The configured application name, where the brand is drawn, and not a
+	// literal from the page.
 	//
 	// Asserting a phrase of the skeleton's own landing page would fail in every
 	// project that installed the starter kit, which replaces that page along
 	// with the layout and the controller -- on its first push, for something the
-	// person did not break.
-	//
-	// The app name survives the swap because both controllers pass it, and it
-	// still proves what this test is for: a value the controller was given
-	// reached the rendered page. A weaker assertion -- that the body is not
-	// empty -- would pass with the error page.
-	if !strings.Contains(body, "test") {
-		t.Error("the application name the controller was given did not reach the page")
-	}
+	// person did not break. The brand survives the swap because both layouts
+	// draw it, and a weaker assertion -- that the body is not empty -- would
+	// pass with the error page.
+	assertDrawsTheAppName(t, "the landing page", body)
 	// The stylesheet and the scripts are embedded and content-addressed. A page
 	// that asks for them by a plain name gets a 404 and no styling.
 	if !strings.Contains(body, "/_arandu/assets/") {
 		t.Error("the page does not reference the embedded assets")
 	}
+}
+
+// assertDrawsTheAppName fails unless the page draws tests.AppName, the
+// configured APP_NAME, in the two places only the brand fills: the
+// og:site_name meta and the text of the brand link.
+//
+// Neither is filled by the title. The landing page is titled with the name,
+// so a check anywhere in the body would pass there through <title> alone;
+// these two do not. Both layouts the project can have, its own and the
+// starter kit's, draw both.
+func assertDrawsTheAppName(t *testing.T, page, body string) {
+	t.Helper()
+	for _, want := range []string{
+		`<meta property="og:site_name" content="` + tests.AppName + `">`,
+		`>` + tests.AppName + `</a>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("%s does not draw the configured application name: no %s in the page", page, want)
+		}
+	}
+}
+
+// TestEveryLandingPageVisitDrawsTheAppName: the brand is the configured name
+// for a guest and for somebody signed in. The two halves of the navigation are
+// drawn by different branches of the layout, and the name reaches the page from
+// the request, not from the controller.
+func TestEveryLandingPageVisitDrawsTheAppName(t *testing.T) {
+	app := tests.Booted(t)
+	user, err := app.Users.Register(context.Background(), bootstrap.Tenant(), "Ana Lima", "ana@example.test", "a-long-enough-password")
+	if err != nil {
+		t.Fatalf("registering the account: %v", err)
+	}
+	guest := arandutest.NewClient(t, app.Kernel.Handler()).Get("/").OK()
+	assertDrawsTheAppName(t, "the landing page, for a guest", guest.Body())
+	signedIn := tests.SignedIn(t, app, user.Subject()).Get("/").AssertOk()
+	assertDrawsTheAppName(t, "the landing page, signed in", signedIn.GetContent())
 }
 
 // TestTheLandingPageGreetsWhoIsSignedIn: the page is public, and its route

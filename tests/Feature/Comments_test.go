@@ -161,6 +161,18 @@ func TestTheCommentPagesAreWholeDocuments(t *testing.T) {
 	}
 }
 
+// TestEveryCommentPageDrawsTheAppName: CommentController hands view.New a
+// title and nothing else, and every page it draws carries the configured name
+// as its brand. A guest is sent to sign in before any of them renders.
+func TestEveryCommentPageDrawsTheAppName(t *testing.T) {
+	f := newNotesFixture(t)
+	note := f.write(t, f.ana, "Groceries")
+	address := f.comment(t, f.ana, note, "Add coffee.")
+	for _, page := range []string{note + "/comments", note + "/comments/create", address, address + "/edit"} {
+		assertDrawsTheAppName(t, page, f.ana.Get(page).AssertOk().GetContent())
+	}
+}
+
 func TestCommentsNeedSomebodySignedIn(t *testing.T) {
 	app := tests.Booted(t)
 	guest := arandutest.NewClient(t, app.Kernel.Handler())

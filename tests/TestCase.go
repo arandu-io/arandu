@@ -35,6 +35,14 @@ import (
 	appconfig "github.com/arandu-io/arandu/config"
 )
 
+// AppName is the application name every application booted here is
+// configured with, as APP_NAME.
+//
+// It is a phrase no page uses as its title and no page writes, so a test that
+// finds it in a page has found the configured name, not a heading or a title
+// that happens to read the same.
+const AppName = "Brandproof Ledger"
+
 // Kernel boots the application for a test.
 //
 // It needs no database. database/sql connects lazily, so the wiring, the
@@ -60,7 +68,7 @@ func Kernel(t *testing.T, env config.Env, extra ...foundation.Module) *foundatio
 
 	cfg := fwbootstrap.Configuration{
 		App: config.App{
-			Name: "test",
+			Name: AppName,
 			Env:  env,
 			// What a real boot answers for this environment: config.Load defaults
 			// Debug to "the environment is development", and it is what decides
@@ -178,6 +186,7 @@ func App(t *testing.T) (*arandutest.Client, *database.DB) {
 func Booted(t *testing.T) bootstrap.App {
 	t.Helper()
 
+	t.Setenv("APP_NAME", AppName)
 	t.Setenv("APP_ENV", "dev")
 	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
 	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
