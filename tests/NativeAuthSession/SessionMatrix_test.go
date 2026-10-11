@@ -154,7 +154,7 @@ func newSessionHarness(t *testing.T) *sessionHarness {
 	sessions := security.NewSessionStore(appKey, time.Hour, false, backend)
 	module := authui.New(
 		users, factors, nil, sessions, session.NewCSRF(appKey, time.Hour), nil,
-		appKey, "Arandu", authui.FixedTenant("tenant-a"), false,
+		appKey, authui.FixedTenant("tenant-a"), false,
 	)
 	router := fhttp.NewRouter()
 	module.Routes(router)

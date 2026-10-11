@@ -379,7 +379,7 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	// The controllers, built here and handed to the routes. A controller that
 	// constructed its own collaborators would be a controller no test can pin.
 	deps := routes.Deps{
-		Home: controllers.NewHomeController(cfg.App.Name, userService, cfg.Auth.Tenant),
+		Home: controllers.NewHomeController(userService, cfg.Auth.Tenant),
 		// What the route guards read. The same store the pipeline was given,
 		// and it has to be: two stores over one key would agree about the
 		// signature and disagree about which sessions exist.

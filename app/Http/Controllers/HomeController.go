@@ -25,12 +25,6 @@ type UserNames interface {
 type HomeController struct {
 	Controller
 
-	// appName is what the page is titled. It comes from the configuration, and
-	// it arrives through the constructor rather than through a global read: a
-	// controller that reads the environment is a controller no test can pin.
-	// The brand is not drawn from it: view.New reads that off the request.
-	appName string
-
 	// people and tenant are how the id in a session becomes a name to greet. A
 	// session carries an id and not a name on purpose: a name kept in one stays
 	// wrong after somebody changes theirs.
@@ -47,16 +41,17 @@ type HomeController struct {
 // NewHomeController returns the controller. `bootstrap` builds it and hands it
 // to the routes.
 //
-// There is no session store and no CSRF issuer here: the route puts who is
-// signed in on the request, and the middleware that protects forms puts the
-// token there, so a screen reads both off the request it is answering.
+// There is no session store, no CSRF issuer and no application name here: the
+// route puts who is signed in on the request, the middleware that protects
+// forms puts the token there, and the framework puts the application name
+// there, so a screen reads all three off the request it is answering.
 //
 // The starter kit replaces this file together with the layout and the pages
 // that extend it. Its publisher must keep this constructor aligned with
 // bootstrap/app.go, or regenerating authentication leaves the project unable to
 // compile.
-func NewHomeController(appName string, people UserNames, tenant string) *HomeController {
-	return &HomeController{appName: appName, people: people, tenant: tenant}
+func NewHomeController(people UserNames, tenant string) *HomeController {
+	return &HomeController{people: people, tenant: tenant}
 }
 
 // Compile-time proof that this controller answers GET / the way Resource and the
@@ -73,12 +68,12 @@ var _ http.Indexer = (*HomeController)(nil)
 // view.New fills the title, the flash and the CSRF token the middleware issued
 // for this request -- the token every write from this page carries, in the
 // sign-out form and in hx-headers. It fills the brand with the application
-// name the framework puts on every request, so this controller passes the name
-// only as the page's title. It also fills the navigation's addresses
-// from the route table, by name, and none of them is written here: the
-// published authentication UI owns the sign-in and sign-out routes, and in a
-// project without it those addresses are empty and the layout draws no link to
-// a screen that does not exist.
+// name the framework puts on every request, and this controller reads the same
+// name off the request for the page's title. It also fills the navigation's
+// addresses from the route table, by name, and none of them is written here:
+// the published authentication UI owns the sign-in and sign-out routes, and in
+// a project without it those addresses are empty and the layout draws no link
+// to a screen that does not exist.
 func (c *HomeController) Index(ctx *hhttp.Context) error {
 	// Who is signed in, put on the request by the route's LoadSubject from the
 	// session cookie and never from the request body. No subject is the
@@ -99,7 +94,7 @@ func (c *HomeController) Index(ctx *hhttp.Context) error {
 		}
 	}
 
-	page := view.New(ctx, c.appName)
+	page := view.New(ctx, hhttp.AppNameFrom(ctx.Ctx()))
 	page.Authenticated = signedIn
 	page.UserName = name
 

@@ -270,7 +270,7 @@ func TestTheHomeRouteIsAddressableByName(t *testing.T) {
 	// The token resolver and the idempotency store are guards' arguments, and a
 	// guard refuses nil at registration; neither is asked anything here.
 	routes.Web(r, routes.Deps{
-		Home:        controllers.NewHomeController("test", nil, ""),
+		Home:        controllers.NewHomeController(nil, ""),
 		Tokens:      appmiddleware.NewPersonalAccessTokens(nil),
 		Idempotency: cache.NewArrayStore(),
 	})
