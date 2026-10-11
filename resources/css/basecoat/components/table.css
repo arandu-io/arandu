@@ -88,26 +88,25 @@
    * The arrow is drawn from aria-sort, so there is one source for which way
    * the table is ordered and it is the one a screen reader reads. */
   .table-sort {
-    @apply text-inherit inline-flex items-center gap-1 no-underline;
+    @apply text-inherit -ms-2 inline-flex h-8 items-center gap-1.5 rounded-md px-2
+           no-underline transition-colors;
 
     &:hover {
-      @apply text-foreground underline;
+      @apply bg-muted text-foreground;
     }
 
-    &::after {
-      @apply text-muted-foreground/40 text-[10px] leading-none;
-      content: '\2195';
+    &:focus-visible {
+      @apply ring-ring/50 outline-none ring-[3px];
+    }
+
+    & > svg {
+      @apply text-muted-foreground/60 size-3.5 shrink-0;
     }
   }
 
-  [aria-sort='ascending'] .table-sort::after {
+  [aria-sort='ascending'] .table-sort > svg,
+  [aria-sort='descending'] .table-sort > svg {
     @apply text-foreground;
-    content: '\2191';
-  }
-
-  [aria-sort='descending'] .table-sort::after {
-    @apply text-foreground;
-    content: '\2193';
   }
 
   .table-count {
@@ -124,11 +123,20 @@
     @apply relative mb-2 w-fit;
 
     & > summary {
-      @apply border-input text-foreground inline-flex cursor-pointer list-none
-             items-center gap-2 rounded-md border px-3 py-1.5 text-sm;
+      @apply border-input bg-background text-foreground inline-flex h-8 cursor-pointer
+             list-none items-center gap-1.5 rounded-lg border px-2.5 text-sm font-medium
+             whitespace-nowrap transition-colors select-none;
 
       &:hover {
-        @apply bg-accent text-accent-foreground;
+        @apply bg-muted;
+      }
+
+      &:focus-visible {
+        @apply ring-ring/50 outline-none ring-[3px];
+      }
+
+      & > svg {
+        @apply size-4 shrink-0;
       }
     }
 
@@ -138,11 +146,11 @@
 
     & > div {
       @apply bg-popover text-popover-foreground absolute end-0 top-full z-40 mt-1
-             flex min-w-40 flex-col gap-1 rounded-md border p-2 shadow-md;
+             flex min-w-40 flex-col gap-0.5 rounded-md border p-1 shadow-md;
     }
 
     & label {
-      @apply flex cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-sm;
+      @apply flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm;
 
       &:hover {
         @apply bg-accent text-accent-foreground;
