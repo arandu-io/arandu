@@ -7,9 +7,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/validation"
 
@@ -43,7 +45,7 @@ const tokenBytes = 32
 // from the token's request.
 type PersonalAccessTokenService struct {
 	db     *database.DB
-	users  *UserService
+	users  *account.Users
 	tenant string
 	policy policies.PersonalAccessTokenPolicy
 	// now is the clock expiry is read against, so a test can move it.
@@ -52,7 +54,7 @@ type PersonalAccessTokenService struct {
 
 // NewPersonalAccessTokenService wires the service over the accounts tokens act
 // as, for the tenant they belong to.
-func NewPersonalAccessTokenService(db *database.DB, users *UserService, tenant string) *PersonalAccessTokenService {
+func NewPersonalAccessTokenService(db *database.DB, users *account.Users, tenant string) *PersonalAccessTokenService {
 	return &PersonalAccessTokenService{db: db, users: users, tenant: tenant, now: time.Now}
 }
 
@@ -141,14 +143,20 @@ func (s *PersonalAccessTokenService) Resolve(ctx context.Context, tokenDigest st
 		return auth.Subject{}, ErrTokenNotAccepted
 	}
 
-	account, err := s.users.FindForAuthentication(ctx, found.TenantID, found.UserID)
-	if errors.Is(err, ErrUserNotFound) {
+	owner, err := s.users.FindForAuthentication(ctx, found.TenantID, found.UserID)
+	if errors.Is(err, account.ErrUserNotFound) {
 		return auth.Subject{}, ErrTokenNotAccepted
 	}
 	if err != nil {
 		return auth.Subject{}, err
 	}
-	return account.Subject(), nil
+	// The account rules hand back the *User this application's users query
+	// built; its roles are what the subject carries.
+	user, ok := owner.(*models.User)
+	if !ok {
+		return auth.Subject{}, fmt.Errorf("personal access token: the account is a %T, not a *models.User", owner)
+	}
+	return user.Subject(), nil
 }
 
 // digest is the stored form of a token: its SHA-256, as hexadecimal -- the

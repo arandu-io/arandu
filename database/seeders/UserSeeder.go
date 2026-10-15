@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	services "github.com/arandu-io/arandu/app/Services"
+	"github.com/arandu-io/hesape/auth/account"
+
+	models "github.com/arandu-io/arandu/app/Models"
 )
 
 // UserSeeder creates one account a person signs in as, or replaces its
@@ -17,7 +19,7 @@ import (
 //
 // It is the operator's door: the first administrator of a fresh deployment, or
 // somebody locked out before mail is configured, has no reset link to follow.
-// It goes through the user service rather than the factory, because this
+// It goes through the account rules rather than the factory, because this
 // account is real: its address is normalised, its password hashed, and a
 // duplicate refused by the same rules as a registration.
 //
@@ -36,7 +38,7 @@ func (UserSeeder) Name() string { return "UserSeeder" }
 // Run creates the account, or replaces its password when -upd is given.
 func (UserSeeder) Run(ctx context.Context, d Deps) error {
 	if d.Users == nil || d.Tenant == "" {
-		return errors.New("the user service and the tenant must be wired: an account in no tenant is one nobody can sign in as")
+		return errors.New("the account rules and the tenant must be wired: an account in no tenant is one nobody can sign in as")
 	}
 	email, password, name := flag(d.Args, "e", "email"), flag(d.Args, "p", "password"), flag(d.Args, "n", "name")
 	if email == "" || password == "" {
@@ -54,18 +56,21 @@ func (UserSeeder) Run(ctx context.Context, d Deps) error {
 
 	existing, err := d.Users.Lookup(ctx, d.Tenant, email)
 	switch {
-	case errors.Is(err, services.ErrUserNotFound):
-		user, err := d.Users.EnsureUser(ctx, d.Tenant, name, email, password, roles, true)
+	case errors.Is(err, account.ErrUserNotFound):
+		user, err := d.Users.Provision(ctx, d.Tenant, account.Draft{
+			Name: name, Email: email, Password: password, Verified: true,
+			Fill: func(a account.Account) error { return withRoles(a, roles) },
+		})
 		if err != nil {
 			return err
 		}
-		fmt.Printf("created %s%s\n", user.Email, describeRoles(user.Roles))
+		fmt.Printf("created %s%s\n", user.AccountEmail(), describeRoles(user))
 		return nil
 	case err != nil:
 		return fmt.Errorf("looking the address up: %w", err)
 	case !Switch(d.Args, "upd") && !Switch(d.Args, "update"):
-		fmt.Printf("%s already exists and was left as it is%s\n", existing.Email, describeRoles(existing.Roles))
-		fmt.Printf("  to replace the password: aru db:seed UserSeeder -upd -e %s -p <password>\n", existing.Email)
+		fmt.Printf("%s already exists and was left as it is%s\n", existing.AccountEmail(), describeRoles(existing))
+		fmt.Printf("  to replace the password: aru db:seed UserSeeder -upd -e %s -p <password>\n", existing.AccountEmail())
 		return nil
 	}
 
@@ -76,7 +81,7 @@ func (UserSeeder) Run(ctx context.Context, d Deps) error {
 	if len(roles) > 0 {
 		fmt.Println("  -r was ignored: this replaces the password and nothing else")
 	}
-	fmt.Printf("password replaced for %s%s\n", updated.Email, describeRoles(updated.Roles))
+	fmt.Printf("password replaced for %s%s\n", updated.AccountEmail(), describeRoles(updated))
 	return nil
 }
 
@@ -108,7 +113,25 @@ func rolesFrom(args []string) []string {
 	return out
 }
 
-func describeRoles(roles []string) string {
+// withRoles writes the roles of a new account before it is stored. The account
+// rules build this application's *models.User, and its roles are a column the
+// rules know nothing about.
+func withRoles(a account.Account, roles []string) error {
+	user, ok := a.(*models.User)
+	if !ok {
+		return fmt.Errorf("the account rules built a %T, not a *models.User", a)
+	}
+	user.Roles = append(models.Roles(nil), roles...)
+	return nil
+}
+
+// describeRoles names the roles an account holds, for the line printed about
+// it.
+func describeRoles(a account.Account) string {
+	var roles []string
+	if user, ok := a.(*models.User); ok {
+		roles = user.Roles
+	}
 	if len(roles) == 0 {
 		return ", with no roles"
 	}

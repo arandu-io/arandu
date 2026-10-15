@@ -14,6 +14,7 @@ import (
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/hesape/arandutest"
 	"github.com/arandu-io/hesape/auth"
+	accounts "github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/events"
 	hnotifications "github.com/arandu-io/hesape/notifications"
 	"github.com/arandu-io/hesape/queue"
@@ -45,7 +46,7 @@ func newNotesFixture(t *testing.T) notesFixture {
 	app := tests.Booted(t)
 	tenant := bootstrap.Tenant()
 	members, err := factories.Users(app.DB).Count(2).
-		Create(context.Background(), auth.SystemGrant(policies.ActionUserCreate, tenant))
+		Create(context.Background(), auth.SystemGrant(accounts.ActionUserCreate, tenant))
 	if err != nil {
 		t.Fatalf("creating the members: %v", err)
 	}
@@ -383,7 +384,7 @@ func TestTheExampleNotesAreSeededInDevelopmentOnly(t *testing.T) {
 		t.Fatalf("two runs of the root seeder in development wrote %d notes, want 6", len(seeded))
 	}
 	for _, note := range seeded {
-		author, err := models.Users(db).Find(ctx, auth.SystemGrant(policies.ActionUserView, bootstrap.Tenant()), note.UserID)
+		author, err := models.Users(db).Find(ctx, auth.SystemGrant(accounts.ActionUserView, bootstrap.Tenant()), note.UserID)
 		if err != nil || author == nil {
 			t.Fatalf("note %s has no author in the tenant: %v", note.ID, err)
 		}

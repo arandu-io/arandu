@@ -10,19 +10,18 @@ package seeders
 import (
 	"context"
 
+	"github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/database"
-
-	"github.com/arandu-io/arandu/app/Services"
 )
 
 // Deps carries what seeders are allowed to touch. It is explicit for the same
 // reason the rest of the wiring is: a seeder that can reach anything is a seeder
 // nobody can review.
 type Deps struct {
-	// Users is the account service, for the seeders that create an account a
+	// Users is the account rules, for the seeders that create an account a
 	// person signs in as: those go through its rules, the hash and the
 	// normalised address included.
-	Users *services.UserService
+	Users *account.Users
 	// DB is the application database, for the seeders that create rows through
 	// a factory. A factory stores through the model, and the model takes the
 	// Grant the seeder hands it.

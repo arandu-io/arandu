@@ -28,9 +28,11 @@ import (
 	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
 	hesapetest "github.com/arandu-io/hesape/arandutest"
 	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/config"
 	"github.com/arandu-io/hesape/database"
 
+	models "github.com/arandu-io/arandu/app/Models"
 	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
 )
@@ -248,4 +250,23 @@ func SignedIn(t *testing.T, app bootstrap.App, subject auth.Subject) *hesapetest
 	}))
 	client.Get(signInHere).AssertStatus(http.StatusNoContent)
 	return client
+}
+
+// Register creates an account the way the sign-up form does, through the
+// account rules app wired, and returns it as the *models.User this
+// application's users query builds -- the type whose Subject a session is
+// started from.
+func Register(t *testing.T, app bootstrap.App, name, email, password string) *models.User {
+	t.Helper()
+	registered, err := app.Users.Register(context.Background(), bootstrap.Tenant(), account.Registration{
+		Name: name, Email: email, Password: password,
+	})
+	if err != nil {
+		t.Fatalf("registering %s: %v", email, err)
+	}
+	user, ok := registered.(*models.User)
+	if !ok {
+		t.Fatalf("the account rules registered a %T, want *models.User", registered)
+	}
+	return user
 }

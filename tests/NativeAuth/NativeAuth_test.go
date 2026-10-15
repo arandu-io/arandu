@@ -4,273 +4,99 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"path/filepath"
-	"slices"
-	"sync"
 	"testing"
 	"time"
 
-	appmigrations "github.com/arandu-io/arandu/database/migrations"
-
 	frameevents "github.com/arandu-io/framework/events"
-	twofactor "github.com/arandu-io/hesape/2fa"
 	"github.com/arandu-io/hesape/auth"
-	"github.com/arandu-io/hesape/cache"
+	"github.com/arandu-io/hesape/auth/account"
 	hedatabase "github.com/arandu-io/hesape/database"
 	_ "github.com/arandu-io/hesape/database/connectors/sqlite"
 	dbmigrations "github.com/arandu-io/hesape/database/migrations"
-	"github.com/arandu-io/hesape/encryption"
-	"github.com/arandu-io/hesape/hashing"
-	"github.com/arandu-io/hesape/otp"
+	"github.com/arandu-io/hesape/database/model"
 
-	appevents "github.com/arandu-io/arandu/app/Events"
 	"github.com/arandu-io/arandu/app/Models"
 	"github.com/arandu-io/arandu/app/Policies"
-	"github.com/arandu-io/arandu/app/Repositories"
-	"github.com/arandu-io/arandu/app/Services"
+	appmigrations "github.com/arandu-io/arandu/database/migrations"
 )
 
-func TestPolicyAndGrantRefusalsHappenBeforeTheFirstQuery(t *testing.T) {
-	t.Run("user service", func(t *testing.T) {
-		service := services.NewUserService(nil)
-		if _, err := service.PublicNames(context.Background(), auth.Subject{}, []string{"user-a"}); err == nil {
-			t.Fatal("an unauthenticated subject reached the public-name query")
-		}
-	})
+// The account rules are hesape/auth/account's, and what they do is proved by
+// its contract suite against this application's users table, in
+// AccountContract_test.go. The tests in this package prove the half that is
+// this application's: the user model the rules hand back, the user policy they
+// ask, and the roles column they know nothing about.
 
-	t.Run("two-factor repository", func(t *testing.T) {
-		repository := repositories.NewTwoFactorRepository(nil)
-		grant := auth.SystemGrant(policies.ActionTwoFactorRead, "tenant-a")
-		if _, err := repository.SpendStep(context.Background(), grant, "user-a", 42); err == nil {
-			t.Fatal("a read-only grant reached the replay update")
-		}
-	})
-
-	t.Run("two-factor requirement", func(t *testing.T) {
-		repository := repositories.NewTwoFactorRepository(nil)
-		grant := auth.SystemGrant(policies.ActionTwoFactorManage, "tenant-a")
-		if _, err := repository.Required(context.Background(), grant, "user-a"); err == nil {
-			t.Fatal("a management grant reached the second-factor read")
-		}
-	})
+func TestTheUserPolicyRefusesAPublicNameReadWithoutAReader(t *testing.T) {
+	db := openNativeAuthDatabase(t)
+	users := newUsers(t, db)
+	if _, err := users.PublicNames(context.Background(), auth.Subject{}, []string{"user-a"}); err == nil {
+		t.Fatal("a subject with no tenant was answered the public names")
+	}
 }
 
 func TestRegistrationPersistsSQLNullUntilEmailIsVerified(t *testing.T) {
 	db := openNativeAuthDatabase(t)
-	service := services.NewUserService(db.app)
+	users := newUsers(t, db)
+	ctx := context.Background()
 
-	user, err := service.Register(context.Background(), "tenant-a", "Ana", "ana@example.test", "a-long-enough-password")
+	registered, err := users.Register(ctx, "tenant-a", account.Registration{
+		Name: "Ana", Email: "ana@example.test", Password: "a-long-enough-password",
+	})
 	if err != nil {
 		t.Fatalf("registering an unverified user: %v", err)
 	}
-	if user.Verified() {
-		t.Fatal("a new registration is already verified")
-	}
-	assertUserVerificationContract(t, user, false)
+	assertUserVerificationContract(t, registered, false)
 
 	var verifiedAt any
-	if err := db.sql.QueryRow(`SELECT verified_at FROM users WHERE id = ?`, user.ID).Scan(&verifiedAt); err != nil {
+	if err := db.sql.QueryRow(`SELECT verified_at FROM users WHERE id = ?`, registered.AccountID()).Scan(&verifiedAt); err != nil {
 		t.Fatalf("reading the stored verification state: %v", err)
 	}
 	if verifiedAt != nil {
 		t.Fatalf("a new registration stored verified_at = %v, want SQL NULL", verifiedAt)
 	}
-}
 
-func TestVerificationChangesANullRegistrationExactlyOnce(t *testing.T) {
-	db := openNativeAuthDatabase(t)
-	service := services.NewUserService(db.app)
-	ctx := context.Background()
-	registered, err := service.Register(ctx, "tenant-a", "Ana", "ana@example.test", "a-long-enough-password")
-	if err != nil {
-		t.Fatalf("registering an unverified user: %v", err)
+	verified, changed, err := users.MarkVerified(ctx, "tenant-a", registered.AccountID(), registered.AccountEmail())
+	if err != nil || !changed {
+		t.Fatalf("verifying the address = %v, %v; want a change", changed, err)
 	}
-
-	const attempts = 8
-	start := make(chan struct{})
-	users := make([]models.User, attempts)
-	changed := make([]bool, attempts)
-	errs := make([]error, attempts)
-	var ready sync.WaitGroup
-	ready.Add(attempts)
-	var done sync.WaitGroup
-	done.Add(attempts)
-	for index := range attempts {
-		go func() {
-			defer done.Done()
-			ready.Done()
-			<-start
-			users[index], changed[index], errs[index] = service.MarkVerified(
-				ctx, registered.TenantID, registered.ID, registered.Email,
-			)
-		}()
-	}
-	ready.Wait()
-	close(start)
-	done.Wait()
-
-	winners := 0
-	for index, callErr := range errs {
-		if callErr != nil {
-			t.Errorf("verification attempt %d: %v", index, callErr)
-			continue
-		}
-		if changed[index] {
-			winners++
-		}
-		assertUserVerificationContract(t, users[index], true)
-	}
-	if winners != 1 {
-		t.Fatalf("verification produced %d state changes, want exactly one", winners)
-	}
-
-	pending, err := frameevents.NewOutbox(db.app).PendingAll(ctx, 20)
-	if err != nil {
-		t.Fatalf("reading verification events: %v", err)
-	}
-	verificationEvents := 0
-	for _, event := range pending {
-		if event.Name == appevents.EmailVerified && event.AggregateID == registered.ID {
-			verificationEvents++
-		}
-	}
-	if verificationEvents != 1 {
-		t.Fatalf("verification stored %d email-verified events, want exactly one", verificationEvents)
-	}
-
-	var verifiedAt sql.NullTime
-	if err := db.sql.QueryRow(`SELECT verified_at FROM users WHERE id = ?`, registered.ID).Scan(&verifiedAt); err != nil {
-		t.Fatalf("reading the verified account state: %v", err)
-	}
-	if !verifiedAt.Valid || verifiedAt.Time.IsZero() {
-		t.Fatalf("the winning verification stored verified_at = %+v, want a timestamp", verifiedAt)
-	}
+	assertUserVerificationContract(t, verified, true)
 }
 
 func TestSeededVerifiedUserPreservesVerificationContracts(t *testing.T) {
 	db := openNativeAuthDatabase(t)
-	service := services.NewUserService(db.app)
+	users := newUsers(t, db)
 	ctx := context.Background()
 
-	seeded, err := service.EnsureUser(ctx, "tenant-a", "Admin", "admin@example.test", "a-long-enough-password", []string{models.RoleAdmin}, true)
+	seeded, err := users.Provision(ctx, "tenant-a", account.Draft{
+		Name: "Admin", Email: "admin@example.test", Password: "a-long-enough-password", Verified: true,
+		Fill: func(a account.Account) error {
+			a.(*models.User).Roles = models.Roles{models.RoleAdmin}
+			return nil
+		},
+	})
 	if err != nil {
 		t.Fatalf("seeding a verified user: %v", err)
 	}
 	assertUserVerificationContract(t, seeded, true)
 
-	found, err := service.Lookup(ctx, "tenant-a", seeded.Email)
+	found, err := users.Lookup(ctx, "tenant-a", seeded.AccountEmail())
 	if err != nil {
 		t.Fatalf("reading the seeded user: %v", err)
 	}
 	assertUserVerificationContract(t, found, true)
 }
 
-func TestTwoFactorPolicyRejectsAnotherUsersLoadedEnrollment(t *testing.T) {
-	actor := auth.Subject{ID: "user-a", Tenant: "tenant-a"}
-	other := models.TwoFactor{UserID: "user-b", TenantID: "tenant-a"}
-	for _, action := range []auth.Action{
-		policies.ActionTwoFactorRead,
-		policies.ActionTwoFactorManage,
-	} {
-		t.Run(string(action), func(t *testing.T) {
-			if _, err := auth.Authorize(context.Background(), policies.TwoFactorPolicy{}, actor, action, other); err == nil {
-				t.Fatalf("%s authorized another user's loaded enrollment", action)
-			}
-		})
-	}
-}
-
-func TestSecondFactorWritesCannotCrossTheGrantTenant(t *testing.T) {
-	db := openNativeAuthDatabase(t)
-	seedFactor(t, db.sql, "tenant-a", "user-a", "encrypted", true)
-
-	repository := repositories.NewTwoFactorRepository(db.app)
-	grant := auth.SystemGrant(policies.ActionTwoFactorManage, "tenant-b")
-	won, err := repository.SpendStep(context.Background(), grant, "user-a", 42)
-	if err != nil {
-		t.Fatalf("spending under another tenant: %v", err)
-	}
-	if won {
-		t.Fatal("the replay update crossed the grant tenant")
-	}
-
-	var step int64
-	if err := db.sql.QueryRow(`SELECT last_used_step FROM user_two_factor WHERE user_id = 'user-a'`).Scan(&step); err != nil {
-		t.Fatalf("reading the replay step: %v", err)
-	}
-	if step != 0 {
-		t.Fatalf("another tenant changed the replay step to %d", step)
-	}
-}
-
-func TestConcurrentAuthenticatorVerificationHasExactlyOneWinner(t *testing.T) {
-	db := openNativeAuthDatabase(t)
-	appKey := []byte("0123456789abcdef0123456789abcdef")
-	secret := otp.NewSecret()
-	encrypter, err := encryption.NewEncrypter(appKey, encryption.AES256GCM)
-	if err != nil {
-		t.Fatalf("creating the encrypter: %v", err)
-	}
-	payload, err := encrypter.EncryptString(otp.EncodeSecret(secret))
-	if err != nil {
-		t.Fatalf("encrypting the authenticator secret: %v", err)
-	}
-	seedFactor(t, db.sql, "tenant-a", "user-a", payload, true)
-
-	code, err := otp.Default().Generate(secret, time.Now())
-	if err != nil {
-		t.Fatalf("generating an authenticator code: %v", err)
-	}
-	service, err := services.NewTwoFactorService(db.app, appKey, cache.NewArrayStore())
-	if err != nil {
-		t.Fatalf("creating the second-factor service: %v", err)
-	}
-
-	errs := raceCalls(16, func() error {
-		return service.VerifyAuthenticator(context.Background(), "tenant-a", "user-a", code)
-	})
-	// Sixteen at once is more than the challenge budget, so some are refused
-	// as locked before they reach the replay guard. Either refusal is a loser.
-	assertOneWinner(t, errs, twofactor.ErrReplayed, services.ErrTwoFactorLocked)
-}
-
-func TestConcurrentRecoveryRedemptionHasExactlyOneWinner(t *testing.T) {
-	db := openNativeAuthDatabase(t)
-	appKey := []byte("0123456789abcdef0123456789abcdef")
-	seedFactor(t, db.sql, "tenant-a", "user-a", "encrypted", true)
-
-	codes, err := twofactor.GenerateRecoveryCodes(1)
-	if err != nil {
-		t.Fatalf("generating a recovery code: %v", err)
-	}
-	code := codes[0]
-	hash, err := hashing.Make("arandu:two-factor-recovery:" + twofactor.NormalizeCode(code))
-	if err != nil {
-		t.Fatalf("hashing the recovery code: %v", err)
-	}
-	if _, err := db.sql.Exec(`
-		INSERT INTO user_recovery_codes (id, tenant_id, user_id, code_hash, used_at, created_at)
-		VALUES ('recovery-a', 'tenant-a', 'user-a', ?, NULL, ?)
-	`, hash, time.Now().UTC()); err != nil {
-		t.Fatalf("seeding the recovery code: %v", err)
-	}
-
-	service, err := services.NewTwoFactorService(db.app, appKey, cache.NewArrayStore())
-	if err != nil {
-		t.Fatalf("creating the second-factor service: %v", err)
-	}
-	errs := raceCalls(16, func() error {
-		return service.ConsumeRecovery(context.Background(), "tenant-a", "user-a", code)
-	})
-	assertOneWinner(t, errs, services.ErrInvalidRecoveryCode, services.ErrTwoFactorLocked)
-}
-
+// nativeAuthDatabase is one migrated SQLite database, as the driver handle the
+// assertions read and as the application handle the rules write through.
 type nativeAuthDatabase struct {
 	sql *sql.DB
 	app *hedatabase.DB
 }
 
+// openNativeAuthDatabase migrates a fresh database with what the account
+// rules read and write: the outbox, this application's users table and the
+// second factor's tables, created by the migration hesape/auth/account owns.
 func openNativeAuthDatabase(t *testing.T) nativeAuthDatabase {
 	t.Helper()
 
@@ -292,11 +118,11 @@ func openNativeAuthDatabase(t *testing.T) nativeAuthDatabase {
 			t.Fatalf("applying %s: %v", migration.GetName(), err)
 		}
 	}
-	for _, migration := range []dbmigrations.Migration{
+	application := []dbmigrations.Migration{
 		appmigrations.CreateUsers{},
 		appmigrations.AddNameAndVerificationToUsers{},
-		appmigrations.CreateTwoFactor{},
-	} {
+	}
+	for _, migration := range append(application, account.Migrations()...) {
 		if err := migration.Up(context.Background(), migrationConnection); err != nil {
 			t.Fatalf("applying %s: %v", migration.GetName(), err)
 		}
@@ -305,73 +131,34 @@ func openNativeAuthDatabase(t *testing.T) nativeAuthDatabase {
 	return nativeAuthDatabase{sql: handle, app: hedatabase.Wrap(handle, hedatabase.DialectSQLite)}
 }
 
-func seedFactor(t *testing.T, db *sql.DB, tenant, user, secret string, confirmed bool) {
+// newUsers builds the account rules the way bootstrap/app.go does: over this
+// application's users query and user policy.
+func newUsers(t *testing.T, db nativeAuthDatabase) *account.Users {
 	t.Helper()
-
-	if _, err := db.Exec(`
-		INSERT INTO users (id, tenant_id, name, email, password, roles, verified_at, created_at)
-		VALUES (?, ?, 'Test User', ?, 'stored-password-hash', '[]', ?, ?)
-	`, user, tenant, user+"@example.test", time.Now().UTC(), time.Now().UTC()); err != nil {
-		t.Fatalf("seeding the user: %v", err)
+	users, err := account.NewUsers(account.Config{
+		DB:     db.app,
+		Query:  func() *model.Builder { return models.Users(db.app).Base() },
+		Policy: account.PolicyOf(policies.UserPolicy{}),
+	})
+	if err != nil {
+		t.Fatalf("building the account rules: %v", err)
 	}
-
-	var confirmedAt any
-	if confirmed {
-		confirmedAt = time.Now().UTC()
-	}
-	if _, err := db.Exec(`
-		INSERT INTO user_two_factor
-			(user_id, tenant_id, secret, confirmed_at, last_used_step, created_at)
-		VALUES (?, ?, ?, ?, 0, ?)
-	`, user, tenant, secret, confirmedAt, time.Now().UTC()); err != nil {
-		t.Fatalf("seeding the second factor: %v", err)
-	}
+	return users
 }
 
-func raceCalls(count int, call func() error) []error {
-	start := make(chan struct{})
-	errs := make([]error, count)
-	var ready sync.WaitGroup
-	ready.Add(count)
-	var done sync.WaitGroup
-	done.Add(count)
-	for index := range count {
-		go func() {
-			defer done.Done()
-			ready.Done()
-			<-start
-			errs[index] = call()
-		}()
-	}
-	ready.Wait()
-	close(start)
-	done.Wait()
-	return errs
-}
-
-func assertOneWinner(t *testing.T, errs []error, losers ...error) {
+// assertUserVerificationContract holds the account the rules hand back to what
+// this application's model promises: it is the *models.User the users query
+// built, its subject carries the verification, and its JSON shows verified_at
+// exactly when there is one and never the password.
+func assertUserVerificationContract(t *testing.T, a account.Account, want bool) {
 	t.Helper()
 
-	winners := 0
-	for _, err := range errs {
-		if err == nil {
-			winners++
-			continue
-		}
-		if !slices.ContainsFunc(losers, func(loser error) bool { return errors.Is(err, loser) }) {
-			t.Errorf("concurrent attempt returned %v, want one of %v", err, losers)
-		}
+	user, ok := a.(*models.User)
+	if !ok {
+		t.Fatalf("the account rules handed back a %T, want *models.User", a)
 	}
-	if winners != 1 {
-		t.Fatalf("concurrent attempts produced %d winners, want exactly one", winners)
-	}
-}
-
-func assertUserVerificationContract(t *testing.T, user models.User, want bool) {
-	t.Helper()
-
-	if user.Verified() != want {
-		t.Errorf("User.Verified() = %v, want %v", user.Verified(), want)
+	if user.IsVerified() != want {
+		t.Errorf("User.IsVerified() = %v, want %v", user.IsVerified(), want)
 	}
 	if user.Subject().Verified != want {
 		t.Errorf("User.Subject().Verified = %v, want %v", user.Subject().Verified, want)

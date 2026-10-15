@@ -20,6 +20,7 @@ import (
 	"github.com/arandu-io/framework/security"
 	twofactor "github.com/arandu-io/hesape/2fa"
 	nativeauth "github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/encryption"
 	"github.com/arandu-io/hesape/session"
 )
@@ -104,7 +105,7 @@ func TestPasswordAndPendingFactorSessionMatrix(t *testing.T) {
 		harness := newSessionHarness(t)
 		payload, err := json.Marshal(map[string]any{
 			"tenant": "tenant-a", "user_id": "user-a",
-			"password_fingerprint": harness.users.credential.PasswordFingerprint(),
+			"password_fingerprint": account.Fingerprint(harness.users.credential.Password),
 			"remember":             false,
 		})
 		if err != nil {
@@ -148,7 +149,10 @@ func newSessionHarness(t *testing.T) *sessionHarness {
 		ID: "user-a", TenantID: "tenant-a", Name: "Ana", Email: "ana@example.test",
 		Password: "stored-password-hash", Roles: []string{"member"},
 	}
-	users := &fakeUsers{credential: user, current: user}
+	// Two values: the account as the password check read it, and as it is
+	// stored now, which a test changes behind a pending sign-in.
+	credential, current := user, user
+	users := &fakeUsers{credential: &credential, current: &current}
 	factors := &fakeFactors{}
 	backend := &countingBackend{}
 	sessions := security.NewSessionStore(appKey, time.Hour, false, backend)
@@ -229,8 +233,8 @@ func (*countingBackend) Delete(context.Context, string) error { return nil }
 func (*countingBackend) DeleteSubject(context.Context, string, string, string) error { return nil }
 
 type fakeUsers struct {
-	credential models.User
-	current    models.User
+	credential *models.User
+	current    *models.User
 	verifyErr  error
 }
 
@@ -238,27 +242,27 @@ func (*fakeUsers) PublicNames(context.Context, nativeauth.Subject, []string) (ma
 	return map[string]string{}, nil
 }
 
-func (u *fakeUsers) VerifyCredentials(context.Context, string, string, string, string) (models.User, error) {
+func (u *fakeUsers) VerifyCredentials(context.Context, string, string, string, string) (account.Account, error) {
 	return u.credential, u.verifyErr
 }
 
-func (u *fakeUsers) Register(context.Context, string, string, string, string) (models.User, error) {
+func (u *fakeUsers) Register(context.Context, string, account.Registration) (account.Account, error) {
 	return u.credential, nil
 }
 
-func (u *fakeUsers) FindForAuthentication(context.Context, string, string) (models.User, error) {
+func (u *fakeUsers) FindForAuthentication(context.Context, string, string) (account.Account, error) {
 	return u.current, nil
 }
 
-func (u *fakeUsers) Lookup(context.Context, string, string) (models.User, error) {
+func (u *fakeUsers) Lookup(context.Context, string, string) (account.Account, error) {
 	return u.current, nil
 }
 
-func (u *fakeUsers) MarkVerified(context.Context, string, string, string) (models.User, bool, error) {
+func (u *fakeUsers) MarkVerified(context.Context, string, string, string) (account.Account, bool, error) {
 	return u.current, true, nil
 }
 
-func (u *fakeUsers) ResetPassword(context.Context, string, string, string, string, string) (models.User, error) {
+func (u *fakeUsers) ResetPassword(context.Context, string, string, string, string, string) (account.Account, error) {
 	return u.current, nil
 }
 

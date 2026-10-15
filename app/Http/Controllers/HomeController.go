@@ -32,8 +32,9 @@ type HomeController struct {
 	// The tenant is whose rows are read. It comes from the configuration,
 	// through bootstrap/app.go, and never from the request.
 	//
-	// The application owns the user service. This controller asks only for the
-	// projection it renders, which is also the seam the published UI keeps.
+	// The account rules are hesape/auth/account, built in bootstrap/app.go. This
+	// controller asks only for the projection it renders, which is also the seam
+	// the published UI keeps.
 	people UserNames
 	tenant string
 }

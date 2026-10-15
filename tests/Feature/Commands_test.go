@@ -228,8 +228,8 @@ func TestSeededCredentialsOnSQLite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verifying the seeded administrator: %v", err)
 	}
-	if user.Email != "admin@example.test" || user.TenantID != bootstrap.Tenant() {
-		t.Fatalf("verified account = %s in %s, want normalized administrator in %s", user.Email, user.TenantID, bootstrap.Tenant())
+	if user.AccountEmail() != "admin@example.test" || user.AccountTenant() != bootstrap.Tenant() {
+		t.Fatalf("verified account = %s in %s, want normalized administrator in %s", user.AccountEmail(), user.AccountTenant(), bootstrap.Tenant())
 	}
 }
 

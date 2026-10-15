@@ -9,6 +9,7 @@ import (
 
 	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/hesape/auth"
+	accounts "github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/log"
 
@@ -99,14 +100,14 @@ func TestTheConsoleRecordsARealRequest(t *testing.T) {
 func TestTheConsoleSeesTheQueriesOfTheRequest(t *testing.T) {
 	app, _ := builtApp(t)
 
-	user, err := app.Users.Register(
-		context.Background(), bootstrap.Tenant(), "Ana", "ana@example.test", "a-long-enough-password",
-	)
+	user, err := app.Users.Register(context.Background(), bootstrap.Tenant(), accounts.Registration{
+		Name: "Ana", Email: "ana@example.test", Password: "a-long-enough-password",
+	})
 	if err != nil {
 		t.Fatalf("registering the user read by the request: %v", err)
 	}
 	app.Kernel.Register(queryProbe{query: func(ctx context.Context) error {
-		_, err := app.Users.FindForAuthentication(ctx, user.TenantID, user.ID)
+		_, err := app.Users.FindForAuthentication(ctx, user.AccountTenant(), user.AccountID())
 		return err
 	}})
 	bootApp(t, app)

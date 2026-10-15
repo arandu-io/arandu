@@ -8,9 +8,9 @@ import (
 
 	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/hesape/auth"
+	accounts "github.com/arandu-io/hesape/auth/account"
 
 	appmiddleware "github.com/arandu-io/arandu/app/Http/Middleware"
-	policies "github.com/arandu-io/arandu/app/Policies"
 	"github.com/arandu-io/arandu/bootstrap"
 	factories "github.com/arandu-io/arandu/database/factories"
 	"github.com/arandu-io/arandu/tests"
@@ -22,7 +22,7 @@ func tokenAccounts(t *testing.T) (bootstrap.App, auth.Subject, auth.Subject) {
 	t.Helper()
 	app := tests.Booted(t)
 	members, err := factories.Users(app.DB).Count(2).
-		Create(context.Background(), auth.SystemGrant(policies.ActionUserCreate, bootstrap.Tenant()))
+		Create(context.Background(), auth.SystemGrant(accounts.ActionUserCreate, bootstrap.Tenant()))
 	if err != nil {
 		t.Fatalf("creating the accounts: %v", err)
 	}

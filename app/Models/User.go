@@ -2,17 +2,15 @@
 package models
 
 import (
-	"crypto/sha256"
 	"database/sql/driver"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/database/model"
-	"github.com/arandu-io/hesape/database/query"
 )
 
 // User is an account owned by this application.
@@ -109,22 +107,39 @@ func (r *Roles) Scan(src any) error {
 	return nil
 }
 
-// Verified reports whether the address was confirmed.
-func (u User) Verified() bool { return u.VerifiedAt != nil && !u.VerifiedAt.IsZero() }
-
 // Subject returns the session subject derived only from stored account data.
 func (u User) Subject() auth.Subject {
 	return auth.Subject{
-		ID: u.ID, Tenant: u.TenantID, Roles: append([]string(nil), u.Roles...), Verified: u.Verified(),
+		ID: u.ID, Tenant: u.TenantID, Roles: append([]string(nil), u.Roles...), Verified: u.IsVerified(),
 	}
 }
 
-// PasswordFingerprint identifies the complete current password hash without
-// exposing that hash in a signed URL or pending cookie.
-func (u User) PasswordFingerprint() string {
-	sum := sha256.Sum256([]byte(u.Password))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
-}
+// The six readers below are what the account rules of hesape/auth/account
+// read a user through: signing in, registering, verifying, resetting and the
+// second factor are that package's, written once over these. The row, the
+// fill and the insert they also need come from the embedded model.
+
+// AccountID is the primary key.
+func (u User) AccountID() string { return u.ID }
+
+// AccountTenant is the tenant the account belongs to.
+func (u User) AccountTenant() string { return u.TenantID }
+
+// AccountEmail is the stored address.
+func (u User) AccountEmail() string { return u.Email }
+
+// AccountName is the name the account is shown by.
+func (u User) AccountName() string { return u.Name }
+
+// PasswordHash is the stored password hash. MarshalJSON and LogValue keep it
+// out of every response and log line.
+func (u User) PasswordHash() string { return u.Password }
+
+// IsVerified reports whether the address was confirmed.
+func (u User) IsVerified() bool { return u.VerifiedAt != nil && !u.VerifiedAt.IsZero() }
+
+// The account rules hand back the *User the users query builds.
+var _ account.Account = (*User)(nil)
 
 // MarshalJSON keeps password material and its persistence representation out
 // of responses and dumps.
@@ -152,12 +167,5 @@ func (u User) LogValue() slog.Value {
 // Local scopes are methods on *UserQuery, relations are registered on
 // userTable in an init function, and anything else about this entity goes
 // here too.
-
-// GetQuery returns the statement under the query, without the model around
-// it: the users table and the clauses added so far, whose rows come back as
-// query.Record. It is what the native user provider reads accounts through,
-// because it fills the account it hands to the guard itself. Its terminals
-// take a Grant and are filtered by the Grant's tenant, like the model's.
-func (q *UserQuery) GetQuery() *query.Builder { return q.Base().GetQuery() }
 
 // arandu:end custom

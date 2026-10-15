@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/auth/account"
 
 	models "github.com/arandu-io/arandu/app/Models"
 	policies "github.com/arandu-io/arandu/app/Policies"
@@ -44,7 +45,7 @@ func (NoteSeeder) Run(ctx context.Context, d Deps) error {
 	// arandu:begin custom
 	// Rows the factory's defaults do not describe go here: a fixed record, a
 	// state applied to some of them.
-	authors, err := factories.Users(d.DB).Count(2).Create(ctx, auth.SystemGrant(policies.ActionUserCreate, d.Tenant))
+	authors, err := factories.Users(d.DB).Count(2).Create(ctx, auth.SystemGrant(account.ActionUserCreate, d.Tenant))
 	if err != nil {
 		return err
 	}

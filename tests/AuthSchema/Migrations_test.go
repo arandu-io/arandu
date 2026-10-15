@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	appmigrations "github.com/arandu-io/arandu/database/migrations"
+	"github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/database"
 	_ "github.com/arandu-io/hesape/database/connectors/sqlite"
 	dbmigrations "github.com/arandu-io/hesape/database/migrations"
@@ -177,7 +178,12 @@ func newMigrationHarness(t *testing.T) migrationHarness {
 	registerNativeAuthTestPath.Do(func() {
 		dbmigrations.Register(appmigrations.CreateUsers{}, nativeAuthTestPath)
 		dbmigrations.Register(appmigrations.AddNameAndVerificationToUsers{}, nativeAuthTestPath)
-		dbmigrations.Register(appmigrations.CreateTwoFactor{}, nativeAuthTestPath)
+		// The second factor's tables are hesape/auth/account's, under the name
+		// and schema this application created them with: the assertions below
+		// are what an application upgraded from its own copy relies on.
+		for _, migration := range account.Migrations() {
+			dbmigrations.Register(migration, nativeAuthTestPath)
+		}
 	})
 
 	databasePath := filepath.Join(t.TempDir(), "auth-schema.sqlite")

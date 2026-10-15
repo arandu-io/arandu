@@ -2,7 +2,7 @@
 //
 // It is the single place where everything is wired. The wiring is explicit and
 // visible -- no dependency appears by magic. If you want to know where the
-// user service comes from, it is written here.
+// account rules come from, it is written here.
 //
 // `aru make:module` does NOT edit this file. It writes the code and prints the
 // three lines to paste, because a generator that edited it behind your back
@@ -33,8 +33,10 @@ import (
 	"github.com/arandu-io/framework/security"
 	fwview "github.com/arandu-io/framework/view"
 	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/auth/account"
 	cache2 "github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/database"
+	"github.com/arandu-io/hesape/database/model"
 	"github.com/arandu-io/hesape/exception"
 	"github.com/arandu-io/hesape/geo"
 	hhttp "github.com/arandu-io/hesape/http"
@@ -52,6 +54,8 @@ import (
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	appmiddleware "github.com/arandu-io/arandu/app/Http/Middleware"
 	listeners "github.com/arandu-io/arandu/app/Listeners"
+	models "github.com/arandu-io/arandu/app/Models"
+	policies "github.com/arandu-io/arandu/app/Policies"
 	providers "github.com/arandu-io/arandu/app/Providers"
 	services "github.com/arandu-io/arandu/app/Services"
 	appconfig "github.com/arandu-io/arandu/config"
@@ -143,11 +147,13 @@ type App struct {
 	// DB is the application database every service was built over. It is
 	// returned for the seeders, which create rows through factories over it.
 	DB *database.DB
-	// Users is the application-owned account service. Seeders receive this same
-	// value instead of reaching through a framework module.
-	Users *services.UserService
-	// TwoFactor is the application-owned enrolment and challenge service.
-	TwoFactor *services.TwoFactorService
+	// Users is the account rules -- signing in, registering, verifying,
+	// resetting, renaming, closing, provisioning -- over this application's
+	// users table, user model and user policy. Seeders receive this same value.
+	Users *account.Users
+	// TwoFactor is the authenticator second factor of those accounts:
+	// enrolment, recovery codes and the sign-in challenge.
+	TwoFactor *account.Factors
 	// Tokens issues, revokes and resolves the personal access tokens a
 	// program presents as a bearer token. The routes are given its resolver;
 	// it is returned for whatever issues tokens -- a page, a command, a test.
@@ -284,7 +290,7 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	// events.NewModule() brings the table and publishes nothing, which is a
 	// coherent state -- storing is what cannot be recovered later, publishing can
 	// start the day there is somewhere to publish to. It stops being coherent the
-	// moment something stores: the application user service writes a row for every
+	// moment something stores: the account rules write a row for every
 	// registration, every confirmed address and every reset password, and without
 	// this line they accumulate in a table no process reads.
 	//
@@ -312,7 +318,12 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	//
 	// The relay takes one Publisher, and listeners.Each is the list of them,
 	// in order: every committed event goes to each.
-	relay := events.NewRelay(events.NewOutbox(db), listeners.Each{
+	//
+	// The outbox is one value, built here: the relay empties it and the account
+	// rules below store into it, so what is written and what is read are the
+	// same table through the same handle.
+	outbox := events.NewOutbox(db)
+	relay := events.NewRelay(outbox, listeners.Each{
 		listeners.NewEventLog(),
 		// The example resource's listener: the author of a published note is
 		// told in the bell menu. Remove it with the list under "The example
@@ -340,18 +351,36 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 		Name:  cfg.Mail.FromName,
 	})
 
-	userService := services.NewUserService(db)
-	// The sign-in challenge counts the codes each account offers in the store
-	// the rate limit counts in, for the reason the limit does: a count per
-	// replica is a budget multiplied by the number of replicas.
-	twoFactorService, err := services.NewTwoFactorService(db, fw.App.Key, limitStore.GetStore())
+	// The account rules, from hesape/auth/account, over what stays this
+	// application's: the users query, the *models.User it builds and the user
+	// policy, adapted once by account.PolicyOf. Every operation a signed-in
+	// subject makes on an account runs under the Grant that policy issues, and
+	// every change stores its event in the outbox the relay above empties.
+	//
+	// A rule of this application's own -- a column filled at registration, a
+	// suspension, something created beside a new account -- is a hook in
+	// account.Hooks on this Config, never a copy of the rules.
+	users, err := account.NewUsers(account.Config{
+		DB:     db,
+		Outbox: outbox,
+		Query:  func() *model.Builder { return models.Users(db).Base() },
+		Policy: account.PolicyOf(policies.UserPolicy{}),
+	})
 	if err != nil {
-		return App{}, fmt.Errorf("bootstrap: build two-factor service: %w", err)
+		return App{}, fmt.Errorf("bootstrap: build the account rules: %w", err)
+	}
+	// The second factor of those accounts. The sign-in challenge counts the
+	// codes each account offers in the store the rate limit counts in, for the
+	// reason the limit does: a count per replica is a budget multiplied by the
+	// number of replicas. Its secrets are sealed under the application key.
+	factors, err := account.NewFactors(db, fw.App.Key, limitStore.GetStore(), outbox, users)
+	if err != nil {
+		return App{}, fmt.Errorf("bootstrap: build the second factor: %w", err)
 	}
 
 	// The personal access tokens, over the accounts they act as and for the
 	// tenant every sign-in belongs to.
-	tokens := services.NewPersonalAccessTokenService(db, userService, cfg.Auth.Tenant)
+	tokens := services.NewPersonalAccessTokenService(db, users, cfg.Auth.Tenant)
 
 	// Where Idempotent keeps the answers it replays: the store the rate limit
 	// counts in, for the reason the limit counts there -- a key one replica
@@ -379,7 +408,7 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	// The controllers, built here and handed to the routes. A controller that
 	// constructed its own collaborators would be a controller no test can pin.
 	deps := routes.Deps{
-		Home: controllers.NewHomeController(userService, cfg.Auth.Tenant),
+		Home: controllers.NewHomeController(users, cfg.Auth.Tenant),
 		// What the route guards read. The same store the pipeline was given,
 		// and it has to be: two stores over one key would agree about the
 		// signature and disagree about which sessions exist.
@@ -560,7 +589,7 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 		// Notes is the example resource's. Remove it with the list under "The
 		// example resource" in README.md.
 		Notes:  notes,
-		Kernel: k, DB: db, Users: userService, TwoFactor: twoFactorService, Tokens: tokens,
+		Kernel: k, DB: db, Users: users, TwoFactor: factors, Tokens: tokens,
 		EmailCodes: emailCodes, Sessions: sessions, Scheduler: sched,
 		Relay: relay, Queue: queueStore, Mail: mailer, Notifier: notifier, Cache: stores.SharedStore(),
 	}, nil

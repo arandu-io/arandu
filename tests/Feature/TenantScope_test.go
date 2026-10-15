@@ -43,9 +43,9 @@ const tenantColumn = "tenant_id"
 // a name here is a statement that somebody looked at the queries, so it is meant
 // to be the step that makes a person look.
 var scopedByTenant = map[string]string{
-	"users":               "the application UserService authorizes first and scopes every model query with its Grant",
-	"user_two_factor":     "the second-factor repository checks its Grant and reads and writes through the model, which scopes every query by the Grant's tenant",
-	"user_recovery_codes": "the second-factor repository reads and spends recovery codes through the model, scoped by the Grant's tenant and the user",
+	"users":               "hesape/auth/account authorizes through the application's UserPolicy and reads and writes through models.Users, whose every query is scoped by the Grant's tenant",
+	"user_two_factor":     "hesape/auth/account checks its Grant and reads and writes enrolments through its model, which scopes every query by the Grant's tenant",
+	"user_recovery_codes": "hesape/auth/account reads and spends recovery codes through its model, scoped by the Grant's tenant and the user",
 	"outbox":              "the domain events, sealed with the Grant that produced them",
 	"jobs":                "the queue, whose rows carry the tenant they were enqueued for",
 	// Read before the claim was written, which is what the claim is for. Every

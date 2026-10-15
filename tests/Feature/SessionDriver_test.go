@@ -13,6 +13,7 @@ import (
 
 	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // SESSION_DRIVER says where session state is kept, and the proof that it does
@@ -82,10 +83,7 @@ func TestTheSessionIsKeptByTheStoreTheConnectorOpened(t *testing.T) {
 		email    = "ana@example.test"
 		password = "a-long-enough-password"
 	)
-	user, err := first.Users.Register(context.Background(), bootstrap.Tenant(), "Ana", email, password)
-	if err != nil {
-		t.Fatalf("registering: %v", err)
-	}
+	user := tests.Register(t, first, "Ana", email, password)
 
 	// UI calls this exact Rotate seam only after every factor succeeds; keeping
 	// the storage proof here avoids making the bare skeleton depend on UI that

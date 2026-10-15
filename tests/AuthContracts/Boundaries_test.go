@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -53,41 +54,6 @@ func TestAuthControllerPlaceholderUsesTheInstallerPackage(t *testing.T) {
 	}
 }
 
-func TestCredentialVerificationHasNoSessionMutationSurface(t *testing.T) {
-	root := projectRoot(t)
-	path := filepath.Join(root, "app", "Services", "UserService.go")
-	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-	if err != nil {
-		t.Fatalf("parsing UserService: %v", err)
-	}
-
-	found := false
-	for _, declaration := range file.Decls {
-		function, ok := declaration.(*ast.FuncDecl)
-		if !ok || function.Name.Name != "VerifyCredentials" {
-			continue
-		}
-		found = true
-		ast.Inspect(function.Body, func(node ast.Node) bool {
-			switch value := node.(type) {
-			case *ast.Ident:
-				if value.Name == "SessionGuard" {
-					t.Errorf("VerifyCredentials names %s", value.Name)
-				}
-			case *ast.SelectorExpr:
-				switch value.Sel.Name {
-				case "Login", "Rotate", "Regenerate", "Start":
-					t.Errorf("VerifyCredentials mutates session state through %s", value.Sel.Name)
-				}
-			}
-			return true
-		})
-	}
-	if !found {
-		t.Fatal("UserService has no VerifyCredentials seam")
-	}
-}
-
 func TestApplicationCodeDoesNotNameSessionGuard(t *testing.T) {
 	root := projectRoot(t)
 	for _, directory := range []string{"app", "bootstrap", "config"} {
@@ -117,98 +83,94 @@ func TestApplicationCodeDoesNotNameSessionGuard(t *testing.T) {
 	}
 }
 
-// TestSecondFactorPersistenceGoesThroughTheModel keeps the second factor on
-// the one data path: every read and write through the generated query of the
-// model, scoped by the Grant's tenant, and no statement written by hand beside
-// it. A raw statement is a query the tenant scope never sees. What the
-// conditional writes decide, and that each stays inside its tenant, is proved
-// by running them, in tests/NativeAuth.
-func TestSecondFactorPersistenceGoesThroughTheModel(t *testing.T) {
-	path := filepath.Join(projectRoot(t), "app", "Repositories", "TwoFactorRepository.go")
-	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+// TestTheAccountRulesAreNotCopiedIntoTheApplication keeps the account rules
+// where they are written once: hesape/auth/account, which bootstrap/app.go
+// builds over this application's users. A copy of them in app/ is a second
+// set of rules that a fix to the package never reaches -- which is how nine
+// projects came to carry nine diverging copies, two with a hole in them.
+//
+// What stays here is the user model, the user policy and the users
+// migrations. The files the copy lived in must not come back, and no package
+// under app/ may declare what they declared.
+func TestTheAccountRulesAreNotCopiedIntoTheApplication(t *testing.T) {
+	root := projectRoot(t)
+	for _, file := range []string{
+		"app/Services/UserService.go",
+		"app/Services/TwoFactorService.go",
+		"app/Repositories/TwoFactorRepository.go",
+		"app/Models/TwoFactor.go",
+		"app/Models/TwoFactorQuery.go",
+		"app/Models/RecoveryCodeQuery.go",
+		"app/Policies/TwoFactorPolicy.go",
+		"app/Events/User.go",
+		"database/migrations/20260828_0003_create_two_factor.go",
+	} {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(file))); err == nil {
+			t.Errorf("%s is back: the account rules are hesape/auth/account's, built in bootstrap/app.go", file)
+		}
+	}
+
+	// The types the copy declared, anywhere under app/.
+	copied := map[string]bool{
+		"UserService": true, "NewUserService": true, "TwoFactorService": true, "NewTwoFactorService": true,
+		"TwoFactorRepository": true, "NewTwoFactorRepository": true, "TwoFactor": true, "RecoveryCode": true,
+		"TwoFactorPolicy": true,
+	}
+	// The event names it declared, in app/Events only: elsewhere the same
+	// word names something else, such as the mail the sign-in screens send.
+	events := map[string]bool{
+		"UserRegistered": true, "EmailVerified": true, "PasswordReset": true, "PasswordChanged": true,
+		"ProfileUpdated": true, "AccountClosed": true, "TwoFactorEnabled": true, "TwoFactorDisabled": true,
+		"RecoveryCodesRegenerated": true, "RecoveryCodeUsed": true,
+	}
+	eventsDirectory := filepath.Join(root, "app", "Events")
+	err := filepath.WalkDir(filepath.Join(root, "app"), func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			return err
+		}
+		for _, declaration := range file.Decls {
+			for _, name := range declaredNames(declaration) {
+				if copied[name] || events[name] && filepath.Dir(path) == eventsDirectory {
+					t.Errorf("%s declares %s, which hesape/auth/account owns", relative(root, path), name)
+				}
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("parsing the repository: %v", err)
-	}
-	raw := map[string]bool{"ExecContext": true, "QueryContext": true, "QueryRowContext": true, "Exec": true, "Query": true, "QueryRow": true}
-	ast.Inspect(file, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		if selector, ok := call.Fun.(*ast.SelectorExpr); ok && raw[selector.Sel.Name] {
-			t.Errorf("the repository issues a statement by hand: %s", expressionName(call.Fun))
-		}
-		return true
-	})
-}
-
-func TestSecondFactorRequiredChecksTheReadGrantBeforeDelegating(t *testing.T) {
-	path := filepath.Join(projectRoot(t), "app", "Repositories", "TwoFactorRepository.go")
-	method := methodDeclaration(t, path, "Required")
-	if len(method.Body.List) == 0 {
-		t.Fatal("TwoFactorRepository.Required has no body")
-	}
-
-	checksGrant := false
-	checksReadAction := false
-	ast.Inspect(method.Body.List[0], func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok || expressionName(call.Fun) != "grant.Check" {
-			return true
-		}
-		checksGrant = true
-		if len(call.Args) == 1 && expressionName(call.Args[0]) == "policies.ActionTwoFactorRead" {
-			checksReadAction = true
-		}
-		return true
-	})
-	if !checksGrant || !checksReadAction {
-		t.Fatal("TwoFactorRepository.Required does not start by checking ActionTwoFactorRead")
+		t.Fatalf("walking app: %v", err)
 	}
 }
 
-func TestSecondFactorServicesReauthorizeTheLoadedEnrollment(t *testing.T) {
-	path := filepath.Join(projectRoot(t), "app", "Services", "TwoFactorService.go")
-	for _, methodName := range []string{"Confirm", "RegenerateRecoveryCodes"} {
-		t.Run(methodName, func(t *testing.T) {
-			method := methodDeclaration(t, path, methodName)
-			rowPosition := token.NoPos
-			authorized := map[string]bool{}
-			ast.Inspect(method.Body, func(node ast.Node) bool {
-				call, ok := node.(*ast.CallExpr)
-				if !ok {
-					return true
-				}
-				switch expressionName(call.Fun) {
-				case "s.repository.Find":
-					rowPosition = call.Pos()
-				// One function under two spellings: hesape/auth declares it,
-				// and the framework/security bridge forwards to it until v1.0.0.
-				case "auth.Authorize", "security.Authorize":
-					if rowPosition == token.NoPos || call.Pos() < rowPosition || len(call.Args) != 5 {
-						return true
-					}
-					if expressionName(call.Args[4]) != "enrolment" {
-						return true
-					}
-					authorized[expressionName(call.Args[3])] = true
-				}
-				return true
-			})
-
-			if rowPosition == token.NoPos {
-				t.Fatal("the service does not load the enrollment")
-			}
-			for _, action := range []string{
-				"policies.ActionTwoFactorRead",
-				"policies.ActionTwoFactorManage",
-			} {
-				if !authorized[action] {
-					t.Errorf("the loaded enrollment is not reauthorized for %s", action)
+// declaredNames are the package-level names one declaration introduces: a
+// function that is not a method, a type, a constant or a variable.
+func declaredNames(declaration ast.Decl) []string {
+	var names []string
+	switch value := declaration.(type) {
+	case *ast.FuncDecl:
+		if value.Recv == nil {
+			names = append(names, value.Name.Name)
+		}
+	case *ast.GenDecl:
+		for _, spec := range value.Specs {
+			switch spec := spec.(type) {
+			case *ast.TypeSpec:
+				names = append(names, spec.Name.Name)
+			case *ast.ValueSpec:
+				for _, name := range spec.Names {
+					names = append(names, name.Name)
 				}
 			}
-		})
+		}
 	}
+	return names
 }
 
 func projectRoot(t *testing.T) string {
@@ -226,36 +188,4 @@ func relative(root, path string) string {
 		return path
 	}
 	return name
-}
-
-func methodDeclaration(t *testing.T, path, method string) *ast.FuncDecl {
-	t.Helper()
-
-	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-	if err != nil {
-		t.Fatalf("parsing %s: %v", relative(projectRoot(t), path), err)
-	}
-	for _, declaration := range file.Decls {
-		function, ok := declaration.(*ast.FuncDecl)
-		if !ok || function.Name.Name != method || function.Recv == nil {
-			continue
-		}
-		return function
-	}
-	t.Fatalf("%s has no %s method", relative(projectRoot(t), path), method)
-	return nil
-}
-
-func expressionName(expression ast.Expr) string {
-	switch value := expression.(type) {
-	case *ast.Ident:
-		return value.Name
-	case *ast.SelectorExpr:
-		prefix := expressionName(value.X)
-		if prefix == "" {
-			return value.Sel.Name
-		}
-		return prefix + "." + value.Sel.Name
-	}
-	return ""
 }

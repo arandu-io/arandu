@@ -6,24 +6,25 @@ import (
 	"testing"
 
 	nativeauth "github.com/arandu-io/hesape/auth"
+	accounts "github.com/arandu-io/hesape/auth/account"
 
 	models "github.com/arandu-io/arandu/app/Models"
-	policies "github.com/arandu-io/arandu/app/Policies"
-	services "github.com/arandu-io/arandu/app/Services"
 	"github.com/arandu-io/arandu/bootstrap"
 	factories "github.com/arandu-io/arandu/database/factories"
 	"github.com/arandu-io/arandu/tests"
 )
 
 // TestTheUserFactoryMakesMembersNobodyCanSignInAs stores a batch through the
-// factory and reads it back through the user service: every account is in the
-// Grant's tenant, distinct, an ordinary member, and refuses every password.
+// factory and reads it back through the account rules the application wires:
+// every account is in the Grant's tenant, distinct, an ordinary member, and
+// refuses every password.
 func TestTheUserFactoryMakesMembersNobodyCanSignInAs(t *testing.T) {
-	_, db := tests.App(t)
+	app := tests.Booted(t)
+	db := app.DB
 	ctx := context.Background()
 	tenant := bootstrap.Tenant()
 
-	made, err := factories.Users(db).Count(3).Create(ctx, nativeauth.SystemGrant(policies.ActionUserCreate, tenant))
+	made, err := factories.Users(db).Count(3).Create(ctx, nativeauth.SystemGrant(accounts.ActionUserCreate, tenant))
 	if err != nil {
 		t.Fatalf("creating users through the factory: %v", err)
 	}
@@ -31,7 +32,7 @@ func TestTheUserFactoryMakesMembersNobodyCanSignInAs(t *testing.T) {
 		t.Fatalf("the factory made %d users, want 3", len(made))
 	}
 
-	users := services.NewUserService(db)
+	users := app.Users
 	seen := map[string]bool{}
 	for _, user := range made {
 		if seen[user.Email] {
@@ -39,11 +40,15 @@ func TestTheUserFactoryMakesMembersNobodyCanSignInAs(t *testing.T) {
 		}
 		seen[user.Email] = true
 
-		stored, err := users.Lookup(ctx, tenant, user.Email)
+		read, err := users.Lookup(ctx, tenant, user.Email)
 		if err != nil {
 			t.Fatalf("reading %s back in the Grant's tenant: %v", user.Email, err)
 		}
-		if stored.ID != user.ID || stored.TenantID != tenant || !stored.Verified() {
+		stored, ok := read.(*models.User)
+		if !ok {
+			t.Fatalf("the account rules read a %T, want *models.User", read)
+		}
+		if stored.ID != user.ID || stored.TenantID != tenant || !stored.IsVerified() {
 			t.Errorf("stored account = %+v, want id %s, verified, in %s", stored, user.ID, tenant)
 		}
 		if len(stored.Roles) != 1 || stored.Roles[0] != models.RoleMember {

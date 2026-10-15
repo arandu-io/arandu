@@ -14,8 +14,8 @@ const DefaultTenant = "00000000-0000-4000-8000-000000000001"
 // Auth is who may sign in, and for how long.
 //
 // What it deliberately does not hold is a list of guards and providers. There is
-// one way to authenticate -- the application user service, over the users
-// table -- and a second configurable path would be a second way to do one
+// one way to authenticate -- the account rules of hesape/auth/account, over the
+// users table -- and a second configurable path would be a second way to do one
 // thing.
 //
 // It does not hold the session lifetime either. The store is built from

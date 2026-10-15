@@ -1,7 +1,6 @@
 package feature_test
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -86,10 +85,7 @@ func assertDrawsTheAppName(t *testing.T, page, body string) {
 // the request, not from the controller.
 func TestEveryLandingPageVisitDrawsTheAppName(t *testing.T) {
 	app := tests.Booted(t)
-	user, err := app.Users.Register(context.Background(), bootstrap.Tenant(), "Ana Lima", "ana@example.test", "a-long-enough-password")
-	if err != nil {
-		t.Fatalf("registering the account: %v", err)
-	}
+	user := tests.Register(t, app, "Ana Lima", "ana@example.test", "a-long-enough-password")
 	guest := arandutest.NewClient(t, app.Kernel.Handler()).Get("/").OK()
 	assertDrawsTheAppName(t, "the landing page, for a guest", guest.Body())
 	signedIn := tests.SignedIn(t, app, user.Subject()).Get("/").AssertOk()
@@ -101,10 +97,7 @@ func TestEveryLandingPageVisitDrawsTheAppName(t *testing.T) {
 // without loading the session itself.
 func TestTheLandingPageGreetsWhoIsSignedIn(t *testing.T) {
 	app := tests.Booted(t)
-	user, err := app.Users.Register(context.Background(), bootstrap.Tenant(), "Ana Lima", "ana@example.test", "a-long-enough-password")
-	if err != nil {
-		t.Fatalf("registering the account: %v", err)
-	}
+	user := tests.Register(t, app, "Ana Lima", "ana@example.test", "a-long-enough-password")
 	tests.SignedIn(t, app, user.Subject()).Get("/").AssertOk().AssertSee("Ana Lima")
 	arandutest.NewClient(t, app.Kernel.Handler()).Get("/").OK().DontSee("Ana Lima")
 }
@@ -124,10 +117,7 @@ func TestTheLandingPageGreetsWhoIsSignedIn(t *testing.T) {
 // to whichever layout the project has.
 func TestTheLandingPageOffersOnlyAddressesThatAnswer(t *testing.T) {
 	app := tests.Booted(t)
-	user, err := app.Users.Register(context.Background(), bootstrap.Tenant(), "Ana Lima", "ana@example.test", "a-long-enough-password")
-	if err != nil {
-		t.Fatalf("registering the account: %v", err)
-	}
+	user := tests.Register(t, app, "Ana Lima", "ana@example.test", "a-long-enough-password")
 	signedIn := user.Subject()
 
 	for _, c := range []struct {

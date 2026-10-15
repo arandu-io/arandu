@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/arandu-io/framework/events"
+	accounts "github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/database/schema"
 	"github.com/arandu-io/hesape/log"
@@ -65,7 +66,7 @@ func TestThePreviousBinaryKeepsServingWhileTheNewSchemaIsInPlace(t *testing.T) {
 	// Serving at the release the schema was migrated for, so that everything
 	// below is a change and not the starting state.
 	assertServing(t, handler)
-	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), "Ana", "ana@example.test", password); err != nil {
+	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), accounts.Registration{Name: "Ana", Email: "ana@example.test", Password: password}); err != nil {
 		t.Fatalf("registering before the schema changed: %v", err)
 	}
 
@@ -114,7 +115,7 @@ func TestThePreviousBinaryKeepsServingWhileTheNewSchemaIsInPlace(t *testing.T) {
 
 	// A write. The INSERT names the columns this binary knows and none of the
 	// new ones, which is what the defaulted column has to tolerate.
-	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), "Bruno", "bruno@example.test", password); err != nil {
+	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), accounts.Registration{Name: "Bruno", Email: "bruno@example.test", Password: password}); err != nil {
 		t.Fatalf("the previous binary cannot write against the new schema: %v", err)
 	}
 
@@ -160,7 +161,7 @@ func TestThePreviousBinaryStopsServingWhenTheNewSchemaTakesAColumnAway(t *testin
 
 	const password = "a-long-enough-password"
 
-	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), "Ana", "ana@example.test", password); err != nil {
+	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), accounts.Registration{Name: "Ana", Email: "ana@example.test", Password: password}); err != nil {
 		t.Fatalf("registering before the schema changed: %v", err)
 	}
 
@@ -174,7 +175,7 @@ func TestThePreviousBinaryStopsServingWhenTheNewSchemaTakesAColumnAway(t *testin
 		t.Fatalf("dropping the column: %v", err)
 	}
 
-	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), "Bruno", "bruno@example.test", password); err == nil {
+	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), accounts.Registration{Name: "Bruno", Email: "bruno@example.test", Password: password}); err == nil {
 		t.Error("the previous binary wrote a column the new schema had taken away, so this test cannot tell a safe migration from an unsafe one")
 	}
 	if _, err := app.Users.VerifyCredentials(ctx, bootstrap.Tenant(), "ana@example.test", password, "127.0.0.1"); err == nil {
