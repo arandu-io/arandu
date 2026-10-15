@@ -11,6 +11,8 @@ import (
 	accounts "github.com/arandu-io/hesape/auth/account"
 
 	appmiddleware "github.com/arandu-io/arandu/app/Http/Middleware"
+	models "github.com/arandu-io/arandu/app/Models"
+	policies "github.com/arandu-io/arandu/app/Policies"
 	"github.com/arandu-io/arandu/bootstrap"
 	factories "github.com/arandu-io/arandu/database/factories"
 	"github.com/arandu-io/arandu/tests"
@@ -110,5 +112,58 @@ func TestATokenIsIssuedByAnAccountForItself(t *testing.T) {
 	}
 	if _, _, err := app.Tokens.Issue(ctx, ana, "", 0); err == nil {
 		t.Error("a token was issued with no name")
+	}
+}
+
+// TestAClosedAccountActsThroughNoToken: closing an account released its
+// address and locked its password, and every token it had issued went on
+// acting as it. The close now revokes them in its own transaction, and a
+// token that reaches an account closed or refused anyway is not accepted.
+func TestAClosedAccountActsThroughNoToken(t *testing.T) {
+	app := tests.Booted(t)
+	ctx := context.Background()
+	resolver := appmiddleware.NewPersonalAccessTokens(app.Tokens)
+
+	const password = "a password long enough to close with"
+	registered, err := app.Users.Register(ctx, bootstrap.Tenant(), accounts.Registration{
+		Name: "Ana", Email: "ana.closes@example.test", Password: password,
+	})
+	if err != nil {
+		t.Fatalf("registering: %v", err)
+	}
+	ana := registered.(*models.User).Subject()
+
+	token, _, err := app.Tokens.Issue(ctx, ana, "deploy script", 0)
+	if err != nil {
+		t.Fatalf("issuing a token: %v", err)
+	}
+	if _, err := resolver.ResolveToken(ctx, middleware.DigestToken(token)); err != nil {
+		t.Fatalf("a token of an open account was refused: %v", err)
+	}
+
+	if err := app.Users.Close(ctx, ana, password, "127.0.0.1"); err != nil {
+		t.Fatalf("closing the account: %v", err)
+	}
+	if _, err := resolver.ResolveToken(ctx, middleware.DigestToken(token)); !errors.Is(err, middleware.ErrUnknownToken) {
+		t.Fatalf("a token of a closed account resolved with %v, want ErrUnknownToken", err)
+	}
+	// The close deleted the row, and the refusal is not only the resolver's.
+	left, err := models.PersonalAccessTokens(app.DB).Where("user_id", "=", ana.ID).
+		First(ctx, auth.SystemGrant(policies.PersonalAccessTokenList, bootstrap.Tenant()))
+	if err != nil {
+		t.Fatalf("reading the closed account's tokens: %v", err)
+	}
+	if left != nil {
+		t.Fatalf("the close left the token %q of the closed account stored", left.Name)
+	}
+
+	// A token the close did not reach -- issued after it, or by a release
+	// that did not revoke -- is refused by the resolver itself.
+	late, _, err := app.Tokens.Issue(ctx, ana, "issued after the close", 0)
+	if err != nil {
+		t.Fatalf("issuing a token after the close: %v", err)
+	}
+	if _, err := resolver.ResolveToken(ctx, middleware.DigestToken(late)); !errors.Is(err, middleware.ErrUnknownToken) {
+		t.Fatalf("a token reaching a closed account resolved with %v, want ErrUnknownToken", err)
 	}
 }

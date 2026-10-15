@@ -360,11 +360,21 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 	// A rule of this application's own -- a column filled at registration, a
 	// suspension, something created beside a new account -- is a hook in
 	// account.Hooks on this Config, never a copy of the rules.
+	//
+	// Closing an account revokes its personal access tokens in the close's own
+	// transaction. The token service is built below, over these rules, so the
+	// hook names it through the variable it is assigned to.
+	var tokens *services.PersonalAccessTokenService
 	users, err := account.NewUsers(account.Config{
 		DB:     db,
 		Outbox: outbox,
 		Query:  func() *model.Builder { return models.Users(db).Base() },
 		Policy: account.PolicyOf(policies.UserPolicy{}),
+		Hooks: account.Hooks{
+			AfterClose: func(ctx context.Context, g auth.Grant, user account.Account) error {
+				return tokens.RevokeAll(ctx, g, user.AccountID())
+			},
+		},
 	})
 	if err != nil {
 		return App{}, fmt.Errorf("bootstrap: build the account rules: %w", err)
@@ -380,7 +390,7 @@ func Build(cfg appconfig.Config, db *database.DB) (App, error) {
 
 	// The personal access tokens, over the accounts they act as and for the
 	// tenant every sign-in belongs to.
-	tokens := services.NewPersonalAccessTokenService(db, users, cfg.Auth.Tenant)
+	tokens = services.NewPersonalAccessTokenService(db, users, cfg.Auth.Tenant)
 
 	// Where Idempotent keeps the answers it replays: the store the rate limit
 	// counts in, for the reason the limit counts there -- a key one replica

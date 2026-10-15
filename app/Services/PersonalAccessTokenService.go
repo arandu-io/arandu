@@ -20,7 +20,8 @@ import (
 )
 
 // ErrTokenNotAccepted is what Resolve answers for a token it does not accept:
-// one never issued, one revoked, one expired, one whose account is gone. It is
+// one never issued, one revoked, one expired, one whose account is gone,
+// closed or refused by Hooks.Admit. It is
 // one error for all of them, so nothing that repeats it can tell a client
 // which.
 var ErrTokenNotAccepted = errors.New("personal access token: not accepted")
@@ -124,6 +125,18 @@ func (s *PersonalAccessTokenService) Revoke(ctx context.Context, actor auth.Subj
 	return err
 }
 
+// RevokeAll deletes every token of the account userID, under the Grant of the
+// close that is taking the account away: Hooks.AfterClose calls it inside that
+// close's transaction, so a closed account keeps no token and an account whose
+// close failed loses none.
+func (s *PersonalAccessTokenService) RevokeAll(ctx context.Context, closing auth.Grant, userID string) error {
+	if err := closing.Check(account.ActionUserUpdate); err != nil {
+		return err
+	}
+	_, err := models.PersonalAccessTokens(s.db).Where("user_id", "=", userID).Delete(ctx, closing)
+	return err
+}
+
 // Resolve answers the account the token with this digest acts as, read from
 // the stored account so its roles are the ones stored for it, or
 // ErrTokenNotAccepted.
@@ -149,6 +162,11 @@ func (s *PersonalAccessTokenService) Resolve(ctx context.Context, tokenDigest st
 	}
 	if err != nil {
 		return auth.Subject{}, err
+	}
+	// The account answers to the rules a sign-in is held to: a closed one,
+	// or one Hooks.Admit refuses, acts through no token either.
+	if err := s.users.Admit(ctx, owner); err != nil {
+		return auth.Subject{}, ErrTokenNotAccepted
 	}
 	// The account rules hand back the *User this application's users query
 	// built; its roles are what the subject carries.
