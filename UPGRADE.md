@@ -10,6 +10,94 @@ comment or a test that is the skeleton's own is not.
 
 ---
 
+## v0.35.1 — closing an account takes its tokens away
+
+`Users.Close` released the address and locked the password, and every personal
+access token the account had issued went on acting as it. hesape v0.63.0 gives
+the account rules `Hooks.AfterClose`, which runs inside the close's
+transaction, and `Users.Admit`, which answers whether an account may act
+through a credential other than its password. This skeleton uses both; a
+project created from v0.35.0 makes the same three changes.
+
+### 1. Require the releases
+
+```sh
+go get github.com/arandu-io/framework@v0.57.1 github.com/arandu-io/hesape@v0.63.0
+go mod tidy
+```
+
+### 2. The token service
+
+In `app/Services/PersonalAccessTokenService.go`, add the method the close
+calls:
+
+```go
+func (s *PersonalAccessTokenService) RevokeAll(ctx context.Context, closing auth.Grant, userID string) error {
+	if err := closing.Check(account.ActionUserUpdate); err != nil {
+		return err
+	}
+	_, err := models.PersonalAccessTokens(s.db).Where("user_id", "=", userID).Delete(ctx, closing)
+	return err
+}
+```
+
+and in `Resolve`, right after `FindForAuthentication` answers the owner, refuse
+an account the rules refuse:
+
+```go
+if err := s.users.Admit(ctx, owner); err != nil {
+	return auth.Subject{}, ErrTokenNotAccepted
+}
+```
+
+`Admit` answers nothing but a refusal -- a closed account, or one the
+project's `Hooks.Admit` refuses -- so every error it returns is the token's
+`ErrTokenNotAccepted`.
+
+### 3. The wiring
+
+In `bootstrap/app.go`, declare the token service before the account rules,
+hand the close to it, and assign it where it was built with `:=`:
+
+```go
+var tokens *services.PersonalAccessTokenService
+users, err := account.NewUsers(account.Config{
+	// ...
+	Hooks: account.Hooks{
+		AfterClose: func(ctx context.Context, g auth.Grant, user account.Account) error {
+			return tokens.RevokeAll(ctx, g, user.AccountID())
+		},
+	},
+})
+// ...
+tokens = services.NewPersonalAccessTokenService(db, users, cfg.Auth.Tenant)
+```
+
+A project that already sets `Hooks` keeps its other hooks beside this one. One
+whose own credentials act as an account -- a remembered device, a session read
+back from a store -- deletes them in the same hook and asks `Users.Admit` where
+it resolves them.
+
+`tests/Feature/PersonalAccessTokens_test.go`'s
+`TestAClosedAccountActsThroughNoToken` is the test.
+
+### Beside it
+
+- A project that published the sign-in screens republishes them for ui
+  v0.24.2, which signs in a password stored with a trailing space without
+  rewriting its hash: `go run github.com/arandu-io/ui@v0.24.2 auth --force`,
+  as ui's
+  [UPGRADE.md for v0.24.2](https://github.com/arandu-io/ui/blob/main/UPGRADE.md)
+  says.
+- A project whose forms carry personal fields -- a CPF, a mobile number --
+  keeps them out of the flash cookie by naming them once, at boot, on the
+  router `routes.Web` receives: `r.Flash().Withhold("cpf", "mobile")` in
+  `routes/web.go`. This skeleton has none.
+
+Then `aru view:build`, `go test ./...` and `aru doctor`.
+
+---
+
 ## v0.35.0 — the account rules are `hesape/auth/account`
 
 Projects created from v0.34.4 or earlier carry their own copy of the account
