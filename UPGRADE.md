@@ -1,0 +1,206 @@
+# Upgrade guide
+
+A project is a copy of this skeleton, taken by `aru new` on the day it was
+created, and nothing pulls later releases into it. This file says, release by
+release, what to change in a project cloned from an earlier skeleton to bring
+it where a new one starts.
+
+Only what a project has to do is listed. A change to the example resource, a
+comment or a test that is the skeleton's own is not.
+
+---
+
+## v0.35.0 — the account rules are `hesape/auth/account`
+
+Projects created from v0.34.4 or earlier carry their own copy of the account
+and second-factor rules: `UserService`, `TwoFactorService` and the files around
+them. Since hesape v0.60.0 those rules are a package,
+`github.com/arandu-io/hesape/auth/account`, and this skeleton builds them from
+it. What stays the project's is the user model, the user policy, the users
+migrations and the screens.
+
+Nothing in the database changes. The package reads and writes the rows the copy
+wrote -- the `user_two_factor` and `user_recovery_codes` tables, the sealed TOTP
+secrets, the recovery-code hashes, the password fingerprint a reset code or a
+pending sign-in carries, and every event name and payload -- so a code issued
+before the upgrade is accepted after it.
+
+The procedure below is the skeleton's half. hesape's
+[UPGRADE.md for v0.60.0](https://github.com/arandu-io/hesape/blob/main/UPGRADE.md)
+describes the package, and ui's
+[UPGRADE.md for v0.24.0](https://github.com/arandu-io/ui/blob/main/UPGRADE.md)
+the sign-in screens that call it, including the hooks a project with its own
+sign-up fields uses instead of a copy.
+
+### 1. Require the releases
+
+```sh
+go get github.com/arandu-io/framework@v0.57.0 github.com/arandu-io/hesape@v0.60.0
+go mod tidy
+```
+
+and build with `aru` v0.73.0: `ARG ARU_VERSION=v0.73.0` in the `Dockerfile`,
+and the three mentions of the version in `AGENTS.md`.
+
+### 2. Delete the copy
+
+```sh
+git rm app/Services/UserService.go app/Services/TwoFactorService.go \
+  app/Repositories/TwoFactorRepository.go \
+  app/Models/TwoFactor.go app/Models/TwoFactorQuery.go app/Models/RecoveryCodeQuery.go \
+  app/Policies/TwoFactorPolicy.go app/Events/User.go
+```
+
+`app/Events/User.go` held only the auth event names and their payload; they are
+`account.UserRegistered`, `account.EmailVerified` and the rest, with
+`account.UserEvent` as the payload. A project that added its own events to that
+file moves them to a file of their own first.
+
+### 3. The user model
+
+`*models.User` implements `account.Account`. In `app/Models/User.go`:
+
+- add the six readers, `AccountID`, `AccountTenant`, `AccountEmail`,
+  `AccountName`, `PasswordHash` and `IsVerified`, each returning its column, and
+  `var _ account.Account = (*User)(nil)` beside them;
+- rename `Verified()` to `IsVerified()`, in `Subject()` and wherever else it is
+  called;
+- delete `PasswordFingerprint()`: the function is `account.Fingerprint(hash)`;
+- delete the `GetQuery` scope in the custom block, which only the copy's
+  credential provider called.
+
+### 4. The user policy
+
+`UserPolicy` decides over `*models.User` -- the pointer the users query builds,
+which is what `account.PolicyOf` hands it:
+
+```go
+func (UserPolicy) Can(_ context.Context, subject auth.Subject, action auth.Action, user *models.User) error
+
+var _ auth.Policy[*models.User] = UserPolicy{}
+```
+
+Delete the `ActionUser*` constants and compare against `account.ActionUserView`,
+`account.ActionUserCreate`, `account.ActionUserUpdate`,
+`account.ActionUserDelete` and `account.ActionUserNamesPublic`. They are the
+same strings; every `policies.ActionUser*` elsewhere, a seeder or a test
+included, becomes `account.ActionUser*`.
+
+### 5. The second factor's migration
+
+Keep `database/migrations/20260828_0003_create_two_factor.go`, or replace it
+with the package's, the way this skeleton does: delete the file and add
+`database/migrations/account.go`:
+
+```go
+package migrations
+
+import (
+	"github.com/arandu-io/hesape/auth/account"
+	"github.com/arandu-io/hesape/database/migrations"
+)
+
+func init() {
+	for _, migration := range account.Migrations() {
+		migrations.Register(migration)
+	}
+}
+```
+
+The package's migration has the same name and the same schema, so a database
+that applied the old one sees nothing pending. Register one or the other,
+never both: two migrations under one name stop the binary when it starts.
+
+### 6. The wiring
+
+In `bootstrap/app.go`, build the outbox once, hand it to the relay, and build
+the account rules over it where `NewUserService` and `NewTwoFactorService` were:
+
+```go
+outbox := events.NewOutbox(db)
+relay := events.NewRelay(outbox, listeners.Each{ /* ... */ }, events.RelayOptions{Locker: locker})
+
+users, err := account.NewUsers(account.Config{
+	DB:     db,
+	Outbox: outbox,
+	Query:  func() *model.Builder { return models.Users(db).Base() },
+	Policy: account.PolicyOf(policies.UserPolicy{}),
+})
+if err != nil {
+	return App{}, fmt.Errorf("bootstrap: build the account rules: %w", err)
+}
+factors, err := account.NewFactors(db, fw.App.Key, limitStore.GetStore(), outbox, users)
+if err != nil {
+	return App{}, fmt.Errorf("bootstrap: build the second factor: %w", err)
+}
+```
+
+`App.Users` becomes `*account.Users` and `App.TwoFactor` `*account.Factors`.
+`users` goes wherever `userService` went -- `controllers.NewHomeController`,
+`services.NewPersonalAccessTokenService` -- and `factors` wherever
+`twoFactorService` did. A project that published the sign-in screens passes
+both to `authui.New`; its signature did not change.
+
+A rule the project had added to its copy is a hook on `account.Config.Hooks`:
+its own columns at registration are `Prepare`, what it creates beside a new
+account is `AfterCreate`, a suspension is `Admit`.
+
+### 7. The callers
+
+Every method answers an `account.Account`, which is the project's
+`*models.User`; a caller that needs the type asserts it once.
+
+- `app/Services/PersonalAccessTokenService.go` takes `*account.Users`, compares
+  with `account.ErrUserNotFound`, and builds the subject from the
+  `*models.User` that `FindForAuthentication` returns.
+- `database/seeders/seeders.go`: `Deps.Users` is `*account.Users`.
+- `database/seeders/UserSeeder.go`: `EnsureUser` is `Provision`, with the roles
+  written by `Draft.Fill`:
+
+  ```go
+  user, err := d.Users.Provision(ctx, d.Tenant, account.Draft{
+  	Name: name, Email: email, Password: password, Verified: true,
+  	Fill: func(a account.Account) error {
+  		a.(*models.User).Roles = append(models.Roles(nil), roles...)
+  		return nil
+  	},
+  })
+  ```
+
+  and `services.ErrUserNotFound` is `account.ErrUserNotFound`.
+- `Register(ctx, tenant, name, email, password)` is
+  `Register(ctx, tenant, account.Registration{Name: name, Email: email, Password: password})`.
+
+### 8. The tests
+
+The tests that exercised the copy -- `tests/NativeAuth`, and the source checks
+of the deleted files in `tests/AuthContracts` -- are replaced by the package's
+contract suite, run against the project's own users table, model and policy:
+
+```go
+func TestAccountContract(t *testing.T) {
+	accounttest.Run(t, func(t *testing.T) accounttest.Fixture {
+		db := openAMigratedDatabase(t) // the outbox, the users migrations, account.Migrations()
+		return accounttest.Fixture{
+			DB:     db,
+			Query:  func() *model.Builder { return models.Users(db).Base() },
+			Policy: account.PolicyOf(policies.UserPolicy{}),
+		}
+	})
+}
+```
+
+This skeleton's `tests/NativeAuth/AccountContract_test.go` is that test, and
+`tests/AuthContracts/Boundaries_test.go` holds the guard that keeps the copy
+from coming back.
+
+### 9. Republish the screens
+
+A project that published the sign-in screens republishes them against the
+package:
+
+```sh
+go run github.com/arandu-io/ui@v0.24.0 auth --force
+```
+
+Then `aru view:build`, `go test ./...` and `aru doctor`.
