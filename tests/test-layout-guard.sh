@@ -175,11 +175,9 @@ fi
 #    failure on any module that has a tests tree at all, which is every module
 #    it is meant to protect.
 #
-#    The tags are passed the way the framework passes them. No suite in this
-#    repository sits behind a build tag today -- tests/ is Feature and Unit, and
-#    CI runs `go test -race ./...` with no tags -- so the two words change
-#    nothing now, and they are what keeps this check honest on the day a suite
-#    moves behind one. The tag that must NEVER be passed here is `kyse`: it
+#    The tags are passed the way the framework passes them, with `browser`
+#    beside them: tests/Browser sits behind that tag, and a production package
+#    that reached the tests tree only under it would otherwise go unseen. The tag that must NEVER be passed here is `kyse`: it
 #    would pull resources/views/*.kyse.go into the build, and those do not parse
 #    as Go by design.
 asked=0
@@ -207,7 +205,7 @@ while IFS= read -r module; do
 	# below is about to ask for, so the cache is still warm.
 	(cd "$module" && GOWORK=off go mod download >/dev/null 2>&1) || true
 
-	if ! packages=$(cd "$module" && GOWORK=off go list -tags 'integration e2e' ./... 2>&1); then
+	if ! packages=$(cd "$module" && GOWORK=off go list -tags 'integration e2e browser' ./... 2>&1); then
 		echo "[FAILED] go list failed in $module, so nothing was checked there:"
 		printf '%s\n' "$packages" | sed 's/^/    /'
 		# The hint is printed only when the failure is the one it explains. A
@@ -230,7 +228,7 @@ while IFS= read -r module; do
 
 	# One import path per line and none of them has a space: the split is wanted.
 	# shellcheck disable=SC2086
-	if ! dependencies=$(cd "$module" && GOWORK=off go list -tags 'integration e2e' -deps $production 2>&1); then
+	if ! dependencies=$(cd "$module" && GOWORK=off go list -tags 'integration e2e browser' -deps $production 2>&1); then
 		echo "[FAILED] go list -deps failed in $module, so nothing was checked there:"
 		printf '%s\n' "$dependencies" | sed 's/^/    /'
 		fail=1
