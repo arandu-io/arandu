@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -279,6 +280,22 @@ func App(t *testing.T) (*arandutest.Client, *database.DB) {
 	t.Helper()
 	app := Booted(t)
 	return arandutest.NewClient(t, app.Kernel.Handler()), app.DB
+}
+
+// Binary builds this application's binary the way the Dockerfile does, with
+// the version and the commit stamped into main, and answers its path. It is
+// the artisan a deploy runs: a test that runs a command through it proves what
+// `aru migrate` and every other forwarded command reach.
+func Binary(t *testing.T, version, commit string) string {
+	t.Helper()
+	out := filepath.Join(t.TempDir(), "app")
+	build := exec.Command("go", "build", "-o", out,
+		"-ldflags", "-X main.version="+version+" -X main.commit="+commit, ".")
+	build.Dir = Root(t)
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("building the binary: %v\n%s", err, output)
+	}
+	return out
 }
 
 // Booted is what App boots, returned whole: the services, the session store and

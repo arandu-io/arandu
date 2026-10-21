@@ -315,7 +315,7 @@ func TestEachSuiteHoldsWhatItsNameSays(t *testing.T) {
 	// tests.Booted is the application built and booted, which is what Feature
 	// means; a file whose fixture calls it boots as surely as one that calls
 	// tests.App.
-	boots := regexp.MustCompile(`tests\.App\(|tests\.Booted\(|tests\.Kernel\(|tests\.Dispatch\(|tests\.Run\(|tests\.Open\(|tests\.Build\(|httptest\.NewRequest\(|httptest\.NewServer\(|migratedDB\(`)
+	boots := regexp.MustCompile(`tests\.App\(|tests\.Booted\(|tests\.Binary\(|tests\.Kernel\(|tests\.Dispatch\(|tests\.Run\(|tests\.Open\(|tests\.Build\(|httptest\.NewRequest\(|httptest\.NewServer\(|migratedDB\(`)
 
 	for _, suite := range []string{"Feature", "Unit"} {
 		dir := filepath.Join(tests.Root(t), "tests", suite)
