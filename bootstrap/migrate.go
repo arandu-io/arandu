@@ -231,6 +231,9 @@ func migrationCommands(cfg appconfig.Config, db *database.DB, app App) []console
 		MigrationGroups: nil,
 		Seed:            seedFor(cfg, app),
 		Wipe:            wipeFor(cfg, db),
+		// fresh, reset and refresh empty the whole schema, and run only in
+		// development: the zero value refuses them everywhere.
+		Environment: cfg.App.Env,
 	})
 }
 

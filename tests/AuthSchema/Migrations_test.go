@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +22,7 @@ var nativeAuthMigrationNames = []string{
 	"20260729_0001_create_users",
 	"20260809_0002_add_name_and_verification_to_users",
 	"20260828_0003_create_two_factor",
+	"20261019_0004_widen_two_factor_time_precision",
 }
 
 const nativeAuthTestPath = "tests/native-auth-schema"
@@ -156,8 +158,11 @@ func TestAnExistingAuthSchemaUpgradesOnceAndRollsBackOnlyTheNewBatch(t *testing.
 	if err != nil {
 		t.Fatalf("rolling back the upgrade: %v", err)
 	}
-	if !reflect.DeepEqual(reverted, nativeAuthMigrationNames[2:]) {
-		t.Fatalf("rollback reverted %v, want only %v", reverted, nativeAuthMigrationNames[2:])
+	// A batch is rolled back newest first.
+	wantReverted := slices.Clone(nativeAuthMigrationNames[2:])
+	slices.Reverse(wantReverted)
+	if !reflect.DeepEqual(reverted, wantReverted) {
+		t.Fatalf("rollback reverted %v, want only %v", reverted, wantReverted)
 	}
 	if !tableExists(t, harness.db, "users") {
 		t.Fatal("rolling back the second-factor upgrade removed the historical users table")
