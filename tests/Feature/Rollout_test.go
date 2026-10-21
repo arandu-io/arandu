@@ -13,7 +13,7 @@ import (
 	"github.com/arandu-io/hesape/database/schema"
 	"github.com/arandu-io/hesape/log"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
 )
 
 // What a rollout is, and what these two tests execute.
@@ -66,7 +66,7 @@ func TestThePreviousBinaryKeepsServingWhileTheNewSchemaIsInPlace(t *testing.T) {
 	// Serving at the release the schema was migrated for, so that everything
 	// below is a change and not the starting state.
 	assertServing(t, handler)
-	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), accounts.Registration{Name: "Ana", Email: "ana@example.test", Password: password}); err != nil {
+	if _, err := app.Users.Register(ctx, appconfig.Tenant(), accounts.Registration{Name: "Ana", Email: "ana@example.test", Password: password}); err != nil {
 		t.Fatalf("registering before the schema changed: %v", err)
 	}
 
@@ -115,7 +115,7 @@ func TestThePreviousBinaryKeepsServingWhileTheNewSchemaIsInPlace(t *testing.T) {
 
 	// A write. The INSERT names the columns this binary knows and none of the
 	// new ones, which is what the defaulted column has to tolerate.
-	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), accounts.Registration{Name: "Bruno", Email: "bruno@example.test", Password: password}); err != nil {
+	if _, err := app.Users.Register(ctx, appconfig.Tenant(), accounts.Registration{Name: "Bruno", Email: "bruno@example.test", Password: password}); err != nil {
 		t.Fatalf("the previous binary cannot write against the new schema: %v", err)
 	}
 
@@ -123,7 +123,7 @@ func TestThePreviousBinaryKeepsServingWhileTheNewSchemaIsInPlace(t *testing.T) {
 	// goes through the login path, which is the SELECT with the old column list
 	// scanned into the struct this binary was compiled with.
 	for _, email := range []string{"ana@example.test", "bruno@example.test"} {
-		if _, err := app.Users.VerifyCredentials(ctx, bootstrap.Tenant(), email, password, "127.0.0.1"); err != nil {
+		if _, err := app.Users.VerifyCredentials(ctx, appconfig.Tenant(), email, password, "127.0.0.1"); err != nil {
 			t.Fatalf("the previous binary cannot read %s back against the new schema: %v", email, err)
 		}
 	}
@@ -161,7 +161,7 @@ func TestThePreviousBinaryStopsServingWhenTheNewSchemaTakesAColumnAway(t *testin
 
 	const password = "a-long-enough-password"
 
-	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), accounts.Registration{Name: "Ana", Email: "ana@example.test", Password: password}); err != nil {
+	if _, err := app.Users.Register(ctx, appconfig.Tenant(), accounts.Registration{Name: "Ana", Email: "ana@example.test", Password: password}); err != nil {
 		t.Fatalf("registering before the schema changed: %v", err)
 	}
 
@@ -175,10 +175,10 @@ func TestThePreviousBinaryStopsServingWhenTheNewSchemaTakesAColumnAway(t *testin
 		t.Fatalf("dropping the column: %v", err)
 	}
 
-	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), accounts.Registration{Name: "Bruno", Email: "bruno@example.test", Password: password}); err == nil {
+	if _, err := app.Users.Register(ctx, appconfig.Tenant(), accounts.Registration{Name: "Bruno", Email: "bruno@example.test", Password: password}); err == nil {
 		t.Error("the previous binary wrote a column the new schema had taken away, so this test cannot tell a safe migration from an unsafe one")
 	}
-	if _, err := app.Users.VerifyCredentials(ctx, bootstrap.Tenant(), "ana@example.test", password, "127.0.0.1"); err == nil {
+	if _, err := app.Users.VerifyCredentials(ctx, appconfig.Tenant(), "ana@example.test", password, "127.0.0.1"); err == nil {
 		t.Error("the previous binary read a column the new schema had taken away, so this test cannot tell a safe migration from an unsafe one")
 	}
 }
@@ -186,9 +186,10 @@ func TestThePreviousBinaryStopsServingWhenTheNewSchemaTakesAColumnAway(t *testin
 // schemaBuilder opens the schema builder over the connection the application is
 // already serving on.
 //
-// The three lines are the ones bootstrap/migrate.go builds its resolver from,
-// and they are here rather than borrowed because that resolver is unexported and
-// exporting it would put a door in the application for the benefit of a test.
+// The three lines are the ones the migration commands build their resolver
+// from, and they are here rather than borrowed because that resolver is the
+// framework's and unexported, and exporting it would put a door in it for the
+// benefit of a test.
 // What matters is that the DDL below goes through the same grammar a migration's
 // conn.Schema() goes through, and the connection is what carries that.
 func schemaBuilder(t *testing.T, db *database.DB) *schema.Builder {

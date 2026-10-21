@@ -17,7 +17,7 @@ import (
 	hevents "github.com/arandu-io/hesape/events"
 	"github.com/arandu-io/hesape/log"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
 )
 
 // The relay THIS application wires, from the write to the listener.
@@ -47,7 +47,7 @@ func TestTheApplicationWiresARelayAndItPublishesWhatAuthStored(t *testing.T) {
 	// row this test wrote: Register stores the event inside the same
 	// transaction as the user, which is the write the outbox exists for.
 	registration := accounts.Registration{Name: "Ana", Email: "ana@example.test", Password: "a-long-enough-password"}
-	if _, err := app.Users.Register(ctx, bootstrap.Tenant(), registration); err != nil {
+	if _, err := app.Users.Register(ctx, appconfig.Tenant(), registration); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 
@@ -86,8 +86,8 @@ func TestTheApplicationWiresARelayAndItPublishesWhatAuthStored(t *testing.T) {
 	// this is the far end of that: it survived the commit, the poll and the
 	// publish. The tenant is what scopes the event and the action is what says
 	// which authorization produced it, and they are two claims rather than one.
-	if e["tenant"] != bootstrap.Tenant() {
-		t.Errorf("the event arrived under tenant %q, want %q", e["tenant"], bootstrap.Tenant())
+	if e["tenant"] != appconfig.Tenant() {
+		t.Errorf("the event arrived under tenant %q, want %q", e["tenant"], appconfig.Tenant())
 	}
 	if e["action"] != string(accounts.ActionUserCreate) {
 		t.Errorf("the event arrived with action %q, want %s", e["action"], accounts.ActionUserCreate)
@@ -141,7 +141,7 @@ func TestTheProbeFailsWhileNothingIsDrainingTheOutbox(t *testing.T) {
 	// field of the event, so the age is the fixture and the write is still the
 	// one production makes.
 	ctx := context.Background()
-	g := auth.SystemGrant("invoice.pay", bootstrap.Tenant())
+	g := auth.SystemGrant("invoice.pay", appconfig.Tenant())
 	err := database.Transaction(ctx, db, func(ctx context.Context) error {
 		return events.NewOutbox(db).Store(ctx, g, []hevents.Event{{
 			Name:        "invoice.paid",

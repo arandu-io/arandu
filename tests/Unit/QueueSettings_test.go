@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/tests"
 )
@@ -23,10 +22,12 @@ import (
 // lease that is the wrong length is a lease that works until a job runs longer
 // than it.
 //
-// The assertions are made on the settings the worker is built with, because
-// that is the far end reachable without a job queue and a clock: the worker
-// itself does not return until it is interrupted, and every number below is one
-// it was handed.
+// The variables are the framework's now: bootstrap.Settings reads them and the
+// built-in queue:work builds its worker from Settings.Queue, with --queue and
+// --workers overriding the two that belong to one invocation -- both proved in
+// the framework. What this application can get wrong is losing them on the
+// way into its own configuration, so the assertions are made on cfg.Queue,
+// the value bootstrap/app.go hands to the drivers.
 
 // TestTheStarterNamesOnlyThePublicQueueWorkerCommand keeps the operator-facing
 // examples on the CLI command rather than the application binary's internal
@@ -38,9 +39,8 @@ func TestTheStarterNamesOnlyThePublicQueueWorkerCommand(t *testing.T) {
 	paths := []string{
 		".env.example",
 		"bootstrap/app.go",
-		"bootstrap/background.go",
-		"bootstrap/console.go",
-		"config/queue.go",
+		"routes/console.go",
+		"main.go",
 		"tests/Feature/Scheduler_test.go",
 		"tests/Unit/QueueSettings_test.go",
 	}
@@ -72,8 +72,9 @@ func queueEnv(t *testing.T) {
 	}
 }
 
-// TestTheQueueSettingsReachTheWorker is the whole path: four variables and the
-// configuration this application parses into options for `aru queue:work`.
+// TestTheQueueSettingsReachTheWorker is this application's half of the path:
+// four variables, and the configuration bootstrap/app.go builds the drivers
+// and the worker from.
 func TestTheQueueSettingsReachTheWorker(t *testing.T) {
 	queueEnv(t)
 
@@ -90,59 +91,19 @@ func TestTheQueueSettingsReachTheWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loading the configuration: %v", err)
 	}
+	q := cfg.Queue
 
-	opts, err := bootstrap.WorkerOptions(cfg.Queue, nil)
-	if err != nil {
-		t.Fatalf("building the worker options: %v", err)
+	if q.Default != "invoices" {
+		t.Errorf("the worker drains %q, want invoices: QUEUE_DEFAULT was read and dropped", q.Default)
 	}
-
-	if opts.Queue != "invoices" {
-		t.Errorf("the worker drains %q, want invoices: QUEUE_DEFAULT was read and dropped", opts.Queue)
+	if q.Workers != 7 {
+		t.Errorf("the worker runs %d jobs at once, want 7: QUEUE_WORKERS was read and dropped", q.Workers)
 	}
-	if opts.Concurrency != 7 {
-		t.Errorf("the worker runs %d jobs at once, want 7: QUEUE_WORKERS was read and dropped", opts.Concurrency)
+	if q.RetryAfter != 23*time.Second {
+		t.Errorf("the worker leases a job for %s, want 23s: QUEUE_RETRY_AFTER was read and dropped", q.RetryAfter)
 	}
-	if opts.Lease != 23*time.Second {
-		t.Errorf("the worker leases a job for %s, want 23s: QUEUE_RETRY_AFTER was read and dropped", opts.Lease)
-	}
-	if opts.MaxTries != 3 {
-		t.Errorf("the worker retries a job %d times, want 3: QUEUE_MAX_ATTEMPTS was read and dropped", opts.MaxTries)
-	}
-}
-
-// TestTheWorkerFlagsOverrideTheConfiguredSettings is the other half.
-//
-// The two settings that have a flag are the two that belong to one invocation:
-// draining a backlog on another queue, and widening a single process. The flag
-// wins, and it wins over a value that arrived -- which is what tells an override
-// apart from a flag that was carrying its own default all along.
-func TestTheWorkerFlagsOverrideTheConfiguredSettings(t *testing.T) {
-	queueEnv(t)
-	t.Setenv("QUEUE_DEFAULT", "invoices")
-	t.Setenv("QUEUE_WORKERS", "7")
-	t.Setenv("QUEUE_RETRY_AFTER", "23")
-
-	cfg, err := appconfig.Load()
-	if err != nil {
-		t.Fatalf("loading the configuration: %v", err)
-	}
-
-	opts, err := bootstrap.WorkerOptions(cfg.Queue, []string{"--queue=reports", "--workers=2"})
-	if err != nil {
-		t.Fatalf("building the worker options: %v", err)
-	}
-
-	if opts.Queue != "reports" {
-		t.Errorf("the worker drains %q, want reports: --queue did not override QUEUE_DEFAULT", opts.Queue)
-	}
-	if opts.Concurrency != 2 {
-		t.Errorf("the worker runs %d jobs at once, want 2: --workers did not override QUEUE_WORKERS", opts.Concurrency)
-	}
-	// The lease has no flag, so it is still the configured one. Asserted here
-	// because a flag set that quietly grew one would be the second answer this
-	// arrangement exists to prevent.
-	if opts.Lease != 23*time.Second {
-		t.Errorf("the worker leases a job for %s, want 23s: the flags changed a setting they do not own", opts.Lease)
+	if q.MaxAttempts != 3 {
+		t.Errorf("the worker retries a job %d times, want 3: QUEUE_MAX_ATTEMPTS was read and dropped", q.MaxAttempts)
 	}
 }
 
@@ -150,9 +111,10 @@ func TestTheWorkerFlagsOverrideTheConfiguredSettings(t *testing.T) {
 //
 // Leaving a variable out is how the queue component is asked for its own
 // default, and it answers a zero as exactly that. This application writes no
-// number of its own for those, so what an empty environment produces is a set of
-// options carrying nothing -- and a default appearing here later would be a
-// second copy of one this package does not own.
+// number of its own for those, so what an empty environment produces is a
+// configuration carrying nothing for the three counts -- and a default
+// appearing here later would be a second copy of one this application does not
+// own.
 func TestAnUnsetQueueSettingLeavesTheComponentsOwnAnswer(t *testing.T) {
 	queueEnv(t)
 
@@ -160,22 +122,9 @@ func TestAnUnsetQueueSettingLeavesTheComponentsOwnAnswer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loading the configuration: %v", err)
 	}
-
-	opts, err := bootstrap.WorkerOptions(cfg.Queue, nil)
-	if err != nil {
-		t.Fatalf("building the worker options: %v", err)
-	}
-
-	if opts.Queue != cfg.Queue.Default {
-		t.Errorf("the worker drains %q and the configuration says %q", opts.Queue, cfg.Queue.Default)
-	}
-	if opts.Concurrency != cfg.Queue.Workers {
-		t.Errorf("the worker runs %d jobs at once and the configuration says %d", opts.Concurrency, cfg.Queue.Workers)
-	}
-	if opts.Lease != cfg.Queue.RetryAfter {
-		t.Errorf("the worker leases a job for %s and the configuration says %s", opts.Lease, cfg.Queue.RetryAfter)
-	}
-	if opts.MaxTries != cfg.Queue.MaxAttempts {
-		t.Errorf("the worker retries a job %d times and the configuration says %d", opts.MaxTries, cfg.Queue.MaxAttempts)
+	q := cfg.Queue
+	if q.Workers != 0 || q.RetryAfter != 0 || q.MaxAttempts != 0 {
+		t.Errorf("an empty environment produced workers=%d retry=%s attempts=%d, want the component's own answer (zero)",
+			q.Workers, q.RetryAfter, q.MaxAttempts)
 	}
 }

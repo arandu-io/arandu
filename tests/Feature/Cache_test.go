@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // What the cache configuration is for: a deployment that names a shared store
@@ -27,7 +27,7 @@ func probeHealth(t *testing.T) *httptest.ResponseRecorder {
 	migrateWithoutTheStore(t)
 
 	cfg, db, _ := openForTest(t)
-	app, err := bootstrap.Build(cfg, db)
+	app, err := tests.Build(cfg, db)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -55,7 +55,7 @@ func migrateWithoutTheStore(t *testing.T) {
 	t.Setenv("CACHE_STORE", "memory")
 	t.Setenv("REDIS_URL", "")
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 

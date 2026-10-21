@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/framework/foundation/bootstrap"
+
+	appconfig "github.com/arandu-io/arandu/config"
 )
 
 // httpConfig loads the application configuration with the HTTP variables set as
@@ -31,7 +32,7 @@ func httpConfig(t *testing.T, vars map[string]string) (appconfig.Config, error) 
 	if err != nil {
 		t.Fatalf("loading the framework configuration: %v", err)
 	}
-	return appconfig.From(base)
+	return fromBase(base)
 }
 
 func TestTheBodyLimitDefaultsToAFormSizedCeiling(t *testing.T) {
@@ -39,7 +40,7 @@ func TestTheBodyLimitDefaultsToAFormSizedCeiling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("From: %v", err)
 	}
-	if cfg.HTTP.MaxBodyBytes != appconfig.DefaultMaxBodyBytes || appconfig.DefaultMaxBodyBytes != 4<<20 {
+	if cfg.HTTP.MaxBodyBytes != bootstrap.DefaultMaxBodyBytes || bootstrap.DefaultMaxBodyBytes != 4<<20 {
 		t.Fatalf("MaxBodyBytes = %d, want the 4 MiB default", cfg.HTTP.MaxBodyBytes)
 	}
 

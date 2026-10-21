@@ -11,7 +11,6 @@ import (
 	"time"
 
 	frameevents "github.com/arandu-io/framework/events"
-	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/hesape/arandutest"
 	"github.com/arandu-io/hesape/auth"
 	accounts "github.com/arandu-io/hesape/auth/account"
@@ -26,7 +25,7 @@ import (
 	notifications "github.com/arandu-io/arandu/app/Notifications"
 	policies "github.com/arandu-io/arandu/app/Policies"
 	services "github.com/arandu-io/arandu/app/Services"
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
 	factories "github.com/arandu-io/arandu/database/factories"
 	seeders "github.com/arandu-io/arandu/database/seeders"
 	"github.com/arandu-io/arandu/tests"
@@ -35,7 +34,7 @@ import (
 // notesFixture is the application with two members of one tenant, each with a
 // browser signed in as them.
 type notesFixture struct {
-	app      bootstrap.App
+	app      tests.Application
 	ana, bea *arandutest.Client
 	anaID    string
 	beaID    string
@@ -44,7 +43,7 @@ type notesFixture struct {
 func newNotesFixture(t *testing.T) notesFixture {
 	t.Helper()
 	app := tests.Booted(t)
-	tenant := bootstrap.Tenant()
+	tenant := appconfig.Tenant()
 	members, err := factories.Users(app.DB).Count(2).
 		Create(context.Background(), auth.SystemGrant(accounts.ActionUserCreate, tenant))
 	if err != nil {
@@ -80,7 +79,7 @@ func (f notesFixture) stored(t *testing.T, address string) *models.Note {
 	t.Helper()
 	id := strings.TrimPrefix(address, "/notes/")
 	note, err := models.Notes(f.app.DB).Find(context.Background(),
-		auth.SystemGrant(policies.NoteView, bootstrap.Tenant()), id)
+		auth.SystemGrant(policies.NoteView, appconfig.Tenant()), id)
 	if err != nil {
 		t.Fatalf("reading note %s: %v", id, err)
 	}
@@ -103,7 +102,7 @@ func TestNotesAreWrittenReadChangedAndDeletedByTheirAuthor(t *testing.T) {
 	address := f.write(t, f.ana, "Groceries")
 	f.ana.Get(address).AssertOk().AssertSee("Groceries").AssertSee("Written in a test.")
 	f.ana.Get("/notes").AssertOk().AssertSee("Groceries")
-	if note := f.stored(t, address); note.UserID != f.anaID || note.TenantID != bootstrap.Tenant() || !note.Pinned {
+	if note := f.stored(t, address); note.UserID != f.anaID || note.TenantID != appconfig.Tenant() || !note.Pinned {
 		t.Fatalf("stored note = %+v, want pinned, written by %s in the configured tenant", note, f.anaID)
 	}
 
@@ -123,7 +122,7 @@ func TestNotesAreWrittenReadChangedAndDeletedByTheirAuthor(t *testing.T) {
 func (f notesFixture) count(t *testing.T) int {
 	t.Helper()
 	found, err := models.Notes(f.app.DB).Get(context.Background(),
-		auth.SystemGrant(policies.NoteList, bootstrap.Tenant()))
+		auth.SystemGrant(policies.NoteList, appconfig.Tenant()))
 	if err != nil {
 		t.Fatalf("counting the notes: %v", err)
 	}
@@ -352,14 +351,14 @@ func TestNotesNeedSomebodySignedIn(t *testing.T) {
 // development, it writes nothing.
 func TestTheExampleNotesAreSeededInDevelopmentOnly(t *testing.T) {
 	sqliteEnv(t)
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	cfg, db, _ := openForTest(t)
 	ctx := context.Background()
 	notes := func() []*models.Note {
 		t.Helper()
-		found, err := models.Notes(db).Get(ctx, auth.SystemGrant(policies.NoteList, bootstrap.Tenant()))
+		found, err := models.Notes(db).Get(ctx, auth.SystemGrant(policies.NoteList, appconfig.Tenant()))
 		if err != nil {
 			t.Fatalf("reading the seeded notes: %v", err)
 		}
@@ -375,7 +374,7 @@ func TestTheExampleNotesAreSeededInDevelopmentOnly(t *testing.T) {
 	}
 
 	for range 2 {
-		if err := bootstrap.Dispatch("db:seed", nil); err != nil {
+		if err := tests.Dispatch("db:seed", nil); err != nil {
 			t.Fatalf("db:seed: %v", err)
 		}
 	}
@@ -384,7 +383,7 @@ func TestTheExampleNotesAreSeededInDevelopmentOnly(t *testing.T) {
 		t.Fatalf("two runs of the root seeder in development wrote %d notes, want 6", len(seeded))
 	}
 	for _, note := range seeded {
-		author, err := models.Users(db).Find(ctx, auth.SystemGrant(accounts.ActionUserView, bootstrap.Tenant()), note.UserID)
+		author, err := models.Users(db).Find(ctx, auth.SystemGrant(accounts.ActionUserView, appconfig.Tenant()), note.UserID)
 		if err != nil || author == nil {
 			t.Fatalf("note %s has no author in the tenant: %v", note.ID, err)
 		}
@@ -398,7 +397,7 @@ func TestTheExampleNotesAreSeededInDevelopmentOnly(t *testing.T) {
 // configured tenant: what the relay will hand the listeners.
 func (f notesFixture) published(t *testing.T) []events.Stored {
 	t.Helper()
-	pending, err := frameevents.NewOutbox(f.app.DB).Pending(context.Background(), bootstrap.Tenant(), 100)
+	pending, err := frameevents.NewOutbox(f.app.DB).Pending(context.Background(), appconfig.Tenant(), 100)
 	if err != nil {
 		t.Fatalf("reading the outbox: %v", err)
 	}
@@ -624,7 +623,7 @@ func TestTheAuthorOfAPublishedNoteIsToldThroughTheOutbox(t *testing.T) {
 	store := hnotifications.NewTableStore(f.app.DB)
 	bell := func(who string) []hnotifications.Record {
 		t.Helper()
-		g, err := auth.Authorize(ctx, hnotifications.Policy{}, auth.Subject{ID: who, Tenant: bootstrap.Tenant()},
+		g, err := auth.Authorize(ctx, hnotifications.Policy{}, auth.Subject{ID: who, Tenant: appconfig.Tenant()},
 			hnotifications.ActionList, hnotifications.Record{})
 		if err != nil {
 			t.Fatalf("authorizing the bell menu of %s: %v", who, err)
@@ -665,21 +664,21 @@ func TestTheNightlyDigestIsScheduledQueuedAndSentWithoutTheNetwork(t *testing.T)
 	f := newNotesFixture(t)
 	ctx := context.Background()
 
-	var declared *scheduler.Registered
-	for _, task := range f.app.Scheduler.Scheduler().List() {
-		if task.ID == appjobs.SendNotesDigestName {
-			declared = &task
-		}
+	// The schedule as the binary lists it: the digest, nightly at 02:00, on
+	// one replica.
+	listed, err := tests.Run("schedule:list")
+	if err != nil {
+		t.Fatalf("schedule:list: %v", err)
 	}
-	if declared == nil || declared.Spec != "0 2 * * *" || !declared.Singleton {
-		t.Fatalf("the digest is scheduled as %+v, want nightly at 02:00 on one replica", declared)
+	if !scheduledRow(listed, appjobs.SendNotesDigestName, "0 2 * * *", "true") {
+		t.Fatalf("the digest is not listed nightly at 02:00 on one replica:\n%s", listed)
 	}
 
 	published := f.write(t, f.ana, "Groceries")
 	fromPage(t, f.ana, published).Post(published+"/publish", nil).AssertStatus(http.StatusSeeOther)
 	f.write(t, f.ana, "A draft")
 
-	if err := f.app.Scheduler.Scheduler().RunNow(ctx, appjobs.SendNotesDigestName, bootstrap.Tenant()); err != nil {
+	if err := tests.Dispatch("schedule:run", []string{appjobs.SendNotesDigestName, "--tenant=" + appconfig.Tenant()}); err != nil {
 		t.Fatalf("running the digest task: %v", err)
 	}
 	if pending, err := f.app.Queue.PendingSize(ctx, ""); err != nil || pending != 1 {
@@ -701,4 +700,16 @@ func TestTheNightlyDigestIsScheduledQueuedAndSentWithoutTheNetwork(t *testing.T)
 	if len(digest.Notes) != 1 || digest.Notes[0].Title != "Groceries" || digest.Key == "" {
 		t.Fatalf("digest = %+v, want the one published note, keyed by the job", digest)
 	}
+}
+
+// scheduledRow reports whether the schedule:list table has a row for the task
+// id with the spec and the singleton column given.
+func scheduledRow(listed, id, spec, singleton string) bool {
+	for _, line := range strings.Split(listed, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), id+" ") &&
+			strings.Contains(line, spec) && strings.Contains(line, " "+singleton+" ") {
+			return true
+		}
+	}
+	return false
 }

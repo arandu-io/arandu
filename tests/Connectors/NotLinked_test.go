@@ -9,7 +9,7 @@ import (
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/queue"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // What a setting that names an engine this binary does not link answers.
@@ -50,7 +50,7 @@ func boot(t *testing.T, change map[string]string) error {
 
 	// `routes` builds the whole application and serves nothing, which is the
 	// cheapest command that reaches every place a connector is asked for.
-	return bootstrap.Dispatch("routes", nil)
+	return tests.Dispatch("routes", nil)
 }
 
 // notLinked is the message, written out rather than built: a test that called

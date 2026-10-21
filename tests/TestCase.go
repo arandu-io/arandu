@@ -12,13 +12,16 @@
 package tests
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,13 +29,17 @@ import (
 
 	"github.com/arandu-io/framework/foundation"
 	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
+	"github.com/arandu-io/framework/security"
 	hesapetest "github.com/arandu-io/hesape/arandutest"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/auth/account"
+	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/config"
 	"github.com/arandu-io/hesape/database"
+	"github.com/arandu-io/hesape/queue"
 
 	models "github.com/arandu-io/arandu/app/Models"
+	providers "github.com/arandu-io/arandu/app/Providers"
 	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
 )
@@ -93,8 +100,8 @@ func Kernel(t *testing.T, env config.Env, extra ...foundation.Module) *foundatio
 			Editor:   "vscode",
 		},
 		// What the loader answers when SESSION_LIFETIME is not written. Left at
-		// zero, appconfig.From refuses it: every session would expire as it
-		// was written.
+		// zero, the settings refuse it: every session would expire as it was
+		// written.
 		Session: fwbootstrap.Session{Lifetime: 2 * time.Hour},
 	}
 	// The App block is the one with rules -- the key length, the environment, the
@@ -110,20 +117,111 @@ func Kernel(t *testing.T, env config.Env, extra ...foundation.Module) *foundatio
 	}
 	t.Cleanup(func() { _ = sqldb.Close() })
 
-	appCfg, err := appconfig.From(cfg)
+	settings, err := fwbootstrap.SettingsFrom(cfg)
+	if err != nil {
+		t.Fatalf("reading the framework's settings: %v", err)
+	}
+	appCfg, err := appconfig.From(settings)
 	if err != nil {
 		t.Fatalf("loading the application configuration: %v", err)
 	}
-	app, err := bootstrap.Build(appCfg, database.Wrap(sqldb, cfg.Database.Connection))
+	app := compose(t, appCfg, database.Wrap(sqldb, cfg.Database.Connection), extra...)
+	return app.Kernel
+}
+
+// Application is an application a test composed, with what bootstrap/app.go
+// composed it from: the kernel, this application's services and the drivers
+// they were built over.
+type Application struct {
+	// Kernel is the composed application.
+	Kernel *foundation.Application
+	// AppServiceProvider is this application's services: the account rules,
+	// the tokens, the relay, the example resource.
+	*providers.AppServiceProvider
+	// Drivers is what the framework built from the configuration.
+	Drivers *foundation.Drivers
+
+	// DB, Sessions, Queue and Cache are fields of Drivers, named here because
+	// almost every test reaches one of them.
+	DB       *database.DB
+	Sessions *security.SessionStore
+	Queue    queue.Queue
+	// Cache is the store every replica sees, and nil when no setting resolved
+	// one.
+	Cache cache.SharedStore
+}
+
+// compose builds the application bootstrap/app.go builds, over a database the
+// test opened, with the extra modules after the application's own, and boots
+// it. It is shut down when the test ends.
+func compose(t *testing.T, cfg appconfig.Config, db *database.DB, extra ...foundation.Module) Application {
+	t.Helper()
+	app, err := Build(cfg, db, extra...)
 	if err != nil {
-		t.Fatalf("Build: %v", err)
+		t.Fatalf("composing the application: %v", err)
 	}
-	k := app.Kernel
-	k.Register(extra...)
-	if err := k.Boot(context.Background()); err != nil {
+	if err := app.Kernel.Boot(context.Background()); err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
-	return k
+	t.Cleanup(func() { _ = app.Kernel.Shutdown() })
+	return app
+}
+
+// Build composes the application bootstrap/app.go composes, over cfg and a
+// database the caller opened and closes, with the extra modules after the
+// application's own. It does not boot.
+//
+// It answers the first refusal: a setting naming a driver this binary does
+// not link, a certificate that is not there, a command name declared twice.
+// That is what a test of the composition asserts on.
+func Build(cfg appconfig.Config, db *database.DB, extra ...foundation.Module) (Application, error) {
+	drivers, err := foundation.NewDriversOver(cfg.Settings, db)
+	if err != nil {
+		return Application{}, err
+	}
+	services, err := providers.NewAppServiceProvider(cfg, drivers)
+	if err != nil {
+		return Application{}, err
+	}
+	k, err := bootstrap.Configure(cfg, drivers, services).WithProviders(extra...).Create()
+	if err != nil {
+		return Application{}, err
+	}
+	return Application{
+		Kernel: k, AppServiceProvider: services, Drivers: drivers,
+		DB: drivers.DB, Sessions: drivers.Sessions, Queue: drivers.Queue, Cache: drivers.SharedCache,
+	}, nil
+}
+
+// Open connects to the database cfg names, the way the framework's drivers
+// do: one DSN, built in one place.
+func Open(cfg appconfig.Config) (*database.DB, func(), error) {
+	return database.Open(cfg.Database.Connection)
+}
+
+// Dispatch runs one command line through the console kernel, the way main.go
+// does: the application loaded from the environment, the command handed to
+// HandleCommand. It answers nil for status zero, and otherwise an error
+// carrying what the command wrote to its error stream.
+//
+// What the command wrote to its output is discarded; Run answers it.
+func Dispatch(command string, args []string) error {
+	_, err := Run(append([]string{command}, args...)...)
+	return err
+}
+
+// Run is Dispatch answering what the command wrote to its output as well.
+func Run(args ...string) (string, error) {
+	app, err := bootstrap.App("test", "test")
+	if err != nil {
+		return "", err
+	}
+	var out, errOut bytes.Buffer
+	code := app.WithConsole(&out, &errOut, strings.NewReader("")).HandleCommand(context.Background(), args)
+	if code != 0 {
+		return out.String(), fmt.Errorf("%s exited %d: %s", strings.Join(args, " "), code, strings.TrimSpace(errOut.String()))
+	}
+	return out.String(), nil
 }
 
 // unopenableSQLite answers a SQLite path no connection can open: its parent is a
@@ -185,7 +283,7 @@ func App(t *testing.T) (*arandutest.Client, *database.DB) {
 
 // Booted is what App boots, returned whole: the services, the session store and
 // the database, for a test that has to reach one of them as well as browse.
-func Booted(t *testing.T) bootstrap.App {
+func Booted(t *testing.T) Application {
 	t.Helper()
 
 	t.Setenv("APP_NAME", AppName)
@@ -196,7 +294,7 @@ func Booted(t *testing.T) bootstrap.App {
 
 	// The schema, through the same command a deploy runs. A test that creates
 	// tables another way is a test that keeps passing after a migration breaks.
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -204,21 +302,12 @@ func Booted(t *testing.T) bootstrap.App {
 	if err != nil {
 		t.Fatalf("loading the configuration: %v", err)
 	}
-
-	db, closeDB, err := bootstrap.Open(cfg)
+	db, closeDB, err := Open(cfg)
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)
 	}
 	t.Cleanup(closeDB)
-
-	app, err := bootstrap.Build(cfg, db)
-	if err != nil {
-		t.Fatalf("wiring the application: %v", err)
-	}
-	if err := app.Kernel.Boot(context.Background()); err != nil {
-		t.Fatalf("Boot: %v", err)
-	}
-	return app
+	return compose(t, cfg, db)
 }
 
 // SignedIn returns a browser for app whose requests carry a real session for
@@ -233,7 +322,7 @@ func Booted(t *testing.T) bootstrap.App {
 // It is the browser hesape answers with, which speaks every verb a resource
 // registers -- PUT and DELETE as well as GET and POST -- and takes a header for
 // what a browser would send that a test has to say.
-func SignedIn(t *testing.T, app bootstrap.App, subject auth.Subject) *hesapetest.Client {
+func SignedIn(t *testing.T, app Application, subject auth.Subject) *hesapetest.Client {
 	t.Helper()
 	const signInHere = "/_tests/sign-in"
 	handler := app.Kernel.Handler()
@@ -256,9 +345,9 @@ func SignedIn(t *testing.T, app bootstrap.App, subject auth.Subject) *hesapetest
 // account rules app wired, and returns it as the *models.User this
 // application's users query builds -- the type whose Subject a session is
 // started from.
-func Register(t *testing.T, app bootstrap.App, name, email, password string) *models.User {
+func Register(t *testing.T, app Application, name, email, password string) *models.User {
 	t.Helper()
-	registered, err := app.Users.Register(context.Background(), bootstrap.Tenant(), account.Registration{
+	registered, err := app.Users.Register(context.Background(), appconfig.Tenant(), account.Registration{
 		Name: name, Email: email, Password: password,
 	})
 	if err != nil {

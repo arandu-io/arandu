@@ -8,7 +8,7 @@ import (
 
 	"github.com/arandu-io/hesape/auth"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
 )
 
 // TestEveryCookieTheApplicationWritesFollowsTheOneSecureDecision boots the
@@ -54,7 +54,7 @@ func TestEveryCookieTheApplicationWritesFollowsTheOneSecureDecision(t *testing.T
 			}
 
 			signIn := httptest.NewRecorder()
-			subject := auth.Subject{ID: "33333333-3333-4333-8333-333333333333", Tenant: bootstrap.Tenant()}
+			subject := auth.Subject{ID: "33333333-3333-4333-8333-333333333333", Tenant: appconfig.Tenant()}
 			if _, err := app.Sessions.Start(context.Background(), signIn, subject); err != nil {
 				t.Fatalf("starting a session: %v", err)
 			}

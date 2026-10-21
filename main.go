@@ -1,36 +1,27 @@
-// Command arandu is the entry point of this application.
-//
-// It is both halves of what is usually two artifacts, a front controller and a
-// console script: the binary is the server, and the same binary is the command
-// line. There is no front controller and no document root, because in Go the
-// process listens itself.
-//
-// Almost nothing is here. The wiring is bootstrap/app.go and the commands are
-// bootstrap/console.go, because `main` cannot be imported: anything living here
-// is anything a test cannot reach, and the tests worth having boot the whole
-// application.
-//
-// `aru serve` runs this binary with that argument, because only this binary
-// knows which modules exist.
+// Command arandu is the entry point of this application: the server and the
+// command line in one binary. It loads the application and hands the command
+// to the framework's console kernel; no arguments is serve.
 package main
 
 import (
-	"log"
+	"context"
+	"fmt"
 	"os"
 
 	"github.com/arandu-io/arandu/bootstrap"
 )
 
-func main() {
-	// The arguments are read together, because reading them apart is how
-	// `go run .` -- no command, no arguments, the first thing anybody types
-	// after a clone -- panicked on os.Args[2:] before it printed a line.
-	command, args := "serve", []string{}
-	if len(os.Args) > 1 {
-		command, args = os.Args[1], os.Args[2:]
-	}
+// version and commit are stamped by the build. See the Dockerfile.
+var (
+	version = "dev"
+	commit  = "unknown"
+)
 
-	if err := bootstrap.Dispatch(command, args); err != nil {
-		log.Fatal(err)
+func main() {
+	app, err := bootstrap.App(version, commit)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
+	os.Exit(app.HandleCommand(context.Background(), os.Args[1:]))
 }

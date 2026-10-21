@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // The limit the pipeline declares, per minute and per caller.
@@ -52,7 +52,7 @@ func TestTheBudgetIsCountedInTheStoreTheConnectorOpened(t *testing.T) {
 	t.Setenv("CACHE_STORE", "redis")
 	t.Setenv("REDIS_URL", server.url())
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -109,7 +109,7 @@ func TestTheLimitIsCountedAndReportedOnEveryAnswer(t *testing.T) {
 	t.Setenv("CACHE_STORE", "memory")
 	t.Setenv("REDIS_URL", "")
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	app := bootedInstance(t)

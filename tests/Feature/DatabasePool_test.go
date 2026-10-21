@@ -10,8 +10,8 @@ import (
 
 	"github.com/arandu-io/hesape/database"
 
-	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // The three pool variables, from .env to the pool database/sql actually keeps.
@@ -125,7 +125,7 @@ func TestThePoolSettingsReachTheDriver(t *testing.T) {
 		t.Errorf("the connection carries ConnMaxLifetime %s, want 1s: DB_CONN_MAX_LIFETIME was read and dropped", conn.ConnMaxLifetime)
 	}
 
-	db, closeDB, err := bootstrap.Open(cfg)
+	db, closeDB, err := tests.Open(cfg)
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestSQLiteTakesOneWriterWhateverThePoolAsksFor(t *testing.T) {
 		t.Fatalf("the connection carries MaxOpenConns %d, want 7", cfg.Database.Connection.MaxOpenConns)
 	}
 
-	db, closeDB, err := bootstrap.Open(cfg)
+	db, closeDB, err := tests.Open(cfg)
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)
 	}

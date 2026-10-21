@@ -17,7 +17,7 @@ import (
 
 	"github.com/arandu-io/hesape/cache"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // Encryption is asked for by the scheme of the URL and by nothing else, and the
@@ -86,7 +86,7 @@ func TestTheNamedCertificatesAreLoaded(t *testing.T) {
 	t.Setenv("REDIS_KEY_FILE", keyFile)
 	t.Setenv("REDIS_TLS_SERVER_NAME", "cache.example.test")
 
-	if err := bootstrap.Dispatch("routes", nil); err != nil {
+	if err := tests.Dispatch("routes", nil); err != nil {
 		t.Fatalf("the application refused to start with certificates it can read: %v", err)
 	}
 	if server == nil {
@@ -191,7 +191,7 @@ func TestACertificateThatCannotBeUsedStopsTheBoot(t *testing.T) {
 				t.Setenv(name, path)
 			}
 
-			err := bootstrap.Dispatch("routes", nil)
+			err := tests.Dispatch("routes", nil)
 			if err == nil {
 				t.Fatalf("the application started anyway, and %s", c.reason)
 			}
@@ -225,7 +225,7 @@ func endpointOpenedFor(t *testing.T, scheme string) cache.Endpoint {
 	// Building the application is what opens the store: the rate limit
 	// resolves the store CACHE_STORE named while the pipeline is assembled.
 	cfg, db, _ := openForTest(t)
-	if _, err := bootstrap.Build(cfg, db); err != nil {
+	if _, err := tests.Build(cfg, db); err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 

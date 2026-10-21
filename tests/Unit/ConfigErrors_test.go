@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/framework/foundation/bootstrap"
+
+	appconfig "github.com/arandu-io/arandu/config"
 )
 
 func TestInvalidBooleanConfigurationIsReportedAtBoot(t *testing.T) {
@@ -20,7 +21,7 @@ func TestInvalidBooleanConfigurationIsReportedAtBoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loading the framework configuration: %v", err)
 	}
-	_, err = appconfig.From(base)
+	_, err = fromBase(base)
 	if err == nil {
 		t.Fatal("From accepted an invalid GEO_ENABLED value")
 	}
@@ -213,7 +214,7 @@ func TestRetiredDatabaseVariablesAreReportedAtBoot(t *testing.T) {
 }
 
 func TestFromRejectsInvalidFrameworkConfigurationWithoutPanicking(t *testing.T) {
-	_, err := appconfig.From(bootstrap.Configuration{})
+	_, err := fromBase(bootstrap.Configuration{})
 	if err == nil {
 		t.Fatal("From accepted an invalid framework configuration")
 	}
@@ -236,12 +237,12 @@ func TestFromRefusesABaseWithNoSessionLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loading the framework configuration: %v", err)
 	}
-	if _, err := appconfig.From(base); err != nil {
+	if _, err := fromBase(base); err != nil {
 		t.Fatalf("From refused the lifetime the loader answered: %v", err)
 	}
 
 	base.Session.Lifetime = 0
-	_, err = appconfig.From(base)
+	_, err = fromBase(base)
 	if err == nil {
 		t.Fatal("From accepted a session lifetime of zero: every session would expire as it was written")
 	}
@@ -360,8 +361,8 @@ func TestClosedConfigurationDiscriminatorsAcceptDocumentedValues(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.Cache.Store != appconfig.CacheMemory || cfg.Session.Driver != appconfig.SessionMemory ||
-			cfg.Queue.Connection != appconfig.QueueDatabase || cfg.Filesystems.Default != appconfig.DiskLocal ||
+		if cfg.Cache.Store != bootstrap.CacheMemory || cfg.Session.Driver != bootstrap.SessionMemory ||
+			cfg.Queue.Connection != bootstrap.QueueDatabase || cfg.Filesystems.Default != bootstrap.DiskLocal ||
 			cfg.Logging.Format != "text" {
 			t.Fatalf("defaults = cache %q, session %q, queue %q, disk %q, log %q",
 				cfg.Cache.Store, cfg.Session.Driver, cfg.Queue.Connection, cfg.Filesystems.Default, cfg.Logging.Format)
@@ -376,12 +377,18 @@ func TestClosedConfigurationDiscriminatorsAcceptDocumentedValues(t *testing.T) {
 			"FILESYSTEM_DISK":  "r2",
 			"LOG_FORMAT":       "json",
 			"REDIS_URL":        "rediss://cache.example.test:6380",
+			// A bucket disk is refused without the four values it is built
+			// from, so a deployment cannot start writing nowhere.
+			"FILESYSTEM_BUCKET":            "arandu-test",
+			"FILESYSTEM_ENDPOINT":          "https://account.r2.cloudflarestorage.com",
+			"FILESYSTEM_ACCESS_KEY_ID":     "id",
+			"FILESYSTEM_SECRET_ACCESS_KEY": "secret",
 		})
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.Cache.Store != appconfig.CacheRedis || cfg.Session.Driver != appconfig.SessionRedis ||
-			cfg.Queue.Connection != appconfig.QueueRedis || cfg.Filesystems.Default != appconfig.DiskR2 ||
+		if cfg.Cache.Store != bootstrap.CacheRedis || cfg.Session.Driver != bootstrap.SessionRedis ||
+			cfg.Queue.Connection != bootstrap.QueueRedis || cfg.Filesystems.Default != bootstrap.DiskR2 ||
 			cfg.Logging.Format != "json" {
 			t.Fatalf("configured = cache %q, session %q, queue %q, disk %q, log %q",
 				cfg.Cache.Store, cfg.Session.Driver, cfg.Queue.Connection, cfg.Filesystems.Default, cfg.Logging.Format)
@@ -389,11 +396,17 @@ func TestClosedConfigurationDiscriminatorsAcceptDocumentedValues(t *testing.T) {
 	})
 
 	t.Run("the S3 disk remains supported", func(t *testing.T) {
-		cfg, err := loadConfigurationWith(t, map[string]string{"FILESYSTEM_DISK": "s3"})
+		cfg, err := loadConfigurationWith(t, map[string]string{
+			"FILESYSTEM_DISK":              "s3",
+			"FILESYSTEM_BUCKET":            "arandu-test",
+			"FILESYSTEM_ENDPOINT":          "https://s3.example.test",
+			"FILESYSTEM_ACCESS_KEY_ID":     "id",
+			"FILESYSTEM_SECRET_ACCESS_KEY": "secret",
+		})
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.Filesystems.Default != appconfig.DiskS3 {
+		if cfg.Filesystems.Default != bootstrap.DiskS3 {
 			t.Fatalf("Filesystems.Default = %q, want s3", cfg.Filesystems.Default)
 		}
 	})
@@ -409,6 +422,7 @@ func loadConfigurationWith(t *testing.T, values map[string]string) (appconfig.Co
 		"APP_URL", "GEO_ENABLED", "GEO_INDEXING_ENABLED", "GEO_SURFACES",
 		"CACHE_STORE", "SESSION_DRIVER", "QUEUE_CONNECTION", "FILESYSTEM_DISK",
 		"LOG_FORMAT", "REDIS_URL",
+		"FILESYSTEM_BUCKET", "FILESYSTEM_ENDPOINT", "FILESYSTEM_ACCESS_KEY_ID", "FILESYSTEM_SECRET_ACCESS_KEY",
 		"SESSION_SECURE", "SESSION_COOKIE", "SESSION_SECURE_COOKIE", "SESSION_TTL", "SESSION_LIFETIME", "CSRF_TTL",
 		"SESSION_PATH", "SESSION_DOMAIN", "SESSION_SAME_SITE",
 		"DB_MAX_OPEN_CONNS", "DB_MAX_IDLE_CONNS", "DB_CONN_MAX_LIFETIME",
@@ -427,4 +441,15 @@ func loadConfigurationWith(t *testing.T, values map[string]string) (appconfig.Co
 		t.Setenv(key, value)
 	}
 	return appconfig.Load()
+}
+
+// fromBase builds the configuration the way config.Load does, over a framework
+// configuration a test wrote: the framework's settings first, then this
+// application's own sections beside them.
+func fromBase(base bootstrap.Configuration) (appconfig.Config, error) {
+	settings, err := bootstrap.SettingsFrom(base)
+	if err != nil {
+		return appconfig.Config{}, err
+	}
+	return appconfig.From(settings)
 }

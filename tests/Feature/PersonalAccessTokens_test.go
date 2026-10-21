@@ -13,18 +13,18 @@ import (
 	appmiddleware "github.com/arandu-io/arandu/app/Http/Middleware"
 	models "github.com/arandu-io/arandu/app/Models"
 	policies "github.com/arandu-io/arandu/app/Policies"
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
 	factories "github.com/arandu-io/arandu/database/factories"
 	"github.com/arandu-io/arandu/tests"
 )
 
 // tokenAccounts boots the application with two accounts of its tenant and
 // answers them as the subjects their sessions would carry.
-func tokenAccounts(t *testing.T) (bootstrap.App, auth.Subject, auth.Subject) {
+func tokenAccounts(t *testing.T) (tests.Application, auth.Subject, auth.Subject) {
 	t.Helper()
 	app := tests.Booted(t)
 	members, err := factories.Users(app.DB).Count(2).
-		Create(context.Background(), auth.SystemGrant(accounts.ActionUserCreate, bootstrap.Tenant()))
+		Create(context.Background(), auth.SystemGrant(accounts.ActionUserCreate, appconfig.Tenant()))
 	if err != nil {
 		t.Fatalf("creating the accounts: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestAClosedAccountActsThroughNoToken(t *testing.T) {
 	resolver := appmiddleware.NewPersonalAccessTokens(app.Tokens)
 
 	const password = "a password long enough to close with"
-	registered, err := app.Users.Register(ctx, bootstrap.Tenant(), accounts.Registration{
+	registered, err := app.Users.Register(ctx, appconfig.Tenant(), accounts.Registration{
 		Name: "Ana", Email: "ana.closes@example.test", Password: password,
 	})
 	if err != nil {
@@ -149,7 +149,7 @@ func TestAClosedAccountActsThroughNoToken(t *testing.T) {
 	}
 	// The close deleted the row, and the refusal is not only the resolver's.
 	left, err := models.PersonalAccessTokens(app.DB).Where("user_id", "=", ana.ID).
-		First(ctx, auth.SystemGrant(policies.PersonalAccessTokenList, bootstrap.Tenant()))
+		First(ctx, auth.SystemGrant(policies.PersonalAccessTokenList, appconfig.Tenant()))
 	if err != nil {
 		t.Fatalf("reading the closed account's tokens: %v", err)
 	}

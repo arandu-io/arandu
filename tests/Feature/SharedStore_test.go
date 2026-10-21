@@ -19,7 +19,7 @@ import (
 	"github.com/arandu-io/hesape/queue"
 	"github.com/arandu-io/hesape/session"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // The shared store this application wires when a setting names the RESP server,
@@ -353,7 +353,7 @@ func TestTheSharedStoreIsOpenedOverTheEndpointTheEnvironmentNames(t *testing.T) 
 	t.Setenv("REDIS_URL", "redis://:secret@"+server.address+"/2")
 	t.Setenv("CACHE_PREFIX", "shop:cache:")
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -398,11 +398,11 @@ func TestTheQueuePauseIsWrittenWhereTheWorkerReadsIt(t *testing.T) {
 		sqliteEnv(t)
 		t.Setenv("CACHE_STORE", "redis")
 		t.Setenv("REDIS_URL", server.url())
-		if err := bootstrap.Dispatch("migrate", nil); err != nil {
+		if err := tests.Dispatch("migrate", nil); err != nil {
 			t.Fatalf("migrate: %v", err)
 		}
 
-		if err := bootstrap.Dispatch("queue:pause", []string{"database:default"}); err != nil {
+		if err := tests.Dispatch("queue:pause", []string{"database:default"}); err != nil {
 			t.Fatalf("queue:pause: %v", err)
 		}
 		if !slices.ContainsFunc(server.keys(), func(key string) bool {
@@ -416,11 +416,11 @@ func TestTheQueuePauseIsWrittenWhereTheWorkerReadsIt(t *testing.T) {
 		sqliteEnv(t)
 		t.Setenv("CACHE_STORE", "memory")
 		t.Setenv("REDIS_URL", "")
-		if err := bootstrap.Dispatch("migrate", nil); err != nil {
+		if err := tests.Dispatch("migrate", nil); err != nil {
 			t.Fatalf("migrate: %v", err)
 		}
 
-		if err := bootstrap.Dispatch("queue:pause", []string{"database:default"}); err == nil {
+		if err := tests.Dispatch("queue:pause", []string{"database:default"}); err == nil {
 			t.Fatal("queue:pause reported a pause with no store any worker can read")
 		}
 	})
@@ -440,12 +440,12 @@ func TestQueueConnectionRedisIsTheQueueTheConnectorOpened(t *testing.T) {
 	t.Setenv("REDIS_URL", "rediss://:secret@queue.example.test:6380/3")
 	t.Setenv("CACHE_PREFIX", "shop:cache:")
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
 	cfg, db, _ := openForTest(t)
-	app, err := bootstrap.Build(cfg, db)
+	app, err := tests.Build(cfg, db)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -463,10 +463,10 @@ func TestQueueConnectionRedisIsTheQueueTheConnectorOpened(t *testing.T) {
 		t.Error("rediss:// asked for encryption and the queue was opened without it")
 	}
 
-	if err := bootstrap.Dispatch("queue:monitor", []string{"redis:default"}); err != nil {
+	if err := tests.Dispatch("queue:monitor", []string{"redis:default"}); err != nil {
 		t.Errorf("queue:monitor does not reach the queue under the name QUEUE_CONNECTION gives it: %v", err)
 	}
-	if err := bootstrap.Dispatch("queue:monitor", []string{"database:default"}); err == nil {
+	if err := tests.Dispatch("queue:monitor", []string{"database:default"}); err == nil {
 		t.Error("queue:monitor found a database queue in an application that queues over RESP")
 	}
 }

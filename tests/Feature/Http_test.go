@@ -23,7 +23,6 @@ import (
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	appmiddleware "github.com/arandu-io/arandu/app/Http/Middleware"
-	"github.com/arandu-io/arandu/bootstrap"
 	"github.com/arandu-io/arandu/routes"
 )
 
@@ -183,7 +182,7 @@ type browser struct {
 // newBrowser returns a browser for app, holding a session for subject when one
 // is given. The session is started the way tests.SignedIn starts one: through
 // the store the route guards read, on an address only this handler has.
-func newBrowser(t *testing.T, app bootstrap.App, subject *auth.Subject) *browser {
+func newBrowser(t *testing.T, app tests.Application, subject *auth.Subject) *browser {
 	t.Helper()
 	const signInHere = "/_tests/sign-in"
 	inner := app.Kernel.Handler()
@@ -410,9 +409,11 @@ func TestHealthFailsWithoutTheDatabase(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", rec.Code)
 	}
+	// The database is a module of its own, registered first by the
+	// framework's drivers, and the probe names it.
 	body := rec.Body.String()
-	if !strings.Contains(body, "app") && !strings.Contains(body, "events") {
-		t.Errorf("the body must name a database-backed module, got %q", body)
+	if !strings.Contains(body, "database") {
+		t.Errorf("the body must name the database, got %q", body)
 	}
 }
 
@@ -493,7 +494,7 @@ func TestUnknownCommandIsRejected(t *testing.T) {
 	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
 	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
 
-	err := bootstrap.Dispatch("migrat", nil)
+	err := tests.Dispatch("migrat", nil)
 
 	if err == nil {
 		t.Fatal("an unknown command was accepted")

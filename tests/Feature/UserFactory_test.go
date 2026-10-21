@@ -9,7 +9,7 @@ import (
 	accounts "github.com/arandu-io/hesape/auth/account"
 
 	models "github.com/arandu-io/arandu/app/Models"
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
 	factories "github.com/arandu-io/arandu/database/factories"
 	"github.com/arandu-io/arandu/tests"
 )
@@ -22,7 +22,7 @@ func TestTheUserFactoryMakesMembersNobodyCanSignInAs(t *testing.T) {
 	app := tests.Booted(t)
 	db := app.DB
 	ctx := context.Background()
-	tenant := bootstrap.Tenant()
+	tenant := appconfig.Tenant()
 
 	made, err := factories.Users(db).Count(3).Create(ctx, nativeauth.SystemGrant(accounts.ActionUserCreate, tenant))
 	if err != nil {

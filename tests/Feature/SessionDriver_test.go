@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
+
 	"github.com/arandu-io/hesape/auth"
 
-	"github.com/arandu-io/arandu/bootstrap"
-	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/tests"
 )
 
@@ -38,11 +38,11 @@ import (
 // them: everything that is per-process -- the session backend among it -- is
 // separate between the two, and everything they share, they share through the
 // stores the configuration named.
-func bootedInstance(t *testing.T) bootstrap.App {
+func bootedInstance(t *testing.T) tests.Application {
 	t.Helper()
 
 	cfg, db, _ := openForTest(t)
-	app, err := bootstrap.Build(cfg, db)
+	app, err := tests.Build(cfg, db)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestTheSessionIsKeptByTheStoreTheConnectorOpened(t *testing.T) {
 	t.Setenv("SESSION_DRIVER", "redis")
 	t.Setenv("REDIS_URL", server.url())
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -152,7 +152,7 @@ func TestTheSessionReachesItsStoreWhateverTheCacheDefaultsTo(t *testing.T) {
 	migrateBeforeTheSessionIsPointedAtIt(t)
 
 	cfg, db, _ := openForTest(t)
-	app, err := bootstrap.Build(cfg, db)
+	app, err := tests.Build(cfg, db)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -187,10 +187,10 @@ func migrateBeforeTheSessionIsPointedAtIt(t *testing.T) {
 	t.Helper()
 
 	driver, url := os.Getenv("SESSION_DRIVER"), os.Getenv("REDIS_URL")
-	t.Setenv("SESSION_DRIVER", string(appconfig.SessionMemory))
+	t.Setenv("SESSION_DRIVER", string(fwbootstrap.SessionMemory))
 	t.Setenv("REDIS_URL", "")
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -218,12 +218,15 @@ func TestASessionOverAStoreThisProcessKeepsToItselfIsRefusedAtTheBoot(t *testing
 	t.Setenv("REDIS_URL", "")
 
 	cfg, db, _ := openForTest(t)
-	cfg.Session.Driver = appconfig.SessionRedis
+	cfg.Session.Driver = fwbootstrap.SessionRedis
 
-	if _, err := bootstrap.Build(cfg, db); err == nil {
+	if _, err := tests.Build(cfg, db); err == nil {
 		t.Fatal("the application started with its sessions in a store no other replica can read")
 	} else {
-		for _, want := range []string{"SESSION_DRIVER", `"redis"`, "REDIS_URL"} {
+		// The framework's refusal names the setting and the store it named;
+		// REDIS_URL is named by the loader, which refuses the same pair
+		// before a configuration built from the environment gets here.
+		for _, want := range []string{"SESSION_DRIVER", `"redis"`, "not defined"} {
 			if !strings.Contains(err.Error(), want) {
 				t.Errorf("the refusal does not name %s, and whoever reads it has to guess which two settings disagree: %v", want, err)
 			}
@@ -246,7 +249,7 @@ func TestASharedStoreThatKeepsNoSessionsIsRefusedAtTheBoot(t *testing.T) {
 	t.Setenv("REDIS_URL", server.url())
 
 	cfg, db, _ := openForTest(t)
-	if _, err := bootstrap.Build(cfg, db); err == nil {
+	if _, err := tests.Build(cfg, db); err == nil {
 		t.Fatal("the application started with its sessions in a store that cannot keep them")
 	} else {
 		for _, want := range []string{"SESSION_DRIVER", `"redis"`, "cannot keep sessions"} {
@@ -269,7 +272,7 @@ func TestAnUnknownSessionDriverIsRefusedAtTheBoot(t *testing.T) {
 	cfg, db, _ := openForTest(t)
 	cfg.Session.Driver = "kev"
 
-	if _, err := bootstrap.Build(cfg, db); err == nil {
+	if _, err := tests.Build(cfg, db); err == nil {
 		t.Fatal("the application started on a session driver it does not implement")
 	} else if !strings.Contains(err.Error(), "SESSION_DRIVER") || !strings.Contains(err.Error(), `"kev"`) {
 		t.Errorf("the refusal names neither the setting nor the value: %v", err)
@@ -283,7 +286,7 @@ func TestRetiredSessionDriverIsRefusedAtTheBoot(t *testing.T) {
 	t.Setenv("CACHE_STORE", "memory")
 	cfg, db, _ := openForTest(t)
 	cfg.Session.Driver = "kv"
-	_, err := bootstrap.Build(cfg, db)
+	_, err := tests.Build(cfg, db)
 	if err == nil {
 		t.Fatal("the retired session driver was accepted")
 	}

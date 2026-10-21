@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // Every migration command takes a lock before it does anything, and that is not
@@ -41,7 +41,7 @@ func TestTheReplicaThatDidNotGetTheLockAppliesNothingAndSucceeds(t *testing.T) {
 	sqliteEnv(t)
 	useStore(t, server.address)
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("a replica that did not take the lock reported a failure: %v", err)
 	}
 	if tableExists(t, "users") {
@@ -56,7 +56,7 @@ func TestTheReplicaThatGotTheLockMigrates(t *testing.T) {
 	sqliteEnv(t)
 	useStore(t, server.address)
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if !tableExists(t, "users") {
@@ -74,7 +74,7 @@ func TestNothingIsAppliedWhenTheLockCannotBeReached(t *testing.T) {
 	sqliteEnv(t)
 	useStore(t, address)
 
-	err := bootstrap.Dispatch("migrate", nil)
+	err := tests.Dispatch("migrate", nil)
 	if err == nil {
 		t.Fatal("the migration ran without ever taking the lock")
 	}
@@ -101,7 +101,7 @@ func TestIsolationIsRefusedWithTheInProcessStoreInProduction(t *testing.T) {
 	t.Setenv("APP_ENV", "prod")
 	t.Setenv("CACHE_STORE", "memory")
 
-	err := bootstrap.Dispatch("migrate", nil)
+	err := tests.Dispatch("migrate", nil)
 	if err == nil {
 		t.Fatal("it migrated, and called that isolated")
 	}
@@ -123,7 +123,7 @@ func TestTheInProcessStoreIsEnoughInDevelopment(t *testing.T) {
 	sqliteEnv(t)
 	t.Setenv("CACHE_STORE", "memory")
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate with the in-process store in development: %v", err)
 	}
 	if !tableExists(t, "users") {
@@ -138,14 +138,13 @@ func TestTheInProcessStoreIsEnoughInDevelopment(t *testing.T) {
 // The old --isolated was refused on all four, which named the limitation and
 // called it a design.
 //
-// Three of the five are refused for what they do before they are refused for
-// the lock, and that is the narrower answer -- a person who typed migrate:reset
-// against production wants to be told that, not to be told about the cache. So
-// this test no longer reaches the lock on those three, and it does not need to:
-// the lock refusal exists to stop an unisolated run in production, and a command
-// that does not run in production at all cannot have one. In development the
-// in-process lock is accepted on purpose, which is what makes `aru migrate` work
-// on a fresh clone with no Redis.
+// All five are refused for the lock: the framework's kernel asks for a lock
+// every replica sees before it runs any isolated command, so in production with
+// the in-process cache none of them starts. The three that empty the schema are
+// refused again by the command itself when the lock is there -- that is
+// TestTheCommandsThatEmptyTheSchemaDoNotRunInProduction. In development the
+// in-process lock is accepted on purpose, which is what makes `aru migrate`
+// work on a fresh clone with no Redis.
 func TestEveryMigrationCommandIsIsolated(t *testing.T) {
 	for _, command := range []string{"migrate", "migrate:rollback", "migrate:reset", "migrate:refresh", "migrate:fresh"} {
 		t.Run(command, func(t *testing.T) {
@@ -153,15 +152,9 @@ func TestEveryMigrationCommandIsIsolated(t *testing.T) {
 			t.Setenv("APP_ENV", "prod")
 			t.Setenv("CACHE_STORE", "memory")
 
-			err := bootstrap.Dispatch(command, nil)
+			err := tests.Dispatch(command, nil)
 			if err == nil {
 				t.Fatalf("%s ran in production with a lock nobody else can see", command)
-			}
-			if emptiesTheSchema[command] {
-				if !strings.Contains(err.Error(), "APP_ENV=dev") {
-					t.Errorf("%s was not refused for what it does: %v", command, err)
-				}
-				return
 			}
 			if !strings.Contains(err.Error(), "CACHE_STORE") {
 				t.Errorf("%s is not isolated: %v", command, err)
@@ -170,9 +163,9 @@ func TestEveryMigrationCommandIsIsolated(t *testing.T) {
 	}
 }
 
-// emptiesTheSchema is the set bootstrap keeps out of production, restated here
-// because the map over there is unexported and a test that imported it would be
-// asserting that a map equals itself.
+// emptiesTheSchema is the set the migration commands keep out of production,
+// restated here because a test that read it from the component would be
+// asserting that a list equals itself.
 var emptiesTheSchema = map[string]bool{
 	"migrate:fresh":   true,
 	"migrate:reset":   true,
@@ -190,16 +183,22 @@ var emptiesTheSchema = map[string]bool{
 //
 // Each one is asserted twice: refused, and having left nothing behind. A command
 // that refused after taking the first step would satisfy the first half.
+//
+// The store every replica sees is named, so the lock is taken and the refusal
+// reached is the command's own -- the narrower answer, which says where the
+// command does run and which one undoes a release.
 func TestTheCommandsThatEmptyTheSchemaDoNotRunInProduction(t *testing.T) {
 	for command := range emptiesTheSchema {
 		t.Run(command, func(t *testing.T) {
+			server := borrowRESP(t)
 			sqliteEnv(t)
-			if err := bootstrap.Dispatch("migrate", nil); err != nil {
+			if err := tests.Dispatch("migrate", nil); err != nil {
 				t.Fatalf("migrate: %v", err)
 			}
 			t.Setenv("APP_ENV", "prod")
+			useStore(t, server.address)
 
-			err := bootstrap.Dispatch(command, nil)
+			err := tests.Dispatch(command, nil)
 			if err == nil {
 				t.Fatalf("%s emptied a production schema", command)
 			}
@@ -227,14 +226,14 @@ func TestTheCommandsThatEmptyTheSchemaDoNotRunInProduction(t *testing.T) {
 // unsafe one. It stays, scoped to one batch, and isolated.
 func TestRollbackStillRunsInProduction(t *testing.T) {
 	sqliteEnv(t)
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
 	t.Setenv("APP_ENV", "prod")
 	useStore(t, borrowRESP(t).address)
 
-	if err := bootstrap.Dispatch("migrate:rollback", nil); err != nil {
+	if err := tests.Dispatch("migrate:rollback", nil); err != nil {
 		t.Fatalf("migrate:rollback was refused in production: %v", err)
 	}
 }

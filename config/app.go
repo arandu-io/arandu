@@ -1,14 +1,10 @@
-// Package config is this application's configuration, one file per domain: twelve
-// files, named after what they configure.
+// Package config is this application's configuration: what the framework reads
+// for every application -- bootstrap.Settings, one typed section per driver --
+// and the sections that are this application's own, beside it.
 //
-// The difference is the one that matters: there is no config("app.name") lookup.
-// Every setting is a field of a typed struct, so a wrong key is a compile error
-// instead of a nil that surfaces on the first request that happens to need it.
-//
-// The framework parses what the kernel itself needs -- APP_KEY, APP_ENV, the
-// connection, one struct per component -- and this package parses the rest.
-// Config carries both, so there is one value to pass around and one place to
-// look.
+// There is no config("app.name") lookup. Every setting is a field of a typed
+// struct, so a wrong key is a compile error instead of a nil that surfaces on
+// the first request that happens to need it.
 package config
 
 import (
@@ -19,166 +15,45 @@ import (
 	"time"
 
 	"github.com/arandu-io/framework/foundation/bootstrap"
-	hconfig "github.com/arandu-io/hesape/config"
 	"github.com/arandu-io/hesape/geo"
 )
 
-// Config is the whole configuration of this application: one field per file in
-// this directory, plus what the framework parsed for the kernel.
+// Config is the whole configuration of this application: the framework's
+// sections, embedded, so cfg.Cache, cfg.Mail and cfg.App read as fields, and
+// this application's own.
 type Config struct {
-	// Framework is what foundation.New takes: one struct per component, filled from
-	// the environment once. It is not a copy of the fields below -- the kernel
-	// validates APP_KEY, APP_ENV and the connection while it is filled, and this
-	// package never re-reads them.
-	Framework bootstrap.Configuration
+	bootstrap.Settings
 
-	App         App
-	Geo         geo.Config
-	Auth        Auth
-	Cache       Cache
-	Database    Database
-	Filesystems Filesystems
-	HTTP        HTTP
-	Logging     Logging
-	Mail        Mail
-	Queue       Queue
-	Services    Services
-	Session     Session
+	Auth     Auth
+	Geo      geo.Config
+	Services Services
 }
-
-// App is the identity of the application.
-type App struct {
-	// Name appears in the page title, in the log and in outgoing mail.
-	Name string
-	// Env gates everything that must never run outside development.
-	Env hconfig.Env
-	// URL is the canonical address, used to build absolute links from a job or
-	// a scheduled task, where there is no request to read the host from.
-	URL string
-	// HTTPAddr is what the server listens on.
-	HTTPAddr string
-	// Timezone is the zone dates are rendered in. Storage is always UTC.
-	Timezone string
-	// Locale is the default language tag.
-	Locale string
-}
-
-// IsDev reports whether the debug surface is allowed to exist.
-func (a App) IsDev() bool { return a.Env.Is(hconfig.EnvDev) }
 
 // Load reads the environment and returns the whole configuration, or the first
 // error. It fails at boot, never on a request.
 func Load() (Config, error) {
-	base, err := bootstrap.LoadConfiguration()
+	settings, err := bootstrap.LoadSettings()
 	if err != nil {
 		return Config{}, err
 	}
-	return From(base)
+	return From(settings)
 }
 
-// From builds the application configuration on top of one the framework already
-// parsed. It validates that base and returns the first invalid application
-// setting instead of constructing a partial configuration.
-//
-// It is separate from Load so a test can supply a valid framework configuration
-// directly and get the twelve application domains filled from their defaults.
-func From(base bootstrap.Configuration) (Config, error) {
-	if err := base.App.Validate(); err != nil {
-		return Config{}, fmt.Errorf("framework application configuration: %w", err)
-	}
-	// The framework's loader never answers a lifetime that is not positive, so
-	// this is a base built in Go. A store built with it would expire every
-	// session as it was written, and the first sign would be a sign-in that
-	// signs nobody in.
-	if base.Session.Lifetime <= 0 {
-		return Config{}, fmt.Errorf("framework session configuration: Lifetime is %s, and a session has to last longer than that; "+
-			"SESSION_LIFETIME states it in minutes when the configuration is loaded, and a configuration built in Go states Session.Lifetime", base.Session.Lifetime)
-	}
-
+// From adds this application's sections to settings the framework already
+// read. It is separate from Load so a test can supply the settings directly.
+func From(settings bootstrap.Settings) (Config, error) {
 	auth, err := loadAuth()
 	if err != nil {
 		return Config{}, err
 	}
-	cache, err := loadCache(base)
+	geoConfig, err := loadGeo(settings.App)
 	if err != nil {
 		return Config{}, err
 	}
-	filesystems, err := loadFilesystems()
-	if err != nil {
-		return Config{}, err
-	}
-	httpConfig, err := loadHTTP()
-	if err != nil {
-		return Config{}, err
-	}
-	logging, err := loadLogging(base)
-	if err != nil {
-		return Config{}, err
-	}
-	mail, err := loadMail(base)
-	if err != nil {
-		return Config{}, err
-	}
-	queue, err := loadQueue()
-	if err != nil {
-		return Config{}, err
-	}
-	// After the cache, because the session names one of its stores.
-	session, err := loadSession(cache)
-	if err != nil {
-		return Config{}, err
-	}
-
-	cfg := Config{
-		Framework:   base,
-		App:         loadApp(base),
-		Auth:        auth,
-		Cache:       cache,
-		Database:    loadDatabase(base),
-		Filesystems: filesystems,
-		HTTP:        httpConfig,
-		Logging:     logging,
-		Mail:        mail,
-		Queue:       queue,
-		Services:    loadServices(),
-		Session:     session,
-	}
-	geoConfig, err := loadGeo(cfg.App)
-	if err != nil {
-		return Config{}, err
-	}
-	cfg.Geo = geoConfig
-
-	return cfg, nil
-}
-
-func loadApp(base bootstrap.Configuration) App {
-	// The address and the zone are rendered from what was already parsed, not
-	// read from APP_URL and APP_TIMEZONE a second time: two readers of one
-	// variable are two answers the day one of them grows a default the other
-	// does not have.
-	//
-	// A nil address is what a configuration built by hand in a test leaves
-	// behind. On a real boot it never happens -- App.Validate refuses it.
-	address := ""
-	if base.App.URL != nil {
-		address = base.App.URL.String()
-	}
-
-	return App{
-		Name:     base.App.Name,
-		Env:      base.App.Env,
-		URL:      address,
-		HTTPAddr: base.App.HTTPAddr,
-		// A nil location renders as UTC, which is the default this read had.
-		Timezone: base.App.Timezone.String(),
-		Locale:   base.App.Locale,
-	}
+	return Config{Settings: settings, Auth: auth, Geo: geoConfig, Services: loadServices()}, nil
 }
 
 // The readers below are the only place this package touches the environment.
-// They are unexported for a reason: a setting read at the point of use is a
-// setting nobody can list, and listing them is what this directory is for.
 
 func env(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok && v != "" {
@@ -202,56 +77,14 @@ func envBool(key string, fallback bool) (bool, error) {
 	}
 }
 
-func envInt(key string, fallback int) (int, error) {
-	v, ok := os.LookupEnv(key)
-	if !ok || v == "" {
-		return fallback, nil
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil {
-		return 0, fmt.Errorf("%s has invalid integer value %q: %w", key, v, err)
-	}
-	return n, nil
-}
-
-// envCount reads a variable that counts something, and answers zero when it was
-// not written at all.
-//
-// It is envInt without a fallback, and the difference is the point: zero is what
-// the component downstream reads as "keep your own default", so this package
-// writes no number of its own and the variable being absent is what asks for
-// one. A value that is present and not positive is refused rather than read as
-// the default, because there is no count of none to ask for -- and a
-// QUEUE_WORKERS=0 quietly restoring the default is the shape of failure where an
-// .env says one thing and the process does another with nothing reporting it.
-func envCount(key string) (int, error) {
-	v, ok := os.LookupEnv(key)
-	if !ok || v == "" {
-		return 0, nil
-	}
-	n, err := envInt(key, 0)
-	if err != nil {
-		return 0, err
-	}
-	if n <= 0 {
-		return 0, fmt.Errorf("%s must be a positive whole number, got %q; leave it unset to keep the default", key, v)
-	}
-	return n, nil
-}
-
-// envSeconds reads a duration expressed in seconds, not in Go's duration
-// syntax: these values are written by deployment tooling as often as by people,
-// and "3600" travels through a Helm chart better than "1h".
+// envSeconds reads a duration expressed in seconds.
 func envSeconds(key string, fallback time.Duration) (time.Duration, error) {
 	v, ok := os.LookupEnv(key)
 	if !ok || v == "" {
 		return fallback, nil
 	}
-	n, err := envInt(key, 0)
-	if err != nil {
-		return 0, err
-	}
-	if n <= 0 {
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
 		return 0, fmt.Errorf("%s must be a positive number of seconds, got %q", key, v)
 	}
 	return time.Duration(n) * time.Second, nil

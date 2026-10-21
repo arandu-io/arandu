@@ -8,8 +8,8 @@ import (
 
 	"github.com/arandu-io/hesape/auth"
 
-	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // TestTheSessionLifetimeReachesTheCookie.
@@ -37,12 +37,12 @@ func TestTheSessionLifetimeReachesTheCookie(t *testing.T) {
 			if err != nil {
 				t.Fatalf("loading the configuration: %v", err)
 			}
-			db, closeDB, err := bootstrap.Open(cfg)
+			db, closeDB, err := tests.Open(cfg)
 			if err != nil {
 				t.Fatalf("opening the database: %v", err)
 			}
 			t.Cleanup(closeDB)
-			app, err := bootstrap.Build(cfg, db)
+			app, err := tests.Build(cfg, db)
 			if err != nil {
 				t.Fatalf("wiring the application: %v", err)
 			}

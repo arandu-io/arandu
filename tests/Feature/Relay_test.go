@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
 
 	"github.com/arandu-io/framework/arandutest"
 	"github.com/arandu-io/framework/events"
@@ -23,7 +23,7 @@ import (
 func storedEvents(t *testing.T, db *database.DB, names ...string) {
 	t.Helper()
 	outbox := events.NewOutbox(db)
-	g := auth.SystemGrant("invoice.pay", bootstrap.Tenant())
+	g := auth.SystemGrant("invoice.pay", appconfig.Tenant())
 
 	err := database.Transaction(context.Background(), db, func(ctx context.Context) error {
 		list := make([]hevents.Event, 0, len(names))
@@ -59,7 +59,7 @@ func TestTheRelayPublishesWhatWasStored(t *testing.T) {
 		t.Errorf("published in the wrong order: %v", got.Names())
 	}
 	// The Grant travelled with the event: who authorized it, which action.
-	if got.Events[0].Action != "invoice.pay" || got.Events[0].TenantID != bootstrap.Tenant() {
+	if got.Events[0].Action != "invoice.pay" || got.Events[0].TenantID != appconfig.Tenant() {
 		t.Errorf("the audit trail did not survive: %+v", got.Events[0])
 	}
 

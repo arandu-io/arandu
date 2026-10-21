@@ -14,7 +14,7 @@ import (
 	"github.com/arandu-io/hesape/webhook"
 
 	appevents "github.com/arandu-io/arandu/app/Events"
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/tests"
 )
 
@@ -34,9 +34,9 @@ func signedDelivery(secret, id, body string, at time.Time) []string {
 }
 
 // receivedEvents reads what the deliveries stored in the outbox.
-func receivedEvents(t *testing.T, app bootstrap.App) []events.Stored {
+func receivedEvents(t *testing.T, app tests.Application) []events.Stored {
 	t.Helper()
-	pending, err := frameevents.NewOutbox(app.DB).Pending(context.Background(), bootstrap.Tenant(), 100)
+	pending, err := frameevents.NewOutbox(app.DB).Pending(context.Background(), appconfig.Tenant(), 100)
 	if err != nil {
 		t.Fatalf("reading the outbox: %v", err)
 	}

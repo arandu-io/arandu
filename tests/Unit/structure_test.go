@@ -170,7 +170,6 @@ func TestTheApplicationTreeHasOneOwnerPerResponsibility(t *testing.T) {
 		"app/Providers/AppServiceProvider.go",
 		"assets/assets.go",
 		"bootstrap/app.go",
-		"bootstrap/console.go",
 		"config/app.go",
 		"database/migrations/migrations.go",
 		"public/public.go",
@@ -216,7 +215,25 @@ func TestTheApplicationTreeHasOneOwnerPerResponsibility(t *testing.T) {
 		}
 	}
 
+	// bootstrap/ holds app.go and nothing else: it configures the application,
+	// and a second file beside it is a second place the application is
+	// assembled. The commands are the framework's kernel and routes/console.go,
+	// the wiring that grows is app/Providers.
+	if entries, err := os.ReadDir(filepath.Join(root, "bootstrap")); err != nil {
+		t.Errorf("reading bootstrap/: %v", err)
+	} else {
+		for _, e := range entries {
+			if e.Name() != "app.go" {
+				t.Errorf("bootstrap/%s is a second file beside bootstrap/app.go; its code belongs in app/Providers, "+
+					"routes/console.go with app/Console/Commands, or config/", e.Name())
+			}
+		}
+	}
+
 	forbiddenPaths := []string{
+		// A program of its own is a command of this binary, in
+		// app/Console/Commands and listed in routes/console.go.
+		"cmd",
 		"app/Actions",
 		"app/Data",
 		"app/Rules",
@@ -297,7 +314,7 @@ func TestEachSuiteHoldsWhatItsNameSays(t *testing.T) {
 	// tests.Booted is the application built and booted, which is what Feature
 	// means; a file whose fixture calls it boots as surely as one that calls
 	// tests.App.
-	boots := regexp.MustCompile(`tests\.App\(|tests\.Booted\(|tests\.Kernel\(|bootstrap\.Dispatch\(|bootstrap\.Open\(|httptest\.NewRequest\(|httptest\.NewServer\(|migratedDB\(`)
+	boots := regexp.MustCompile(`tests\.App\(|tests\.Booted\(|tests\.Kernel\(|tests\.Dispatch\(|tests\.Run\(|tests\.Open\(|tests\.Build\(|httptest\.NewRequest\(|httptest\.NewServer\(|migratedDB\(`)
 
 	for _, suite := range []string{"Feature", "Unit"} {
 		dir := filepath.Join(tests.Root(t), "tests", suite)

@@ -13,7 +13,7 @@ import (
 
 	models "github.com/arandu-io/arandu/app/Models"
 	policies "github.com/arandu-io/arandu/app/Policies"
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
 	factories "github.com/arandu-io/arandu/database/factories"
 	"github.com/arandu-io/arandu/tests"
 )
@@ -37,7 +37,7 @@ func (f notesFixture) storedComment(t *testing.T, address string) *models.Commen
 	t.Helper()
 	id := strings.TrimPrefix(address, "/comments/")
 	found, err := models.Comments(f.app.DB).Find(context.Background(),
-		auth.SystemGrant(policies.CommentView, bootstrap.Tenant()), id)
+		auth.SystemGrant(policies.CommentView, appconfig.Tenant()), id)
 	if err != nil {
 		t.Fatalf("reading comment %s: %v", id, err)
 	}
@@ -50,7 +50,7 @@ func TestACommentIsWrittenUnderTheNoteAndChangedByItsAuthor(t *testing.T) {
 
 	address := f.comment(t, f.bea, note, "Add coffee.")
 	stored := f.storedComment(t, address)
-	if stored.NoteID != strings.TrimPrefix(note, "/notes/") || stored.UserID != f.beaID || stored.TenantID != bootstrap.Tenant() {
+	if stored.NoteID != strings.TrimPrefix(note, "/notes/") || stored.UserID != f.beaID || stored.TenantID != appconfig.Tenant() {
 		t.Fatalf("stored comment = %+v, want it under %s, written by %s in the configured tenant", stored, note, f.beaID)
 	}
 

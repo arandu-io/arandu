@@ -10,8 +10,8 @@ import (
 	nativeauth "github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database"
 
-	"github.com/arandu-io/arandu/bootstrap"
 	appconfig "github.com/arandu-io/arandu/config"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // The tests below run the real thing against a real database, because SQLite is
@@ -31,20 +31,20 @@ func sqliteEnv(t *testing.T) {
 func TestMigrateAndRollbackOnSQLite(t *testing.T) {
 	sqliteEnv(t)
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	// Twice, because a deploy pipeline runs it on every release.
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("second migrate: %v", err)
 	}
-	if err := bootstrap.Dispatch("migrate:status", nil); err != nil {
+	if err := tests.Dispatch("migrate:status", nil); err != nil {
 		t.Fatalf("migrate:status: %v", err)
 	}
-	if err := bootstrap.Dispatch("migrate:rollback", nil); err != nil {
+	if err := tests.Dispatch("migrate:rollback", nil); err != nil {
 		t.Fatalf("migrate:rollback: %v", err)
 	}
-	if err := bootstrap.Dispatch("migrate:fresh", nil); err != nil {
+	if err := tests.Dispatch("migrate:fresh", nil); err != nil {
 		t.Fatalf("migrate:fresh: %v", err)
 	}
 }
@@ -57,7 +57,7 @@ func TestTheSkeletonExposesTheCompleteMigrationCommandSurface(t *testing.T) {
 	t.Run("install creates the migration repository", func(t *testing.T) {
 		sqliteEnv(t)
 
-		if err := bootstrap.Dispatch("migrate:install", nil); err != nil {
+		if err := tests.Dispatch("migrate:install", nil); err != nil {
 			t.Fatalf("migrate:install: %v", err)
 		}
 		if !tableExists(t, "arandu_migrations") {
@@ -68,10 +68,10 @@ func TestTheSkeletonExposesTheCompleteMigrationCommandSurface(t *testing.T) {
 	t.Run("reset rolls every migration back", func(t *testing.T) {
 		sqliteEnv(t)
 
-		if err := bootstrap.Dispatch("migrate", nil); err != nil {
+		if err := tests.Dispatch("migrate", nil); err != nil {
 			t.Fatalf("migrate: %v", err)
 		}
-		if err := bootstrap.Dispatch("migrate:reset", nil); err != nil {
+		if err := tests.Dispatch("migrate:reset", nil); err != nil {
 			t.Fatalf("migrate:reset: %v", err)
 		}
 		if tableExists(t, "users") {
@@ -82,10 +82,10 @@ func TestTheSkeletonExposesTheCompleteMigrationCommandSurface(t *testing.T) {
 	t.Run("refresh rolls back and re-runs every migration", func(t *testing.T) {
 		sqliteEnv(t)
 
-		if err := bootstrap.Dispatch("migrate", nil); err != nil {
+		if err := tests.Dispatch("migrate", nil); err != nil {
 			t.Fatalf("migrate: %v", err)
 		}
-		if err := bootstrap.Dispatch("migrate:refresh", nil); err != nil {
+		if err := tests.Dispatch("migrate:refresh", nil); err != nil {
 			t.Fatalf("migrate:refresh: %v", err)
 		}
 		if !tableExists(t, "users") {
@@ -114,7 +114,7 @@ func TestTheSkeletonExposesTheCompleteMigrationCommandSurface(t *testing.T) {
 // worth catching is a command that stopped being dispatched at all.
 func TestTheSkeletonExposesTheCompleteQueueCommandSurface(t *testing.T) {
 	sqliteEnv(t)
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestTheSkeletonExposesTheCompleteQueueCommandSurface(t *testing.T) {
 		{name: "queue:prune-batches", args: []string{"--tenant=acme"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			err := bootstrap.Dispatch(c.name, c.args)
+			err := tests.Dispatch(c.name, c.args)
 			if err != nil && strings.Contains(err.Error(), "unknown command") {
 				t.Fatalf("%s is forwarded by the CLI and answered by nothing: %v", c.name, err)
 			}
@@ -158,25 +158,17 @@ func TestTheSkeletonExposesTheCompleteQueueCommandSurface(t *testing.T) {
 	// worker and restarts it whenever it exits, so dispatching it in a test is a
 	// process that does not end. It is registered beside the twelve above.
 
-	t.Run("there is one worker, and queue:work is not a second one", func(t *testing.T) {
-		// `aru queue:work` hands this binary the argument `work`, which the
-		// switch answers with the worker in background.go. The component ships a
-		// queue:work of its own, and registering it here would put a second
-		// worker in this binary -- its own flags, its own idea of which handlers
-		// exist, and two ways to start one.
-		//
-		// So the name is refused, and the refusal has to name the one that
-		// works: somebody who typed it is one word away and should be told which.
-		err := bootstrap.Dispatch("queue:work", nil)
-
-		if err == nil {
-			t.Fatal("queue:work ran, so this binary holds a second worker beside `work`")
+	t.Run("queue:work is the one worker", func(t *testing.T) {
+		// `aru queue:work` hands this binary the argument `work`, and the
+		// framework's kernel answers both names with the one worker, over the
+		// handlers routes and providers registered. It is not run here: it
+		// drains until interrupted, which the binary test does with a signal.
+		listed, err := tests.Run("list")
+		if err != nil {
+			t.Fatalf("list: %v", err)
 		}
-		if !strings.Contains(err.Error(), "unknown command") {
-			t.Fatalf("queue:work did something other than refuse: %v", err)
-		}
-		if !strings.Contains(err.Error(), "work") {
-			t.Errorf("the refusal does not name the command that drains the queue: %v", err)
+		if !strings.Contains(listed, "queue:work") {
+			t.Fatalf("the kernel does not list queue:work:\n%s", listed)
 		}
 	})
 }
@@ -190,24 +182,24 @@ func TestTheSkeletonExposesTheCompleteQueueCommandSurface(t *testing.T) {
 func TestSeededCredentialsOnSQLite(t *testing.T) {
 	sqliteEnv(t)
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if err := bootstrap.Dispatch("db:seed", nil); err != nil {
+	if err := tests.Dispatch("db:seed", nil); err != nil {
 		t.Fatalf("empty db:seed: %v", err)
 	}
 	userSeed := []string{"UserSeeder", "-e", "admin@example.test", "-p", "a-long-enough-password", "-r", "admin"}
-	if err := bootstrap.Dispatch("db:seed", userSeed); err != nil {
+	if err := tests.Dispatch("db:seed", userSeed); err != nil {
 		t.Fatalf("explicit UserSeeder: %v", err)
 	}
 	// The explicit user seeder has to be safe to run again, or it cannot be an
 	// operator's recovery/bootstrap tool.
-	if err := bootstrap.Dispatch("db:seed", userSeed); err != nil {
+	if err := tests.Dispatch("db:seed", userSeed); err != nil {
 		t.Fatalf("second explicit UserSeeder: %v", err)
 	}
 
 	cfg, db, _ := openForTest(t)
-	app, err := bootstrap.Build(cfg, db)
+	app, err := tests.Build(cfg, db)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -223,19 +215,19 @@ func TestSeededCredentialsOnSQLite(t *testing.T) {
 	}
 
 	user, err := app.Users.VerifyCredentials(
-		context.Background(), bootstrap.Tenant(), "ADMIN@example.test", "a-long-enough-password", "127.0.0.1",
+		context.Background(), appconfig.Tenant(), "ADMIN@example.test", "a-long-enough-password", "127.0.0.1",
 	)
 	if err != nil {
 		t.Fatalf("verifying the seeded administrator: %v", err)
 	}
-	if user.AccountEmail() != "admin@example.test" || user.AccountTenant() != bootstrap.Tenant() {
-		t.Fatalf("verified account = %s in %s, want normalized administrator in %s", user.AccountEmail(), user.AccountTenant(), bootstrap.Tenant())
+	if user.AccountEmail() != "admin@example.test" || user.AccountTenant() != appconfig.Tenant() {
+		t.Fatalf("verified account = %s in %s, want normalized administrator in %s", user.AccountEmail(), user.AccountTenant(), appconfig.Tenant())
 	}
 }
 
-func credentialError(t *testing.T, app bootstrap.App, email, password string) error {
+func credentialError(t *testing.T, app tests.Application, email, password string) error {
 	t.Helper()
-	_, err := app.Users.VerifyCredentials(context.Background(), bootstrap.Tenant(), email, password, "127.0.0.1")
+	_, err := app.Users.VerifyCredentials(context.Background(), appconfig.Tenant(), email, password, "127.0.0.1")
 	if !errors.Is(err, nativeauth.ErrInvalidCredentials) {
 		t.Fatalf("VerifyCredentials(%s) returned %v, want ErrInvalidCredentials", email, err)
 	}
@@ -246,11 +238,11 @@ func credentialError(t *testing.T, app bootstrap.App, email, password string) er
 // main way to get this command wrong.
 func TestSeedRefusesAnUnknownName(t *testing.T) {
 	sqliteEnv(t)
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	err := bootstrap.Dispatch("db:seed", []string{"NoSuchSeeder"})
+	err := tests.Dispatch("db:seed", []string{"NoSuchSeeder"})
 
 	if err == nil {
 		t.Fatal("an unknown seeder was accepted")
@@ -269,11 +261,11 @@ func TestSeedRefusesAnUnknownName(t *testing.T) {
 // changed.
 func TestTheOldClassFlagSaysWhatToTypeInstead(t *testing.T) {
 	sqliteEnv(t)
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	err := bootstrap.Dispatch("db:seed", []string{"--class=PostSeeder"})
+	err := tests.Dispatch("db:seed", []string{"--class=PostSeeder"})
 
 	if err == nil {
 		t.Fatal("--class= was accepted")
@@ -285,11 +277,16 @@ func TestTheOldClassFlagSaysWhatToTypeInstead(t *testing.T) {
 
 // TestFreshRefusesOutsideDevelopment: migrate:fresh drops every table, and a
 // confirmation prompt is not a guard anyone should trust at 3am.
+//
+// The store every replica sees is named, so the kernel's lock is taken and the
+// refusal reached is the command's own.
 func TestFreshRefusesOutsideDevelopment(t *testing.T) {
+	server := borrowRESP(t)
 	sqliteEnv(t)
 	t.Setenv("APP_ENV", "prod")
+	useStore(t, server.address)
 
-	err := bootstrap.Dispatch("migrate:fresh", nil)
+	err := tests.Dispatch("migrate:fresh", nil)
 
 	if err == nil {
 		t.Fatal("migrate:fresh ran outside development")
@@ -308,7 +305,7 @@ func openForTest(t *testing.T) (appconfig.Config, *database.DB, func()) {
 	if err != nil {
 		t.Fatalf("config: %v", err)
 	}
-	db, closeDB, err := bootstrap.Open(cfg)
+	db, closeDB, err := tests.Open(cfg)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -330,13 +327,13 @@ func TestVendorPublishIsDispatched(t *testing.T) {
 	sqliteEnv(t)
 
 	t.Run("the preview runs", func(t *testing.T) {
-		if err := bootstrap.Dispatch("vendor:publish", nil); err != nil {
+		if err := tests.Dispatch("vendor:publish", nil); err != nil {
 			t.Fatalf("vendor:publish: %v", err)
 		}
 	})
 
 	t.Run("a kind of file that does not exist is refused", func(t *testing.T) {
-		err := bootstrap.Dispatch("vendor:publish", []string{"--tag=stylesheet"})
+		err := tests.Dispatch("vendor:publish", []string{"--tag=stylesheet"})
 
 		if err == nil {
 			t.Fatal("a tag from outside the closed set was accepted")
@@ -352,7 +349,7 @@ func TestVendorPublishIsDispatched(t *testing.T) {
 	t.Run("it is named where the unknown commands are listed", func(t *testing.T) {
 		// The listing and the dispatch are one line apart and were still out of
 		// step twice, both times for a command that ran and was never mentioned.
-		err := bootstrap.Dispatch("no-such-command", nil)
+		err := tests.Dispatch("no-such-command", nil)
 
 		if err == nil {
 			t.Fatal("an unknown command was accepted")

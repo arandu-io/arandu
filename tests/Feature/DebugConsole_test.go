@@ -13,7 +13,8 @@ import (
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/log"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // The console, through the real pipeline. Everything below goes through
@@ -28,29 +29,29 @@ import (
 // wires are reachable from no route: the relay that empties the outbox is one,
 // and a test that built one of its own would pass over an application that wires
 // none.
-func bootedApp(t *testing.T) (bootstrap.App, *database.DB) {
+func bootedApp(t *testing.T) (tests.Application, *database.DB) {
 	t.Helper()
 	app, db := builtApp(t)
 	bootApp(t, app)
 	return app, db
 }
 
-func builtApp(t *testing.T) (bootstrap.App, *database.DB) {
+func builtApp(t *testing.T) (tests.Application, *database.DB) {
 	t.Helper()
 	sqliteEnv(t)
 
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	cfg, db, _ := openForTest(t)
-	app, err := bootstrap.Build(cfg, db)
+	app, err := tests.Build(cfg, db)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	return app, db
 }
 
-func bootApp(t *testing.T, app bootstrap.App) {
+func bootApp(t *testing.T, app tests.Application) {
 	t.Helper()
 	if err := app.Kernel.Boot(context.Background()); err != nil {
 		t.Fatalf("boot: %v", err)
@@ -100,7 +101,7 @@ func TestTheConsoleRecordsARealRequest(t *testing.T) {
 func TestTheConsoleSeesTheQueriesOfTheRequest(t *testing.T) {
 	app, _ := builtApp(t)
 
-	user, err := app.Users.Register(context.Background(), bootstrap.Tenant(), accounts.Registration{
+	user, err := app.Users.Register(context.Background(), appconfig.Tenant(), accounts.Registration{
 		Name: "Ana", Email: "ana@example.test", Password: "a-long-enough-password",
 	})
 	if err != nil {
@@ -156,8 +157,8 @@ func (p queryProbe) Routes(router *fhttp.Router) {
 }
 
 func TestTheGrantStillComesFromTheSession(t *testing.T) {
-	g := auth.SystemGrant("user.view", bootstrap.Tenant())
-	if auth.Tenant(g) != bootstrap.Tenant() {
+	g := auth.SystemGrant("user.view", appconfig.Tenant())
+	if auth.Tenant(g) != appconfig.Tenant() {
 		t.Fatal("the tenant no longer comes from the Grant")
 	}
 }

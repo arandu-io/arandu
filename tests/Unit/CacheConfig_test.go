@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
+
 	appconfig "github.com/arandu-io/arandu/config"
 )
 
@@ -15,7 +17,7 @@ import (
 // keys.
 
 // loadCacheConfig reads the configuration with the two cache variables set.
-func loadCacheConfig(t *testing.T, store, redisURL string) appconfig.Cache {
+func loadCacheConfig(t *testing.T, store, redisURL string) fwbootstrap.Cache {
 	t.Helper()
 	cfg, err := loadApplicationConfig(t, store, redisURL)
 	if err != nil {
@@ -75,7 +77,7 @@ func TestTheCacheURLBecomesTheEndpointTheClientDials(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			cfg := loadCacheConfig(t, "redis", c.url)
 
-			if cfg.Store != appconfig.CacheRedis {
+			if cfg.Store != fwbootstrap.CacheRedis {
 				t.Fatalf("Store = %q, want redis", cfg.Store)
 			}
 			if cfg.Address != c.address {
@@ -154,7 +156,7 @@ func TestTheCertificatesAreFilePathsTheConfigurationCarries(t *testing.T) {
 func TestTheRESPStoreIsDefinedWhoeverNamesIt(t *testing.T) {
 	cfg := loadCacheConfig(t, "memory", "redis://cache.example.test:6380")
 
-	if cfg.Store != appconfig.CacheMemory {
+	if cfg.Store != fwbootstrap.CacheMemory {
 		t.Fatalf("Store = %q, want memory", cfg.Store)
 	}
 	if cfg.Address != "cache.example.test:6380" {

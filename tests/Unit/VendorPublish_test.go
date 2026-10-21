@@ -2,18 +2,20 @@ package unit_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 
+	"github.com/arandu-io/hesape/console"
 	"github.com/arandu-io/hesape/foundation"
-
-	"github.com/arandu-io/arandu/bootstrap"
+	pconsole "github.com/arandu-io/hesape/publish/console"
 )
 
-// What `aru vendor:publish` reaches when it forwards to this binary.
+// What `aru vendor:publish` reaches when it forwards to this binary: the
+// framework's built-in vendor:publish, which is the publish component's command.
 //
 // The three promises are what these tests are for, and none of them is
 // checkable by reading the command: nothing is written without --apply, a
@@ -63,8 +65,11 @@ func configPublication() []foundation.Publication {
 // printed, so a test reads the same listing a person does.
 func publishInto(t *testing.T, root string, publications []foundation.Publication, args ...string) (string, error) {
 	t.Helper()
-	var out bytes.Buffer
-	err := bootstrap.Publish(root, publications, args, &out)
+	var out, errOut bytes.Buffer
+	command := pconsole.NewPublishCommand(root, func() ([]foundation.Publication, error) { return publications, nil })
+	err := console.NewApplication(&out, &errOut, strings.NewReader("")).
+		Add(command.Command()).
+		Call(context.Background(), "vendor:publish", args...)
 	return out.String(), err
 }
 

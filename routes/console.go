@@ -2,81 +2,63 @@ package routes
 
 import (
 	"context"
-	"fmt"
-	"sort"
-	"strings"
+	"time"
+
+	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/console"
+	"github.com/arandu-io/hesape/foundation"
+	"github.com/arandu-io/hesape/queue"
+
+	commands "github.com/arandu-io/arandu/app/Console/Commands"
+	appjobs "github.com/arandu-io/arandu/app/Jobs"
+	policies "github.com/arandu-io/arandu/app/Policies"
+	services "github.com/arandu-io/arandu/app/Services"
 )
 
-// Command is one console command this application adds.
-//
-// A console routes file usually registers closures against a runtime
-// dispatcher. This is the same idea with the reflection removed: a command is
-// a value with a name, a sentence of help and a function, and the compiler
-// checks the function.
-type Command struct {
-	// Name is what the command is called on the command line. Lowercase, with a
-	// colon for the group: "invoice:close".
-	Name string
-	// Description is the one line `aru` prints next to it.
-	Description string
-	// Run does the work. It receives whatever followed the command name.
-	Run func(ctx context.Context, args []string) error
+// ConsoleDeps is what this application's commands and scheduled tasks reach,
+// built by app/Providers.
+type ConsoleDeps struct {
+	Notes  *services.NoteService
+	Queue  queue.Queue
+	Tenant string
 }
 
-// Console returns this application's own commands.
+// Commands are this application's own console commands. The code of each lives
+// in app/Console/Commands.
 //
-// The built-in ones -- serve, migrate, routes, db:seed, work, schedule -- are
-// not here. They live in main.go because they need the registered modules, and
-// listing them twice would be two answers to "what can this binary do".
-func Console() []Command {
-	return []Command{
+// The framework's commands -- serve, routes, migrate, db:seed, queue:work,
+// schedule:list and the rest -- are not here: the kernel composes them, and a
+// name declared here that it already answers stops the boot naming both.
+func Commands(d ConsoleDeps) []console.Command {
+	return []console.Command{
 		// arandu:begin custom
-		// {
-		// 	Name:        "invoice:close",
-		// 	Description: "Close the open invoices of the current period",
-		// 	Run:         func(ctx context.Context, args []string) error { return nil },
-		// },
+		// The example resource's command. Remove it with the list under "The
+		// example resource" in README.md.
+		commands.NotesDigest(d.Queue, d.Tenant),
 		// arandu:end custom
 	}
 }
 
-// Lookup finds a command by name.
-func Lookup(name string) (Command, bool) {
-	for _, c := range Console() {
-		if c.Name == name {
-			return c, true
-		}
+// Schedule is this application's scheduled work, beside what the registered
+// modules declare. The scheduler runs it in the process that serves.
+func Schedule(d ConsoleDeps) []foundation.Task {
+	return []foundation.Task{
+		// arandu:begin custom
+		// The example resource's nightly digest. Remove it with the list under
+		// "The example resource" in README.md.
+		{
+			ID:        appjobs.SendNotesDigestName,
+			Spec:      "0 2 * * *",
+			Scope:     foundation.PerTenant,
+			Singleton: true,
+			Timeout:   time.Minute,
+			Action:    policies.NoteList,
+			Run: func(ctx context.Context, g auth.Grant) error {
+				return appjobs.DispatchSendNotesDigest(ctx, d.Queue, g, appjobs.SendNotesDigest{
+					Since: time.Now().Add(-24 * time.Hour),
+				})
+			},
+		},
+		// arandu:end custom
 	}
-	return Command{}, false
-}
-
-// Names lists the registered commands, sorted, for an error message that has to
-// say what was available instead.
-func Names() []string {
-	commands := Console()
-	out := make([]string, 0, len(commands))
-	for _, c := range commands {
-		out = append(out, c.Name)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// Help renders the commands for the terminal. It returns an empty string when
-// the application declares none, so the caller prints nothing rather than a
-// heading over a blank list.
-func Help() string {
-	commands := Console()
-	if len(commands) == 0 {
-		return ""
-	}
-
-	sort.Slice(commands, func(i, j int) bool { return commands[i].Name < commands[j].Name })
-
-	var b strings.Builder
-	b.WriteString("commands of this application:\n")
-	for _, c := range commands {
-		fmt.Fprintf(&b, "  %-24s %s\n", c.Name, c.Description)
-	}
-	return b.String()
 }

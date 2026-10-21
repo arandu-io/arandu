@@ -71,10 +71,22 @@ type NewsletterClient struct {
 }
 
 // NewNewsletterClient builds the client with its configuration and the factory its
-// requests are made from: client.NewFactory(nil) in bootstrap/app.go, and the
+// requests are made from: client.NewFactory(nil) in NewNewsletter, and the
 // same factory faked in a test that wants to see the request.
 func NewNewsletterClient(config NewsletterConfig, http *client.Factory) *NewsletterClient {
 	return &NewsletterClient{config: config, http: http}
+}
+
+// NewNewsletter builds the client the application calls, over a factory of its
+// own, or answers nil when no base address is configured: the service that
+// takes it then sends no digest, and a project runs with no credential at all.
+// The nil is an untyped one, so the caller's comparison with nil answers what
+// it asks.
+func NewNewsletter(config NewsletterConfig) Newsletter {
+	if config.BaseURL == "" {
+		return nil
+	}
+	return NewNewsletterClient(config, client.NewFactory(nil))
 }
 
 // Compile-time proof that the client is what the code calling it depends on.

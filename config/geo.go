@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/arandu-io/framework/foundation/bootstrap"
 	"github.com/arandu-io/hesape/geo"
 )
 
 // loadGeo builds the native Search and Generative Engine Optimization module.
 // The routes exist by default but publication is fail-closed until indexing is
 // explicitly enabled for a deployment.
-func loadGeo(app App) (geo.Config, error) {
+func loadGeo(app bootstrap.App) (geo.Config, error) {
 	enabled, err := envBool("GEO_ENABLED", true)
 	if err != nil {
 		return geo.Config{}, err

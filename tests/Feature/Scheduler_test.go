@@ -3,9 +3,12 @@ package feature_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	appjobs "github.com/arandu-io/arandu/app/Jobs"
 
 	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/hesape/auth"
@@ -14,7 +17,8 @@ import (
 	"github.com/arandu-io/hesape/queue"
 	"github.com/arandu-io/hesape/queue/jobs"
 
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // The shape doc 16 describes, end to end and against a real database: the
@@ -46,14 +50,14 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 	}
 
 	sched, err := scheduler.New([]foundation.Task{task}, scheduler.Options{
-		Tenants: func(context.Context) ([]string, error) { return []string{bootstrap.Tenant()}, nil },
+		Tenants: func(context.Context) ([]string, error) { return []string{appconfig.Tenant()}, nil },
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 
 	// Run it now rather than waiting for 3am, on the same path the loop uses.
-	if err := sched.RunNow(ctx, "billing.close", bootstrap.Tenant()); err != nil {
+	if err := sched.RunNow(ctx, "billing.close", appconfig.Tenant()); err != nil {
 		t.Fatalf("RunNow: %v", err)
 	}
 
@@ -98,7 +102,7 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if ranFor != bootstrap.Tenant() {
+	if ranFor != appconfig.Tenant() {
 		t.Errorf("the handler ran for %q, want the tenant that scheduled it", ranFor)
 	}
 	if cycle != "2026-08" {
@@ -115,7 +119,7 @@ func TestAJobIsCommittedWithTheWriteThatProducedIt(t *testing.T) {
 	refused := errors.New("the rule said no")
 
 	err := database.Transaction(ctx, db, func(ctx context.Context) error {
-		g := auth.SystemGrant("invoice.send", bootstrap.Tenant())
+		g := auth.SystemGrant("invoice.send", appconfig.Tenant())
 		j, err := jobs.New(g, "", "invoice.send", nil)
 		if err != nil {
 			return err
@@ -138,18 +142,25 @@ func TestAJobIsCommittedWithTheWriteThatProducedIt(t *testing.T) {
 // booted, or `aru schedule:list` reports nothing forever and nobody notices.
 func TestTheSchedulerIsWiredIntoTheApplication(t *testing.T) {
 	sqliteEnv(t)
-	if err := bootstrap.Dispatch("migrate", nil); err != nil {
+	if err := tests.Dispatch("migrate", nil); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
 	cfg, db, _ := openForTest(t)
-	app, err := bootstrap.Build(cfg, db)
+	app, err := tests.Build(cfg, db)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 
-	if app.Scheduler == nil {
-		t.Fatal("the scheduler module was not registered")
+	// The scheduler is the framework's, registered last by Create over every
+	// task the modules and routes/console.go declared; what the binary lists
+	// is the proof it is there.
+	listed, err := tests.Run("schedule:list")
+	if err != nil {
+		t.Fatalf("schedule:list: %v", err)
+	}
+	if !strings.Contains(listed, appjobs.SendNotesDigestName) {
+		t.Fatalf("schedule:list does not list the digest routes/console.go schedules:\n%s", listed)
 	}
 	if app.Queue == nil {
 		t.Fatal("the queue store was not wired")

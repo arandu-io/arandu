@@ -14,13 +14,14 @@ import (
 
 	models "github.com/arandu-io/arandu/app/Models"
 	policies "github.com/arandu-io/arandu/app/Policies"
-	"github.com/arandu-io/arandu/bootstrap"
+	appconfig "github.com/arandu-io/arandu/config"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // apiCall sends one request straight to the application's handler, with
 // exactly the headers given and no cookie unless one is given: a program
 // holding a token, not a browser.
-func apiCall(t *testing.T, app bootstrap.App, method, path, body string, headers ...string) *httptest.ResponseRecorder {
+func apiCall(t *testing.T, app tests.Application, method, path, body string, headers ...string) *httptest.ResponseRecorder {
 	t.Helper()
 	request := httptest.NewRequest(method, path, strings.NewReader(body))
 	if body != "" {
@@ -63,7 +64,7 @@ func problemStatus(t *testing.T, answer *httptest.ResponseRecorder) int {
 func TestATokenClientWritesWithNoSessionAndThePolicyStillDecides(t *testing.T) {
 	f := newNotesFixture(t)
 	ctx := context.Background()
-	token, _, err := f.app.Tokens.Issue(ctx, auth.Subject{ID: f.anaID, Tenant: bootstrap.Tenant()}, "notes client", 0)
+	token, _, err := f.app.Tokens.Issue(ctx, auth.Subject{ID: f.anaID, Tenant: appconfig.Tenant()}, "notes client", 0)
 	if err != nil {
 		t.Fatalf("issuing a token: %v", err)
 	}
@@ -86,7 +87,7 @@ func TestATokenClientWritesWithNoSessionAndThePolicyStillDecides(t *testing.T) {
 		t.Error("the answer carries the tenant")
 	}
 	stored := f.stored(t, address)
-	if stored.UserID != f.anaID || stored.TenantID != bootstrap.Tenant() {
+	if stored.UserID != f.anaID || stored.TenantID != appconfig.Tenant() {
 		t.Fatalf("the note was stored for user %q in tenant %q, want the token's account in its tenant", stored.UserID, stored.TenantID)
 	}
 
@@ -122,7 +123,7 @@ func TestATokenClientWritesWithNoSessionAndThePolicyStillDecides(t *testing.T) {
 func TestATokenRouteRefusesWhatCarriesNoKnownToken(t *testing.T) {
 	f := newNotesFixture(t)
 	ctx := context.Background()
-	ana := auth.Subject{ID: f.anaID, Tenant: bootstrap.Tenant()}
+	ana := auth.Subject{ID: f.anaID, Tenant: appconfig.Tenant()}
 	revoked, row, err := f.app.Tokens.Issue(ctx, ana, "revoked", 0)
 	if err != nil {
 		t.Fatalf("issuing a token: %v", err)
@@ -147,7 +148,7 @@ func TestATokenRouteRefusesWhatCarriesNoKnownToken(t *testing.T) {
 		}
 	}
 	if found, _ := models.Notes(f.app.DB).Where("title", "=", "Refused").
-		First(ctx, auth.SystemGrant(policies.NoteView, bootstrap.Tenant())); found != nil {
+		First(ctx, auth.SystemGrant(policies.NoteView, appconfig.Tenant())); found != nil {
 		t.Fatal("a refused request stored a note")
 	}
 }
@@ -157,7 +158,7 @@ func TestATokenRouteRefusesWhatCarriesNoKnownToken(t *testing.T) {
 func TestARetriedTokenWriteIsAnsweredOnce(t *testing.T) {
 	f := newNotesFixture(t)
 	ctx := context.Background()
-	token, _, err := f.app.Tokens.Issue(ctx, auth.Subject{ID: f.anaID, Tenant: bootstrap.Tenant()}, "retrying client", 0)
+	token, _, err := f.app.Tokens.Issue(ctx, auth.Subject{ID: f.anaID, Tenant: appconfig.Tenant()}, "retrying client", 0)
 	if err != nil {
 		t.Fatalf("issuing a token: %v", err)
 	}
@@ -173,7 +174,7 @@ func TestARetriedTokenWriteIsAnsweredOnce(t *testing.T) {
 			second.Header().Get("Idempotent-Replayed"), first.Body, second.Body)
 	}
 	written, err := models.Notes(f.app.DB).Where("title", "=", "Only once").
-		Get(ctx, auth.SystemGrant(policies.NoteView, bootstrap.Tenant()))
+		Get(ctx, auth.SystemGrant(policies.NoteView, appconfig.Tenant()))
 	if err != nil {
 		t.Fatalf("reading the notes: %v", err)
 	}
@@ -189,7 +190,7 @@ func TestARetriedTokenWriteIsAnsweredOnce(t *testing.T) {
 func TestTheCSRFCheckStillGuardsWhatABrowserAttachesByItself(t *testing.T) {
 	f := newNotesFixture(t)
 	ctx := context.Background()
-	ana := auth.Subject{ID: f.anaID, Tenant: bootstrap.Tenant()}
+	ana := auth.Subject{ID: f.anaID, Tenant: appconfig.Tenant()}
 	token, _, err := f.app.Tokens.Issue(ctx, ana, "cross-site", 0)
 	if err != nil {
 		t.Fatalf("issuing a token: %v", err)
@@ -221,7 +222,7 @@ func TestTheCSRFCheckStillGuardsWhatABrowserAttachesByItself(t *testing.T) {
 	}
 
 	if found, _ := models.Notes(f.app.DB).Where("title", "=", "Forged").
-		First(ctx, auth.SystemGrant(policies.NoteView, bootstrap.Tenant())); found != nil {
+		First(ctx, auth.SystemGrant(policies.NoteView, appconfig.Tenant())); found != nil {
 		t.Fatal("a refused request stored a note")
 	}
 }
