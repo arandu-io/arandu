@@ -196,7 +196,7 @@ repository missing its policy to a tenant read off the request instead of the
 build, a warning stays the to-do it is, and a new project is never red for code
 the generator wrote.
 
-8,831 lines of Go outside the tests and 13,045 in them, across 66 test files,
+8,830 lines of Go outside the tests and 13,053 in them, across 66 test files,
 the example resource included, counted with `wc -l` over the tracked `.go`
 files — small on purpose: it is what a project starts from, not what it grows
 into.
