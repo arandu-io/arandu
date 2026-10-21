@@ -49,10 +49,10 @@ bundle, and authorization the compiler charges for: a repository call with no
   routes, middleware, commands, schedule, job handlers and seeders. The drivers
   -- cache, sessions, queue, mail, disks -- are built by the framework from
   `config/`, the services by the providers in `app/Providers`, and `main.go`
-  hands the command line to the framework's console kernel, the way `artisan`
-  does. `aru make:module` prints the lines a generated module needs and never
-  edits a file of wiring itself: a generator that rewrites your wiring behind
-  your back is a generator whose output nobody can account for.
+  hands the command line to the framework's console kernel. `aru make:module`
+  prints the lines a generated module needs and never edits a file of wiring
+  itself: a generator that rewrites your wiring behind your back is a generator
+  whose output nobody can account for.
 
 ## The example resource
 
