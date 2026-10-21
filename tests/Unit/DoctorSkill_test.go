@@ -96,6 +96,10 @@ var doctorRules = []doctorRule{
 	{"raw-sql-outside-repository", "warning", ""},
 	{"generated-not-wired", "warning", ""},
 	{"subject-built-by-hand", "warning", ""},
+	{"bootstrap-file-beside-app", "warning", ""},
+	{"program-under-cmd", "warning", ""},
+	{"command-outside-commands", "warning", ""},
+	{"program-under-scripts", "warning", ""},
 }
 
 // performanceOnly opens the description of a row the doctor checks only under

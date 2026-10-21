@@ -106,6 +106,10 @@ Dockerfile pins, when that list differs from what `aru doctor --list` prints.
 | `raw-sql-outside-repository` | warning | a statement run outside `app/Repositories` and `database/` |
 | `generated-not-wired` | warning | an exported `New...` constructor under `app/Http/Controllers` or `app/Services` that nothing outside the tests names, unless it builds a test double a test constructs |
 | `subject-built-by-hand` | warning | a `Subject` literal outside the tests and `database/` that writes its own roles or actions |
+| `bootstrap-file-beside-app` | warning | a file in `bootstrap/` other than `app.go`, with where its code belongs |
+| `program-under-cmd` | warning | a Go program under `cmd/` other than `cmd/native`, which is a command of this binary in `app/Console/Commands` |
+| `command-outside-commands` | warning | a command whose `Run` is a function declared outside `app/Console/Commands` |
+| `program-under-scripts` | warning | a Go program under `scripts/` that runs the application's code, or drives a browser (whose place is `tests/Browser`) |
 
 ## Procedure
 
@@ -193,15 +197,16 @@ the field `json:"-"` when JSON is the only sink.
 **`generated-not-wired`** — an exported `New...` constructor under
 `app/Http/Controllers` or `app/Services` is named by no file outside the tests:
 code nothing constructs is code the router never reaches, its tests pass, and a
-change to it changes nothing anybody sees. A call from `bootstrap/app.go`,
-`routes/web.go` or another constructor wires it. A test double -- Fake, Stub,
+change to it changes nothing anybody sees. A call from a provider in
+`app/Providers`, `routes/web.go` or another constructor wires it. A test double -- Fake, Stub,
 Mock, Spy or Dummy as a word of the constructor, of the type it returns or of
 its file -- that a test constructs is not reported; a service named like
 production code whose only caller is its own test still is, which is the case
 the rule exists for. It compares names across the project, not types, so a
 function of the same name elsewhere hides a finding rather than inventing one.
-Paste the wiring `aru make:module` printed into `bootstrap/app.go` and
-`routes/web.go`, or delete what nothing reaches.
+Paste the wiring `aru make:module` printed into the `routes.Deps` literal in
+`app/Providers/AppServiceProvider.go` and into `routes/web.go`, or delete what
+nothing reaches.
 
 **`model-query-stale`** — a `<Entity>Query.go`, or a factory `aru model:build`
 renders, is missing, behind its entity, or left over from one that is gone. A
@@ -250,12 +255,27 @@ kit is the kit's to fix, and republishing a kit release brings the fix.
 `session-loaded-in-controller` does not read that directory at all, because
 signing in is where a session is first loaded.
 
+### The layout warnings
+
+Four rules, from `bootstrap-file-beside-app` to `program-under-scripts`, report
+code that assembles or runs the application from a second place. This
+application is one binary: `bootstrap/app.go` configures it, `main.go` hands
+the command line to the framework's console kernel, `routes/console.go` lists
+the application's commands and `app/Console/Commands` holds their code, and a
+test that drives the browser is a test in `tests/Browser`. Each finding names
+where its code belongs: a built-in command file in `bootstrap/` is deleted
+because the kernel answers it, a one-off step moves to `app/Console/Commands`,
+wiring that grew moves to a provider in `app/Providers`, and a value to
+`config/`. `cmd/native` is exempt: the native target is a program of its own.
+All four are warnings, and each reads the file tree and the command literals,
+so a clean report means none of these shapes was found.
+
 ### The CSRF exemption
 
 `csrf-exempt-without-signature` is a warning.
 
-- **Reason.** `CSRFExcept`, passed to `CSRFProtect` in `bootstrap/app.go`,
-  switches the CSRF check off for every write under a path. It exists for a
+- **Reason.** `ValidateCSRFTokensExcept`, called in `WithMiddleware` in
+  `bootstrap/app.go`, switches the CSRF check off for every write under a path. It exists for a
   route another system calls -- a webhook -- which proves who sent it with a
   signature over the body instead of a cookie and a token, and it is safe on
   that promise alone. An exempt route that verifies nothing takes a write from
@@ -271,7 +291,12 @@ signing in is where a session is first loaded.
   below a prefix written without the slash (`/hooks/legacy` for `"/hooks"`)
   are not reported. Known false positive: an action that hands the raw body to
   a service, helper or middleware that verifies it.
-- **Limit.** Function-local: only the body of the action the route reaches is
+- **Limit.** The prefix is read only from a `CSRFExcept` literal. aru v0.74.0
+  does not read `ValidateCSRFTokensExcept`, which is what `bootstrap/app.go`
+  calls now, so on this application the rule finds no exempt prefix and reports
+  nothing whatever the webhook action does: the `webhook.Verify` in
+  `NewsletterWebhookController` is held by its feature test, not by the doctor.
+  Function-local: only the body of the action the route reaches is
   read, and nothing it calls is followed. A prefix held in a variable, a
   handler that is a function literal or a controller the route table does not
   resolve, and a prefix behind a path parameter are not read. A clean report
