@@ -235,6 +235,18 @@ func TestTheApplicationTreeHasOneOwnerPerResponsibility(t *testing.T) {
 		// A program of its own is a command of this binary, in
 		// app/Console/Commands and listed in routes/console.go.
 		"cmd",
+		// The sections the framework reads, in bootstrap.Settings, which
+		// config.Config embeds. A copy here is a second reader of the same
+		// variables, and the day one of them grows a default the other does
+		// not have, the drivers and the application disagree.
+		"config/cache.go",
+		"config/database.go",
+		"config/filesystems.go",
+		"config/http.go",
+		"config/logging.go",
+		"config/mail.go",
+		"config/queue.go",
+		"config/session.go",
 		"app/Actions",
 		"app/Data",
 		"app/Rules",
