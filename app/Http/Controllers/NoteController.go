@@ -5,9 +5,9 @@ package controllers
 import (
 	"net/http"
 
-	fhttp "github.com/arandu-io/framework/http"
 	hhttp "github.com/arandu-io/hesape/http"
 	"github.com/arandu-io/hesape/pagination"
+	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
 	"github.com/arandu-io/hesape/view"
 
 	requests "github.com/arandu-io/arandu/app/Http/Requests"
@@ -51,13 +51,13 @@ func NewNoteController(svc *services.NoteService) *NoteController {
 // exists is a route that answers -- and a renamed method fails the build here
 // rather than answering 404 in production.
 var (
-	_ fhttp.Indexer   = (*NoteController)(nil)
-	_ fhttp.Creator   = (*NoteController)(nil)
-	_ fhttp.Storer    = (*NoteController)(nil)
-	_ fhttp.Shower    = (*NoteController)(nil)
-	_ fhttp.Editor    = (*NoteController)(nil)
-	_ fhttp.Updater   = (*NoteController)(nil)
-	_ fhttp.Destroyer = (*NoteController)(nil)
+	_ hcontrollers.Indexer   = (*NoteController)(nil)
+	_ hcontrollers.Creator   = (*NoteController)(nil)
+	_ hcontrollers.Storer    = (*NoteController)(nil)
+	_ hcontrollers.Shower    = (*NoteController)(nil)
+	_ hcontrollers.Editor    = (*NoteController)(nil)
+	_ hcontrollers.Updater   = (*NoteController)(nil)
+	_ hcontrollers.Destroyer = (*NoteController)(nil)
 )
 
 // Index renders the listing, one page at a time.

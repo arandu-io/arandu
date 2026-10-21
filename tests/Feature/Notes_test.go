@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	frameevents "github.com/arandu-io/framework/events"
 	"github.com/arandu-io/hesape/arandutest"
 	"github.com/arandu-io/hesape/auth"
 	accounts "github.com/arandu-io/hesape/auth/account"
@@ -397,7 +396,7 @@ func TestTheExampleNotesAreSeededInDevelopmentOnly(t *testing.T) {
 // configured tenant: what the relay will hand the listeners.
 func (f notesFixture) published(t *testing.T) []events.Stored {
 	t.Helper()
-	pending, err := frameevents.NewOutbox(f.app.DB).Pending(context.Background(), appconfig.Tenant(), 100)
+	pending, err := events.NewOutbox(f.app.DB).Pending(context.Background(), appconfig.Tenant(), 100)
 	if err != nil {
 		t.Fatalf("reading the outbox: %v", err)
 	}

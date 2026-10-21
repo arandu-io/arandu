@@ -37,8 +37,8 @@ framework version in `go.mod`:
 | --- | --- |
 | `Grant`, `Subject`, `Authorize`, `Tenant`, `SystemGrant` | `github.com/arandu-io/hesape/auth` |
 | `Context`, the argument of every action | `github.com/arandu-io/hesape/http` |
-| `Router`, `Indexer` and the other resource interfaces, `Invoker` | `github.com/arandu-io/framework/http` |
-| the route guards, `RequireToken`, `Idempotent` | `github.com/arandu-io/framework/http/middleware` |
+| `Router`, `Indexer` and the other resource interfaces, `Invoker` | `github.com/arandu-io/hesape/routing/controllers` |
+| the route guards, `RequireToken`, `Idempotent` | `github.com/arandu-io/hesape/http/middleware` |
 | `validation.Errors`, `Validatable` | `github.com/arandu-io/hesape/validation` |
 | `database.DB`, `database.Transaction` | `github.com/arandu-io/hesape/database` |
 
@@ -108,11 +108,11 @@ example's steps, written as the assertions the compiler checks:
 package feature
 
 import (
-	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/hesape/auth"
 	hevents "github.com/arandu-io/hesape/events"
 	hhttp "github.com/arandu-io/hesape/http"
 	"github.com/arandu-io/hesape/queue"
+	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
 	"github.com/arandu-io/hesape/validation"
 
 	clients "<module>/app/Clients"
@@ -129,8 +129,8 @@ import (
 var (
 	_ auth.Policy[models.Note] = policies.NotePolicy{}              // the policy
 	_ validation.Validatable   = requests.NoteRequest{}             // the request
-	_ fhttp.Indexer            = (*controllers.NoteController)(nil) // the controller
-	_ fhttp.Indexer            = (*controllers.CommentController)(nil)
+	_ hcontrollers.Indexer     = (*controllers.NoteController)(nil) // the controller
+	_ hcontrollers.Indexer     = (*controllers.CommentController)(nil)
 	_ hhttp.JsonResource       = resources.NoteResource{}               // the answer to a program
 	_ hevents.Publisher        = (*listeners.NotifyNoteAuthor)(nil)     // the reaction to note.published
 	_ queue.Handler            = (*appjobs.SendNotesDigestHandler)(nil) // the nightly job

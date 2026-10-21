@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arandu-io/framework/events"
 	"github.com/arandu-io/hesape/auth"
 	accounts "github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/database"
@@ -51,7 +50,7 @@ func TestTheApplicationWiresARelayAndItPublishesWhatAuthStored(t *testing.T) {
 		t.Fatalf("Register: %v", err)
 	}
 
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	pending, err := outbox.PendingAll(ctx, 10)
 	if err != nil {
 		t.Fatalf("PendingAll: %v", err)
@@ -143,7 +142,7 @@ func TestTheProbeFailsWhileNothingIsDrainingTheOutbox(t *testing.T) {
 	ctx := context.Background()
 	g := auth.SystemGrant("invoice.pay", appconfig.Tenant())
 	err := database.Transaction(ctx, db, func(ctx context.Context) error {
-		return events.NewOutbox(db).Store(ctx, g, []hevents.Event{{
+		return hevents.NewOutbox(db).Store(ctx, g, []hevents.Event{{
 			Name:        "invoice.paid",
 			Aggregate:   "invoice",
 			AggregateID: "i-1",

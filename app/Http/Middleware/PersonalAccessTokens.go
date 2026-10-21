@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 
-	fmiddleware "github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/hesape/auth"
+	hmiddleware "github.com/arandu-io/hesape/http/middleware"
 
 	services "github.com/arandu-io/arandu/app/Services"
 )
@@ -32,13 +32,13 @@ func NewPersonalAccessTokens(tokens *services.PersonalAccessTokenService) Person
 }
 
 // Compile-time proof that RequireToken takes it.
-var _ fmiddleware.TokenResolver = PersonalAccessTokens{}
+var _ hmiddleware.TokenResolver = PersonalAccessTokens{}
 
 // ResolveToken answers the account the token with this digest acts as.
-func (p PersonalAccessTokens) ResolveToken(ctx context.Context, digest fmiddleware.TokenDigest) (auth.Subject, error) {
+func (p PersonalAccessTokens) ResolveToken(ctx context.Context, digest hmiddleware.TokenDigest) (auth.Subject, error) {
 	subject, err := p.tokens.Resolve(ctx, digest.String())
 	if errors.Is(err, services.ErrTokenNotAccepted) {
-		return auth.Subject{}, fmiddleware.ErrUnknownToken
+		return auth.Subject{}, hmiddleware.ErrUnknownToken
 	}
 	return subject, err
 }

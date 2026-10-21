@@ -41,7 +41,7 @@ API needs. A page is `arandu-view`.
 | idempotency | `middleware.Idempotent(d.Idempotency, ttl)`, mounted after the guard that puts the subject on the request; `d.Idempotency` is the cache store `CACHE_STORE` names, which can lock and is shared across replicas when it is the RESP one |
 
 `hhttp` is `github.com/arandu-io/hesape/http`; `middleware` is
-`github.com/arandu-io/framework/http/middleware`.
+`github.com/arandu-io/hesape/http/middleware`.
 
 ## Procedure
 
@@ -78,9 +78,9 @@ import (
 	"context"
 	"time"
 
-	fhttp "github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/http/middleware"
+	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
 
 	controllers "<module>/app/Http/Controllers"
 	services "<module>/app/Services"
@@ -95,7 +95,7 @@ func IssueForScript(ctx context.Context, tokens *services.PersonalAccessTokenSer
 
 // APIRoutes puts the guard first and Idempotent after it, on the actions the
 // browser's routes already answer.
-func APIRoutes(r *fhttp.Router, tokens middleware.TokenResolver, store middleware.IdempotencyStore,
+func APIRoutes(r *hcontrollers.Router, tokens middleware.TokenResolver, store middleware.IdempotencyStore,
 	note *controllers.NoteController) {
 	api := r.Group("/api", middleware.RequireToken(tokens))
 	api.Action("POST", "/notes", note.Store,

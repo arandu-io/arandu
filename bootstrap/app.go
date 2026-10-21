@@ -12,9 +12,9 @@ package bootstrap
 import (
 	"github.com/arandu-io/framework/events"
 	"github.com/arandu-io/framework/foundation"
-	fwgeo "github.com/arandu-io/framework/geo"
-	"github.com/arandu-io/framework/http"
 	fwview "github.com/arandu-io/framework/view"
+	hgeo "github.com/arandu-io/hesape/geo"
+	"github.com/arandu-io/hesape/routing/controllers"
 
 	providers "github.com/arandu-io/arandu/app/Providers"
 	appconfig "github.com/arandu-io/arandu/config"
@@ -135,7 +135,7 @@ func Configure(cfg appconfig.Config, drivers *foundation.Drivers, app *providers
 			fwview.NewModule(),
 			// Search and GEO surfaces. GEO_INDEXING_ENABLED decides whether
 			// this deployment publishes the catalog; disabled, it fails closed.
-			fwgeo.NewModule(cfg.Geo, app.Catalog()),
+			foundation.Component(hgeo.NewModule(cfg.Geo, app.Catalog())),
 			// The outbox table, and the relay that empties it in the process
 			// that serves. WithRelay rather than NewModule: a relay built beside
 			// the module and not handed to it publishes nothing and reports
@@ -145,7 +145,7 @@ func Configure(cfg appconfig.Config, drivers *foundation.Drivers, app *providers
 			app,
 			// A module this project installs is listed here, by hand.
 		).
-		WithRouting(func(r *http.Router) {
+		WithRouting(func(r *controllers.Router) {
 			routes.Web(r, app.Web())
 		}).
 		WithMiddleware(func(m *foundation.Middleware) {

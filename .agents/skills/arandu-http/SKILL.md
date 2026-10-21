@@ -25,8 +25,8 @@ request struct. What the answer looks like is `arandu-view` for a page and
 | piece | contract |
 | --- | --- |
 | action | `func (c *X) Name(ctx *hhttp.Context) error`, with `hhttp "github.com/arandu-io/hesape/http"` |
-| resource controller | the seven actions, each asserted: `var _ fhttp.Indexer = (*X)(nil)` and `Creator`, `Storer`, `Shower`, `Editor`, `Updater`, `Destroyer`, with `fhttp "github.com/arandu-io/framework/http"`; `Resource` registers only what is implemented |
-| invokable controller | `Invoke(ctx *hhttp.Context) error`, asserted with `var _ fhttp.Invoker = (*X)(nil)` |
+| resource controller | the seven actions, each asserted: `var _ hcontrollers.Indexer = (*X)(nil)` and `Creator`, `Storer`, `Shower`, `Editor`, `Updater`, `Destroyer`, with `hcontrollers "github.com/arandu-io/hesape/routing/controllers"`; `Resource` registers only what is implemented |
+| invokable controller | `Invoke(ctx *hhttp.Context) error`, asserted with `var _ hcontrollers.Invoker = (*X)(nil)` |
 | request | `app/Http/Requests/<Entity>Request.go`: fields with `form:"..."` tags, `func (r X) Validate() validation.Errors`, `var _ validation.Validatable = X{}` |
 | who is asking | `who, _ := ctx.User()`, put there by the route's guard |
 | input | `ctx.Bind(&in)`, which reads only the tagged fields; a conversion error comes back as `validation.Errors` |
@@ -46,7 +46,7 @@ The routes, in the custom block of `routes/web.go`:
 | one action | `r.Action("GET", "/dashboard", d.Home.Index, guard).Name("dashboard")` | one address |
 
 A guard goes on the group or the route -- `r.Group("", middleware.RequireAuth(d.Sessions))`
--- with `middleware "github.com/arandu-io/framework/http/middleware"`, never at
+-- with `middleware "github.com/arandu-io/hesape/http/middleware"`, never at
 the top of an action.
 
 ## Procedure
@@ -65,14 +65,14 @@ the top of an action.
    action:
 
    ```go
-   func (c *NoteController) Publish(ctx *hhttp.Context) error {
-   	who, _ := ctx.User()
-   	published, err := c.svc.Publish(ctx.Ctx(), who, ctx.Param("id"))
-   	if err != nil {
-   		return err
-   	}
-   	return ctx.RedirectRoute("notes.show", published.ID)
-   }
+	func (c *NoteController) Publish(ctx *hhttp.Context) error {
+		who, _ := ctx.User()
+		published, err := c.svc.Publish(ctx.Ctx(), who, ctx.Param("id"))
+		if err != nil {
+			return err
+		}
+		return ctx.RedirectRoute("notes.show", published.ID)
+	}
    ```
 
 4. **Write the request's rules** in `Validate`, and leave calling it to the
@@ -101,10 +101,9 @@ against this project:
 package example
 
 import (
-	fhttp "github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/http/middleware"
-	"github.com/arandu-io/framework/security"
 	hhttp "github.com/arandu-io/hesape/http"
+	"github.com/arandu-io/hesape/http/middleware"
+	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
 
 	controllers "<module>/app/Http/Controllers"
 	services "<module>/app/Services"
@@ -120,7 +119,7 @@ func NewPublishNote(notes *services.NoteService) *PublishNote {
 	return &PublishNote{notes: notes}
 }
 
-var _ fhttp.Invoker = (*PublishNote)(nil)
+var _ hcontrollers.Invoker = (*PublishNote)(nil)
 
 // Invoke publishes the note the form names in its path.
 func (c *PublishNote) Invoke(ctx *hhttp.Context) error {
@@ -133,7 +132,7 @@ func (c *PublishNote) Invoke(ctx *hhttp.Context) error {
 }
 
 // Routes registers each shape behind the sign-in guard.
-func Routes(r *fhttp.Router, sessions *security.SessionStore, note *controllers.NoteController,
+func Routes(r *hcontrollers.Router, sessions *hhttp.SessionStore, note *controllers.NoteController,
 	comment *controllers.CommentController, publish *PublishNote) {
 	signedIn := r.Group("", middleware.RequireAuth(sessions))
 	signedIn.Resource("notes", note)

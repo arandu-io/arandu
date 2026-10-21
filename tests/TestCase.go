@@ -30,13 +30,13 @@ import (
 
 	"github.com/arandu-io/framework/foundation"
 	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
-	"github.com/arandu-io/framework/security"
 	hesapetest "github.com/arandu-io/hesape/arandutest"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/config"
 	"github.com/arandu-io/hesape/database"
+	hhttp "github.com/arandu-io/hesape/http"
 	"github.com/arandu-io/hesape/queue"
 
 	models "github.com/arandu-io/arandu/app/Models"
@@ -145,7 +145,7 @@ type Application struct {
 	// DB, Sessions, Queue and Cache are fields of Drivers, named here because
 	// almost every test reaches one of them.
 	DB       *database.DB
-	Sessions *security.SessionStore
+	Sessions *hhttp.SessionStore
 	Queue    queue.Queue
 	// Cache is the store every replica sees, and nil when no setting resolved
 	// one.

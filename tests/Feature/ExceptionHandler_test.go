@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/hesape/config"
+	"github.com/arandu-io/hesape/routing/controllers"
 
 	"github.com/arandu-io/arandu/tests"
 )
@@ -39,7 +39,7 @@ type panicRoute struct{}
 func (panicRoute) Name() string { return "panicroute" }
 
 // Routes registers the one route.
-func (panicRoute) Routes(r *fhttp.Router) {
+func (panicRoute) Routes(r *controllers.Router) {
 	r.Get("/tests/panic", func(http.ResponseWriter, *http.Request) { panic(panicText) })
 }
 

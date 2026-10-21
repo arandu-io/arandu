@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	fhttp "github.com/arandu-io/framework/http"
 	"github.com/arandu-io/hesape/auth"
 	accounts "github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/log"
+	"github.com/arandu-io/hesape/routing/controllers"
 
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/tests"
@@ -146,7 +146,7 @@ type queryProbe struct {
 
 func (queryProbe) Name() string { return "query-probe" }
 
-func (p queryProbe) Routes(router *fhttp.Router) {
+func (p queryProbe) Routes(router *controllers.Router) {
 	router.Get("/console-query-probe", func(writer http.ResponseWriter, request *http.Request) {
 		if err := p.query(request.Context()); err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)

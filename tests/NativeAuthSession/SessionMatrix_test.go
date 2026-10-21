@@ -16,12 +16,12 @@ import (
 
 	authui "github.com/arandu-io/arandu/app/Http/Controllers/Auth"
 	"github.com/arandu-io/arandu/app/Models"
-	fhttp "github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/security"
 	twofactor "github.com/arandu-io/hesape/2fa"
 	nativeauth "github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/encryption"
+	hhttp "github.com/arandu-io/hesape/http"
+	"github.com/arandu-io/hesape/routing/controllers"
 	"github.com/arandu-io/hesape/session"
 )
 
@@ -155,12 +155,12 @@ func newSessionHarness(t *testing.T) *sessionHarness {
 	users := &fakeUsers{credential: &credential, current: &current}
 	factors := &fakeFactors{}
 	backend := &countingBackend{}
-	sessions := security.NewSessionStore(appKey, time.Hour, false, backend)
+	sessions := hhttp.NewSessionStore(appKey, time.Hour, false, backend)
 	module := authui.New(
 		users, factors, nil, sessions, session.NewCSRF(appKey, time.Hour), nil,
 		appKey, authui.FixedTenant("tenant-a"), false,
 	)
-	router := fhttp.NewRouter()
+	router := controllers.NewRouter()
 	module.Routes(router)
 	return &sessionHarness{
 		appKey: appKey, users: users, factors: factors, backend: backend, handler: router,

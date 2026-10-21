@@ -105,8 +105,11 @@ Each symbol is imported from one path: `aru imports:catalog` prints it for the
 framework version in `go.mod`, and `aru doctor` reports the other spelling as
 `import-not-canonical`. `Grant`, `Subject`, `Authorize` and `Tenant` come from
 `github.com/arandu-io/hesape/auth`; `Router` and the resource interfaces from
-`github.com/arandu-io/framework/http`; the `Context` an action takes from
-`github.com/arandu-io/hesape/http`.
+`github.com/arandu-io/hesape/routing/controllers`; the `Context` an action
+takes, the `SessionStore` and the route guards from
+`github.com/arandu-io/hesape/http` and `github.com/arandu-io/hesape/http/middleware`.
+`aru make:*` v0.74.0 still writes `github.com/arandu-io/framework/http` in what
+it generates; `aru imports:catalog --fix --apply` rewrites it.
 
 ## The gates
 

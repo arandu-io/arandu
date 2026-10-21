@@ -5,7 +5,6 @@ package services
 import (
 	"context"
 
-	frameevents "github.com/arandu-io/framework/events"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/events"
@@ -38,7 +37,7 @@ type NewsletterEventService struct {
 // NewNewsletterEventService wires the service for the tenant the digests are
 // sent for.
 func NewNewsletterEventService(db *database.DB, tenant string) *NewsletterEventService {
-	return &NewsletterEventService{db: db, outbox: frameevents.NewOutbox(db), tenant: tenant}
+	return &NewsletterEventService{db: db, outbox: events.NewOutbox(db), tenant: tenant}
 }
 
 // Receive validates the event and stores it, under the delivery id the

@@ -6,7 +6,6 @@ import (
 	"context"
 	"time"
 
-	frameevents "github.com/arandu-io/framework/events"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/events"
@@ -47,7 +46,7 @@ type NoteService struct {
 
 // NewNoteService wires the service.
 func NewNoteService(db *database.DB) *NoteService {
-	return &NoteService{db: db, outbox: frameevents.NewOutbox(db), now: time.Now}
+	return &NoteService{db: db, outbox: events.NewOutbox(db), now: time.Now}
 }
 
 // Create walks the mandatory path: validate, Authorize, Grant, Model.

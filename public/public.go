@@ -29,7 +29,7 @@ import (
 	"path"
 	"sort"
 
-	fhttp "github.com/arandu-io/framework/http"
+	"github.com/arandu-io/hesape/routing/controllers"
 	"github.com/arandu-io/hesape/view"
 )
 
@@ -122,7 +122,7 @@ func Names() []string {
 // Registering the names rather than mounting a file server under a prefix is
 // what keeps `aru routes` honest: every URL this application answers is a route
 // in the table, including these.
-func Routes(r *fhttp.Router) {
+func Routes(r *controllers.Router) {
 	for _, name := range Names() {
 		r.Get("/"+name, handler(name))
 	}

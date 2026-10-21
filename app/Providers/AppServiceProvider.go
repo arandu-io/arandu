@@ -10,15 +10,16 @@ import (
 
 	"github.com/arandu-io/framework/events"
 	"github.com/arandu-io/framework/foundation"
-	"github.com/arandu-io/framework/http"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/database/model"
+	hevents "github.com/arandu-io/hesape/events"
 	"github.com/arandu-io/hesape/geo"
 	hnotifications "github.com/arandu-io/hesape/notifications"
 	"github.com/arandu-io/hesape/notifications/channels"
 	"github.com/arandu-io/hesape/onetime"
 	"github.com/arandu-io/hesape/queue"
+	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
 
 	clients "github.com/arandu-io/arandu/app/Clients"
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
@@ -82,7 +83,7 @@ func NewAppServiceProvider(cfg appconfig.Config, d *foundation.Drivers) (*AppSer
 
 	// The outbox the account rules store into and the relay that empties it,
 	// claiming each pass where every replica sees it.
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	p.Relay = events.NewRelay(outbox, listeners.Each{
 		listeners.NewEventLog(),
 		listeners.NewNotifyNoteAuthor(p.Notifier),
@@ -132,7 +133,7 @@ func NewAppServiceProvider(cfg appconfig.Config, d *foundation.Drivers) (*AppSer
 func (*AppServiceProvider) Name() string { return "app" }
 
 // Routes registers nothing: the routes are routes/web.go.
-func (*AppServiceProvider) Routes(*http.Router) {}
+func (*AppServiceProvider) Routes(*hcontrollers.Router) {}
 
 // Web answers what routes/web.go dispatches to.
 func (p *AppServiceProvider) Web() routes.Deps { return p.web }

@@ -3,9 +3,9 @@
 package controllers
 
 import (
-	fhttp "github.com/arandu-io/framework/http"
 	hhttp "github.com/arandu-io/hesape/http"
 	"github.com/arandu-io/hesape/pagination"
+	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
 	"github.com/arandu-io/hesape/view"
 
 	requests "github.com/arandu-io/arandu/app/Http/Requests"
@@ -52,13 +52,13 @@ func NewCommentController(svc *services.CommentService) *CommentController {
 // exists is a route that answers -- and a renamed method fails the build here
 // rather than answering 404 in production.
 var (
-	_ fhttp.Indexer   = (*CommentController)(nil)
-	_ fhttp.Creator   = (*CommentController)(nil)
-	_ fhttp.Storer    = (*CommentController)(nil)
-	_ fhttp.Shower    = (*CommentController)(nil)
-	_ fhttp.Editor    = (*CommentController)(nil)
-	_ fhttp.Updater   = (*CommentController)(nil)
-	_ fhttp.Destroyer = (*CommentController)(nil)
+	_ hcontrollers.Indexer   = (*CommentController)(nil)
+	_ hcontrollers.Creator   = (*CommentController)(nil)
+	_ hcontrollers.Storer    = (*CommentController)(nil)
+	_ hcontrollers.Shower    = (*CommentController)(nil)
+	_ hcontrollers.Editor    = (*CommentController)(nil)
+	_ hcontrollers.Updater   = (*CommentController)(nil)
+	_ hcontrollers.Destroyer = (*CommentController)(nil)
 )
 
 // Index renders the listing, one page at a time.

@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/hesape/auth"
 	accounts "github.com/arandu-io/hesape/auth/account"
+	"github.com/arandu-io/hesape/http/middleware"
 
 	appmiddleware "github.com/arandu-io/arandu/app/Http/Middleware"
 	models "github.com/arandu-io/arandu/app/Models"

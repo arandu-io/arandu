@@ -9,9 +9,9 @@ package routes
 import (
 	"time"
 
-	"github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/http/middleware"
-	"github.com/arandu-io/framework/security"
+	"github.com/arandu-io/hesape/http"
+	"github.com/arandu-io/hesape/http/middleware"
+	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	"github.com/arandu-io/arandu/public"
@@ -41,7 +41,7 @@ type Deps struct {
 	// A guard is not a second authorization path. It answers "is there a
 	// session" and stops; whether this subject may touch this record is the
 	// Policy's answer, and the Policy still runs.
-	Sessions *security.SessionStore
+	Sessions *http.SessionStore
 
 	// Tokens is what RequireToken asks who a bearer token acts as: the
 	// personal access tokens this application issued. A route a program calls
@@ -79,7 +79,7 @@ type Deps struct {
 // which addresses are open. The sign-in screen is guarded the same way, by the
 // auth module that registers it, so somebody already signed in is not shown a
 // form telling them they are not.
-func Web(r *http.Router, d Deps) {
+func Web(r *hcontrollers.Router, d Deps) {
 	// "/{$}" and not "/". This is the one place Go's router does not behave the
 	// way it conventionally does: a pattern ending in a slash matches every path below
 	// it, so "GET /" would answer for /anything -- including the 404s, and

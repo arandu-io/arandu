@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	fhttp "github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/hesape/config"
+	"github.com/arandu-io/hesape/http/middleware"
+	"github.com/arandu-io/hesape/routing/controllers"
 
 	"github.com/arandu-io/arandu/tests"
 )
@@ -25,7 +25,7 @@ type bodyProbeModule struct{ calls *atomic.Int64 }
 
 func (bodyProbeModule) Name() string { return "body-probe" }
 
-func (m bodyProbeModule) Routes(router *fhttp.Router) {
+func (m bodyProbeModule) Routes(router *controllers.Router) {
 	router.Post("/body-probe", func(w http.ResponseWriter, r *http.Request) {
 		m.calls.Add(1)
 		read, err := io.Copy(io.Discard, r.Body)

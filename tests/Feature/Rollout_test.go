@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/arandu-io/framework/events"
 	accounts "github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/database/schema"
+	"github.com/arandu-io/hesape/events"
 	"github.com/arandu-io/hesape/log"
 
 	appconfig "github.com/arandu-io/arandu/config"

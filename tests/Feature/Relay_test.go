@@ -22,7 +22,7 @@ import (
 
 func storedEvents(t *testing.T, db *database.DB, names ...string) {
 	t.Helper()
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	g := auth.SystemGrant("invoice.pay", appconfig.Tenant())
 
 	err := database.Transaction(context.Background(), db, func(ctx context.Context) error {
@@ -42,7 +42,7 @@ func storedEvents(t *testing.T, db *database.DB, names ...string) {
 
 func TestTheRelayPublishesWhatWasStored(t *testing.T) {
 	db := migratedDB(t)
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	ctx := context.Background()
 
 	storedEvents(t, db, "invoice.paid", "invoice.closed")
@@ -76,7 +76,7 @@ func TestTheRelayPublishesWhatWasStored(t *testing.T) {
 // counted with the reason.
 func TestAFailedPublishIsRetried(t *testing.T) {
 	db := migratedDB(t)
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	ctx := context.Background()
 
 	storedEvents(t, db, "invoice.paid")
@@ -110,7 +110,7 @@ func TestAFailedPublishIsRetried(t *testing.T) {
 // of every other event.
 func TestAnEventThatKeepsFailingIsParked(t *testing.T) {
 	db := migratedDB(t)
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	ctx := context.Background()
 
 	storedEvents(t, db, "invoice.paid")
@@ -154,7 +154,7 @@ func TestAnEventThatKeepsFailingIsParked(t *testing.T) {
 // letter queue is SQL by hand, which is how it becomes a table nobody touches.
 func TestRetryPutsAParkedEventBackInLine(t *testing.T) {
 	db := migratedDB(t)
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	ctx := context.Background()
 
 	storedEvents(t, db, "invoice.paid")
@@ -192,7 +192,7 @@ func TestRetryPutsAParkedEventBackInLine(t *testing.T) {
 // asking why they never got the email.
 func TestTheLagTellsAStoppedRelayFromAnIdleOne(t *testing.T) {
 	db := migratedDB(t)
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	ctx := context.Background()
 
 	// Nothing pending: zero, not an error and not a large number.
@@ -223,7 +223,7 @@ func TestTheLagTellsAStoppedRelayFromAnIdleOne(t *testing.T) {
 // and counting it would make the health check fail until somebody deletes a row.
 func TestParkedEventsDoNotCountAsLag(t *testing.T) {
 	db := migratedDB(t)
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	ctx := context.Background()
 
 	storedEvents(t, db, "invoice.paid")

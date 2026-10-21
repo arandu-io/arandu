@@ -3,9 +3,9 @@ package controllers
 import (
 	"context"
 
-	"github.com/arandu-io/framework/http"
 	"github.com/arandu-io/hesape/auth"
 	hhttp "github.com/arandu-io/hesape/http"
+	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
 	"github.com/arandu-io/hesape/view"
 
 	"github.com/arandu-io/arandu/storage/framework/views"
@@ -57,7 +57,7 @@ func NewHomeController(people UserNames, tenant string) *HomeController {
 
 // Compile-time proof that this controller answers GET / the way Resource and the
 // route table expect. It costs nothing and catches a renamed method.
-var _ http.Indexer = (*HomeController)(nil)
+var _ hcontrollers.Indexer = (*HomeController)(nil)
 
 // Index renders the landing page.
 //

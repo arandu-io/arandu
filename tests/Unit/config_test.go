@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/arandu-io/framework/security"
 	"github.com/arandu-io/hesape/auth"
+	hhttp "github.com/arandu-io/hesape/http"
 
 	appconfig "github.com/arandu-io/arandu/config"
 )
@@ -68,7 +68,7 @@ func sessionCookie(t *testing.T, values map[string]string) *http.Cookie {
 	if err != nil {
 		t.Fatalf("loading the configuration: %v", err)
 	}
-	store := security.NewSessionStore(cfg.Framework.App.Key, cfg.Framework.Session.Lifetime, cfg.Framework.Session.Secure, nil)
+	store := hhttp.NewSessionStore(cfg.Framework.App.Key, cfg.Framework.Session.Lifetime, cfg.Framework.Session.Secure, nil)
 
 	// Rotate rather than Start, because it is the call a sign-in makes: keeping
 	// the id somebody arrived holding is session fixation, and this is the seam

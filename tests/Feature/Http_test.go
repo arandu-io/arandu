@@ -13,13 +13,13 @@ import (
 	"github.com/arandu-io/arandu/tests"
 
 	"github.com/arandu-io/framework/arandutest"
-	fhttp "github.com/arandu-io/framework/http"
-	"github.com/arandu-io/framework/http/middleware"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/config"
 	hhttp "github.com/arandu-io/hesape/http"
+	"github.com/arandu-io/hesape/http/middleware"
 	"github.com/arandu-io/hesape/routing"
+	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
 
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
 	appmiddleware "github.com/arandu-io/arandu/app/Http/Middleware"
@@ -255,7 +255,7 @@ func TestTheRootRouteDoesNotSwallowEveryPath(t *testing.T) {
 // router needs and not what a href should contain, and a table that returned it
 // verbatim would put a literal {$} in every link to the landing page.
 func TestTheHomeRouteIsAddressableByName(t *testing.T) {
-	r := fhttp.NewRouter()
+	r := hcontrollers.NewRouter()
 	// The token resolver and the idempotency store are guards' arguments, and a
 	// guard refuses nil at registration; neither is asked anything here.
 	routes.Web(r, routes.Deps{
@@ -392,7 +392,7 @@ type methodProbeModule struct{}
 
 func (methodProbeModule) Name() string { return "method-probe" }
 
-func (methodProbeModule) Routes(router *fhttp.Router) {
+func (methodProbeModule) Routes(router *hcontrollers.Router) {
 	router.Action(http.MethodPost, "/method-probe", func(ctx *hhttp.Context) error {
 		return ctx.Status(http.StatusNoContent)
 	})

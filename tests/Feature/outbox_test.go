@@ -8,7 +8,6 @@ import (
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/tests"
 
-	"github.com/arandu-io/framework/events"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database"
 	hevents "github.com/arandu-io/hesape/events"
@@ -31,7 +30,7 @@ func migratedDB(t *testing.T) *database.DB {
 
 func TestTheEventCommitsWithTheWrite(t *testing.T) {
 	db := migratedDB(t)
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	ctx := context.Background()
 	g := auth.SystemGrant("customer.create", appconfig.Tenant())
 
@@ -86,7 +85,7 @@ func TestTheEventCommitsWithTheWrite(t *testing.T) {
 // the rest of the system reacts to something that did not happen.
 func TestARolledBackWriteStoresNoEvent(t *testing.T) {
 	db := migratedDB(t)
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	ctx := context.Background()
 	failed := errors.New("the rule said no")
 
@@ -115,7 +114,7 @@ func TestARolledBackWriteStoresNoEvent(t *testing.T) {
 // one left", or the relay republishes forever.
 func TestPublishingMarksTheEvent(t *testing.T) {
 	db := migratedDB(t)
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	ctx := context.Background()
 
 	err := database.Transaction(ctx, db, func(ctx context.Context) error {
@@ -159,7 +158,7 @@ func TestPublishingMarksTheEvent(t *testing.T) {
 // A relay running for one tenant must not read another's events.
 func TestAnotherTenantDoesNotSeeTheEvent(t *testing.T) {
 	db := migratedDB(t)
-	outbox := events.NewOutbox(db)
+	outbox := hevents.NewOutbox(db)
 	ctx := context.Background()
 
 	err := database.Transaction(ctx, db, func(ctx context.Context) error {
