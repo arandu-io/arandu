@@ -16,10 +16,10 @@ is `arandu-module`; the job or listener that makes it later is `arandu-async`.
 
 - Read the example's client: `app/Clients/NewsletterClient.go`, its fake
   `app/Clients/NewsletterFake.go`, the service that depends on it
-  (`NoteService.SendDigest`) and `newsletter` at the end of `bootstrap/app.go`.
+  (`NoteService.SendDigest`) and `NewNewsletter`, which the provider calls.
 - Read the example's received webhook: `NewsletterWebhookController.Store`,
   `NewsletterEventService.Receive`, the `/webhooks/newsletter` route and the
-  `middleware.CSRFExcept("/webhooks/")` passed to `CSRFProtect` in
+  `m.ValidateCSRFTokensExcept("/webhooks/")` in `WithMiddleware` in
   `bootstrap/app.go`.
 - Ask `arandu-ecosystem` first whether the client belongs here at all: a client
   another project would reuse, and an engine that wraps another technology --
@@ -35,7 +35,7 @@ is `arandu-module`; the job or listener that makes it later is `arandu-async`.
 | a caller | a service, a job or a listener, through the interface; never a controller, a model or a view |
 | configuration | a `Credential` in `config/services.go`, read from the environment, named in `.env.example` |
 | webhook received | `app/Http/Controllers/<Vendor>WebhookController.go`, `Store(ctx)`, under `/webhooks/`: it reads the raw body and checks `webhook.Verify(secrets, timestamp, deliveryID, body, signature)` from `github.com/arandu-io/hesape/webhook` -- the headers are `X-Arandu-Timestamp`, `X-Arandu-Delivery-ID` and `X-Arandu-Signature` -- and the timestamp's age, before it binds or stores anything; then a service records the delivery and the answer is 2xx |
-| CSRF | `/webhooks/` is exempt by name, in `bootstrap/app.go`: `middleware.CSRFProtect(csrf, sessions.IDFromRequest, middleware.CSRFExcept("/webhooks/"))`. A route under it has no protection but its own signature check |
+| CSRF | `/webhooks/` is exempt by name, in `bootstrap/app.go`: `WithMiddleware(func(m *foundation.Middleware) { m.ValidateCSRFTokensExcept("/webhooks/") })`. A route under it has no protection but its own signature check |
 | webhook secret | a `Credential` in `config/services.go` (`NEWSLETTER_WEBHOOK_SECRET`), 32 bytes or more, named empty in `.env.example`; with none the controller answers 404 |
 | webhook sent | `webhook.NewPublisher(manager, resolver)` is an `events.Publisher`: a listener in `listeners.Each` that delivers outbox events, signed, with retries |
 | MCP | `app/Mcp/<Name>.go`: a tool with `Name`, `Description`, `Schema` and `Handle(ctx, r mcp.Request)`, calling a service with `r.Subject()`, from `github.com/arandu-io/mcp` |
@@ -51,8 +51,8 @@ is `arandu-module`; the job or listener that makes it later is `arandu-async`.
    carry a key that survives a retry, as `NewsletterDigest.Key` does, sent as
    `Idempotency-Key`.
 3. **Depend on the interface.** The service takes `clients.Newsletter`, set
-   with `WithNewsletter`; `bootstrap/app.go` builds the real client from the
-   configuration, or leaves it nil when nothing is configured, so the
+   with `WithNewsletter`; the provider builds the real client from the
+   configuration with `clients.NewNewsletter`, or leaves it nil when nothing is configured, so the
    application runs with no credential and a test passes the fake.
 4. **Receive a webhook** under `/webhooks/<vendor>`, in a controller that
    reads the raw body, verifies the signature and the timestamp before
@@ -184,7 +184,8 @@ func (t ShowNote) Handle(ctx context.Context, r mcp.Request) (mcp.Response, erro
 - Put a secret in code or in a test. A test gets the fake or a faked factory,
   and a credential comes from the environment.
 - Bind, validate or store a webhook's body before its signature verified, or
-  exempt a path from CSRF anywhere but the `CSRFExcept` in `bootstrap/app.go`.
+  exempt a path from CSRF anywhere but `ValidateCSRFTokensExcept` in
+  `bootstrap/app.go`.
   A route under `/webhooks/` that skips the check is a form any site can post.
 
 ## Extending it
@@ -196,14 +197,17 @@ config struct and in its `LogValue` only if it is not a secret.
 ## Wiring
 
 - `config/services.go` and `.env.example`: the credential.
-- `bootstrap/app.go`: the client built once, from the credential, with
-  `client.NewFactory(nil)`, and handed to the services that call it.
-- A received webhook: the controller built in `bootstrap/app.go` with its
-  secret and its service, handed to the routes through `Deps`, and its route
-  under `/webhooks/` in the custom block of `routes/web.go`, with no guard. The
-  `CSRFExcept("/webhooks/")` is already there; a vendor under another prefix
-  is a second argument to it, never a second exemption elsewhere.
-- MCP: the server composed in `bootstrap/app.go` and mounted in
+- `app/Clients`: a `New<Vendor>` that builds the client from its config with
+  `client.NewFactory(nil)`, so the factory stays where `client-outside-clients`
+  wants it; the provider in `app/Providers` calls it once, from the
+  credential, and hands it to the services that call it.
+- A received webhook: the controller built in the provider with its secret and
+  its service, handed to the routes through `Deps`, and its route under
+  `/webhooks/` in the custom block of `routes/web.go`, with no guard. The
+  `ValidateCSRFTokensExcept("/webhooks/")` is already there; a vendor under
+  another prefix is a second argument to it, never a second exemption
+  elsewhere.
+- MCP: the server composed in a provider and mounted in
   `routes/web.go` with `r.Action("POST", "/mcp", mcp.Web(d.MCP), ...)` behind a
   guard; there is no `routes/ai.go`. Behind `RequireToken` a client holding a
   personal access token reaches it -- see `arandu-api`.

@@ -16,9 +16,9 @@ implementations drift. A capability this application really owns goes on to
 ## Before you start
 
 1. `AGENTS.md`, then `arandu-feature`.
-2. `bootstrap/app.go`: what `Build` constructs and passes to `k.Register` is
-   everything the application was given. A module not registered there is a
-   module the application does not have.
+2. `bootstrap/app.go`: what `WithProviders` lists is every module the
+   application was given, built in `app/Providers` over the drivers. A module
+   not listed there is a module the application does not have.
 3. `github.com/arandu-io/examples`, the public reference application, before
    inventing a shape.
 
@@ -62,9 +62,10 @@ The flow of an organization's data is fixed:
    go get github.com/hyz-is/arandu-wallet@<tag>
    ```
 
-   Construct it in `Build`, after the session store exists, with the tenant
-   from `cfg.Auth.Tenant` and the CSRF issuer `Build` already made; add it to
-   the `Register(...)` list; then `aru migrate`, and preview what it publishes
+   Construct it in a provider in `app/Providers`, over the drivers -- the
+   session store is `drivers.Sessions` and the CSRF issuer `drivers.CSRF` --
+   with the tenant from `cfg.Auth.Tenant`; list it in `WithProviders` in
+   `bootstrap/app.go`; then `aru migrate`, and preview what it publishes
    with `aru vendor:publish --tag=view` before `--apply`. Each module's README
    has its exact `Config`.
 4. **When no module owns it**, stop and report: name the capability, the
@@ -121,9 +122,11 @@ substitute.
 
 ## Wiring
 
-Explicit, in `bootstrap/app.go`: constructed in `Build`, registered in the
-`Register(...)` list -- arandu-swagger last, after the modules whose routes it
-documents. Migrations run through `aru migrate`, never at boot.
+Explicit: constructed in a provider in `app/Providers` over the drivers,
+listed in `WithProviders` in `bootstrap/app.go` -- arandu-swagger last, after
+the modules whose routes it documents. A module's commands arrive by its
+`Commands()` (`foundation.Commandable`), and a name the framework or the
+application already answers stops the boot. Migrations run through `aru migrate`, never at boot.
 
 ## Acceptance test
 

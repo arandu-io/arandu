@@ -31,7 +31,8 @@ hold the rules.
 | event | `app/Events/NotePublished.go` | `aru make:event NotePublished --aggregate=note --event-name=note.published --fields "title:string,author:string"` | nothing |
 | listener | `app/Listeners/NotifyNoteAuthor.go` | `aru make:listener NotifyNoteAuthor --event=note.published` | decoding the payload and sending the notification |
 | notification | `app/Notifications/NotePublished.go` | `aru make:notification NotePublished --channels=database` | the note's id and title |
-| job and schedule | `app/Jobs/SendNotesDigest.go`, `AppServiceProvider.Schedule` | `aru make:job SendNotesDigest --event-name=notes.digest --fields "since:timestamp"` | the handler calls `NoteService.SendDigest`; the task by hand |
+| job and schedule | `app/Jobs/SendNotesDigest.go`, `Schedule` in `routes/console.go`, `RegisterJobs` in `app/Providers/AppServiceProvider.go` | `aru make:job SendNotesDigest --event-name=notes.digest --fields "since:timestamp"` | the handler calls `NoteService.SendDigest`; the task by hand |
+| command | `app/Console/Commands/NotesDigest.go`, in `Commands` in `routes/console.go` | none: written by hand as a function answering a `console.Command` | `notes:digest` queues the same job now, for the tenant |
 | client | `app/Clients/NewsletterClient.go`, `app/Clients/NewsletterFake.go` | `aru make:client Newsletter` | `SendDigest` on the client, the interface and the fake |
 | nested resource | `app/Models/Comment.go` and the rest of the comment files | `aru make:module comment --fields "body:text!" --tenant --parent=notes` | the `user_id` author, the opened policy, the note key as text, the listing's index |
 | an API for a token client | the `/api` group in the custom block of `routes/web.go` | by hand: two `api.Action` lines pointing at `NoteController.Store` and `Publish` | the JSON branch of `Store`, answering 201 with `Location` |

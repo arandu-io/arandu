@@ -17,23 +17,25 @@ a mail, a console command. The service that a job or a listener calls is
 
 - Read the example's chain: `NoteService.Publish` stores `note.published`;
   `app/Listeners/NotifyNoteAuthor.go` reacts and sends
-  `app/Notifications/NotePublished.go`; `AppServiceProvider.Schedule` enqueues
-  `app/Jobs/SendNotesDigest.go` every night, and the worker runs it.
+  `app/Notifications/NotePublished.go`; `Schedule` in `routes/console.go`
+  enqueues `app/Jobs/SendNotesDigest.go` every night, `notes:digest` in
+  `app/Console/Commands` enqueues it now, and the worker runs it.
 - Know where each runs. The relay and the scheduler run inside `aru serve`;
-  jobs run in `aru queue:work`, the same binary with another argument.
+  jobs run in `aru queue:work`, the same binary with another argument. Both are
+  the framework's: `main.go` hands the command line to its console kernel.
 
 ## Contracts and imports
 
 | piece | contract |
 | --- | --- |
 | job | `app/Jobs/<Name>.go`: a payload struct of facts and ids; `Dispatch<Name>(ctx, q queue.Queue, g auth.Grant, in)`, which `jobs.New` builds with the Grant's tenant and action; a handler implementing `queue.Handler` -- `Handle(ctx, g auth.Grant, j *jobs.Job) error` -- with its services as fields |
-| worker | `registerHandlers(w, app)` in `bootstrap/background.go`, custom block: `w.Handle(appjobs.<Name>Name, appjobs.New<Name>Handler(app.Notes))` |
-| scheduled task | a `foundation.Task` (`github.com/arandu-io/hesape/foundation`) returned by `AppServiceProvider.Schedule`: `ID`, five-field `Spec`, `Scope` (`Global` or `PerTenant`), `Singleton`, `Timeout`, `Action`, and `Run(ctx, g auth.Grant) error`; the Grant is built from `Action` and the tenant |
+| worker | `RegisterJobs(w *queue.Worker) error` on `app/Providers/AppServiceProvider.go`, handed to `WithJobs` in `bootstrap/app.go`: `w.Handle(appjobs.<Name>Name, appjobs.New<Name>Handler(p.Notes))`. It is proved once at the boot, so a name given two handlers stops every command |
+| scheduled task | a `foundation.Task` (`github.com/arandu-io/hesape/foundation`) returned by `Schedule` in `routes/console.go`, over the `ConsoleDeps` the provider answers: `ID`, five-field `Spec`, `Scope` (`Global` or `PerTenant`), `Singleton`, `Timeout`, `Action`, and `Run(ctx, g auth.Grant) error`; the Grant is built from `Action` and the tenant |
 | event | `app/Events/<Name>.go`: a past-tense name in the domain's words (`note.published`), a payload of facts, and `Event(aggregateID) events.Event` |
 | storing it | `outbox.Store(ctx, g, []events.Event{...})` inside `database.Transaction`, beside the write; the outbox is `events.NewOutbox(db)` from `github.com/arandu-io/framework/events` |
 | listener | `app/Listeners/<Name>.go`: an `events.Publisher` -- `Publish(ctx, e events.Stored) error` -- that returns early for other names and decodes the payload into a struct of its own |
 | notification | `app/Notifications/<Name>.go`: `Key()`, `Via(to) []ChannelName` and one method per channel (`ToDatabase`), sent with `notifier.Send(ctx, g, to, n)` where `g` is a Grant for `notifications.ActionSend` |
-| command | `app/Console/Commands`, registered in `routes/console.go` |
+| command | a function in `app/Console/Commands` answering a `console.Command` (`github.com/arandu-io/hesape/console`) -- `Name`, `Description`, `Run(ctx, o *console.IO) error`, flags from `o.Flags()` over `o.Args()` -- listed in `Commands` in `routes/console.go`. A name the framework answers (`migrate`, `queue:work`, ...) stops the boot naming both |
 
 ## Procedure
 
@@ -44,28 +46,32 @@ a mail, a console command. The service that a job or a listener calls is
    without its event.
 2. **A reaction to it is a listener.** `aru make:listener NotifyNoteAuthor
    --event=note.published`, then add it to `listeners.Each` in
-   `bootstrap/app.go`. The relay calls it after the commit, at least once: what
+   `app/Providers/AppServiceProvider.go`. The relay calls it after the commit, at least once: what
    it does has to be safe to do twice -- an upsert keyed by `e.ID`, a call with
    an idempotency key -- and an error means "try again later", never "skip".
 3. **Telling a person is a notification.** `aru make:notification NotePublished
    --channels=database` writes the notification and its test; it is sent with
-   the `Notifier` bootstrap builds (`app.Notifier`), from the listener or the
+   the `Notifier` the provider builds (`p.Notifier`), from the listener or the
    service that decided to tell somebody.
 4. **Work worth retrying is a job.** `aru make:job SendNotesDigest
    --event-name=notes.digest --fields "since:timestamp"`. The caller that holds
    the queue dispatches it: a listener, after the write that stored its event
-   has committed, or a task in `AppServiceProvider.Schedule`, as the digest is.
+   has committed, or a task in `Schedule` in `routes/console.go`, as the digest
+   is.
    A service never does -- the job's package imports `app/Services` once its
    handler takes a service, and a service importing it back is an import cycle.
    The handler calls a service; `j.UUID` is stable across retries and is the
    key to deduplicate on.
 5. **Recurring work is a task that enqueues a job.** Declare it in
-   `AppServiceProvider.Schedule`; the task decides what work exists and the job
+   `Schedule` in `routes/console.go`; the task decides what work exists and the job
    does it, with the retries a task does not get. A task that reads a tenant's
-   rows is `PerTenant`, and runs for each tenant the scheduler's `Tenants`
-   returns.
-6. **An operator's action is a command.** `aru make:command` and a line in
-   `routes/console.go`.
+   rows is `PerTenant`, and runs for each tenant `WithTenants` answers --
+   `AppServiceProvider.Tenants` here.
+6. **An operator's action is a command.** A function in
+   `app/Console/Commands` that takes what it reaches and answers a
+   `console.Command`, as `NotesDigest` does, and a line in `Commands` in
+   `routes/console.go`. `aru make:command` v0.74.0 still writes a type whose
+   `Run` takes `[]string`; wrap it, or write the function by hand.
 
 ## Commands
 
@@ -163,21 +169,26 @@ func WeeklyDigest(q queue.Queue) hfoundation.Task {
 The handler's collaborators, the listener's work and a notification's fields
 and payload go in their custom blocks. A second listener for the same event is
 a second type in `listeners.Each`, never a switch in the first. A task is one
-more entry in `Schedule`.
+more entry in `Schedule`, a command one more in `Commands`.
 
 ## Wiring
 
 All in two files, by hand:
 
-- `bootstrap/app.go`: the listener in `listeners.Each`, built with what it
-  needs (the example's takes the `notifier`); the `notifier` itself, with its
-  channels; the scheduler's `Tenants`; the services a handler takes, returned
-  in `App`; the queue handed to the provider with `WithQueue`.
-- `bootstrap/background.go`: the handler, in the custom block of
-  `registerHandlers`, built from `app`. `aru make:job --services=<Entity>`
-  writes the constructor with those services and prints the
-  `registerHandlers` line that passes them from `app`, with the `App` fields
-  to add when they are not there yet.
+- `app/Providers/AppServiceProvider.go`: the listener in `listeners.Each`,
+  built with what it needs (the example's takes `p.Notifier`); the notifier
+  itself, with its channels; `Tenants`, the list a per-tenant task expands to;
+  the handler in `RegisterJobs`, built from the services the provider holds;
+  and what a task or a command reaches, in `ConsoleDeps` through `Console`.
+  `aru make:job --services=<Entity>` writes the constructor with those
+  services; v0.74.0 prints the line for `registerHandlers` in
+  `bootstrap/background.go`, which is `RegisterJobs` here, with `p.` where it
+  says `app.`.
+- `routes/console.go`: the task in `Schedule` and the command in `Commands`.
+
+`bootstrap/app.go` already hands all of it to the framework --
+`WithCommands`, `WithSchedule`, `WithTenants`, `WithJobs` -- and does not
+change for a new job, task or command.
 
 ## Acceptance test
 
@@ -186,16 +197,19 @@ All in two files, by hand:
 - A listener: drive the application's own relay with `app.Relay.Drain(ctx)`
   and read its effect (`TestTheAuthorOfAPublishedNoteIsToldThroughTheOutbox`).
 - A notification: its generated test, and its payload.
-- A task and its job: the declared schedule, `RunNow` on the path the
-  scheduler takes, the job on the queue, and a worker running it with fakes
-  (`TestTheNightlyDigestIsScheduledQueuedAndSentWithoutTheNetwork`).
+- A task and its job: the schedule `schedule:list` prints, `schedule:run` on
+  the path the scheduler takes, the job on the queue, and a worker running it
+  with fakes (`TestTheNightlyDigestIsScheduledQueuedAndSentWithoutTheNetwork`).
+- A command: run through the built binary, as
+  `TestEveryCommandAnswersThroughTheBinary` runs `notes:digest`.
 
 ## Limits
 
 There is no mail channel for notifications: the notifier needs a
 `channels.Mailer`, and none is built over the application's `mail.Mailer`, so a
 notification that names `mail` is refused with `notifications.ErrNoChannel`.
-Mail itself works through `app.Mail` and `aru make:mail`. Delivery is
+Mail itself works through the drivers' `Mail` (`drivers.Mail` in a provider)
+and `aru make:mail`. Delivery is
 at-least-once everywhere and nothing checks that an effect is safe to repeat;
 `aru doctor` reads the code, it does not run it. A `PerTenant` task runs only
 for the tenants the scheduler's `Tenants` returns -- this project returns the

@@ -71,8 +71,10 @@ to belong in two rows belongs in the one that does not need the other's
 collaborators.
 
 **4. Generate, then finish by hand.** Every generator prints its wiring and
-edits neither `bootstrap/app.go` nor `routes/web.go`. Paste what it printed,
-read it, and write what it could not know in the custom blocks.
+edits neither the provider nor `routes/web.go` nor `routes/console.go`. Paste
+what it printed, read it, and write what it could not know in the custom
+blocks. aru v0.74.0 still names `bootstrap/app.go` and `bootstrap/background.go`
+for some of those lines; `AGENTS.md` says where each goes now.
 
 **5. Test the path.** A feature test that drives the feature the way its
 caller does, the tenant isolation of every new table, and the answers the
@@ -158,15 +160,18 @@ controller is -- is changed by hand from then on, and its skill says so.
 
 ## Wiring
 
-All of it is by hand, in two files, from what the generators print:
+All of it is by hand, from what the generators print:
 
-- `bootstrap/app.go` builds every collaborator once, in `Build`, and hands it
-  down: services to controllers, the notifier to listeners, the clients to
-  services, the queue to the provider that schedules.
+- `app/Providers/AppServiceProvider.go` builds every collaborator once, over
+  the drivers the framework built from `config/`, and hands it down: services
+  to controllers in the `routes.Deps` literal, the notifier to listeners, the
+  clients to services; `RegisterJobs` registers the job handlers.
 - `routes/web.go` holds the field on `Deps` and the route lines, in the custom
   block, behind the guard the route needs.
-- `bootstrap/background.go` registers job handlers; `app/Providers` declares
-  scheduled tasks; `routes/console.go` declares commands.
+- `routes/console.go` lists the commands, whose code is `app/Console/Commands`,
+  and the scheduled tasks.
+- `bootstrap/app.go` hands all of it to the framework in one chain, and changes
+  only for a new provider, a module or a middleware of every request.
 
 ## Acceptance test
 

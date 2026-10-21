@@ -19,9 +19,20 @@ through, and not every feature has every step: a task with no table gets no
 migration, an API with no screen gets no view.
 
 Every generator below exists in `aru` v0.74.0, the version the Dockerfile
-builds with, and prints its wiring instead of editing `bootstrap/app.go` or
-`routes/web.go`. The example column is the `notes` resource, which has every
-step; `.agents/skills/notes` says which command wrote each file.
+builds with, and prints its wiring instead of editing a provider,
+`routes/web.go` or `routes/console.go`. The example column is the `notes`
+resource, which has every step; `.agents/skills/notes` says which command wrote
+each file.
+
+v0.74.0 still names the files `bootstrap/` held before the console kernel moved
+into the framework, and the line it prints goes where that code lives now: a
+line for "the routes.Deps literal in bootstrap/app.go" goes in the `routes.Deps`
+literal of `app/Providers/AppServiceProvider.go`, where `db` is in scope as it
+was there; a line for `registerHandlers` in `bootstrap/background.go` goes in
+`RegisterJobs` in the same provider, with `p.Notes` where it says `app.Notes`;
+and a command `aru make:command` writes is listed in `Commands` in
+`routes/console.go` as a `console.Command`, the shape
+`app/Console/Commands/NotesDigest.go` has.
 
 | # | step | file | generator | example in this repository |
 | --- | --- | --- | --- | --- |
@@ -35,12 +46,12 @@ step; `.agents/skills/notes` says which command wrote each file.
 | 8 | controller | `app/Http/Controllers/<Entity>Controller.go` | `aru make:controller` with `--resource`, `--singleton`, `--invokable`, `--parent`, `--action` | `app/Http/Controllers/NoteController.go` (`Publish` is `--action=publish`), `app/Http/Controllers/CommentController.go` (`--parent=notes`) |
 | 9 | routes and their guard | `routes/web.go` | printed by the generators, pasted by you | the notes group in the custom block of `routes/web.go` |
 | 10 | page, fragment, component or JSON Resource | `resources/views/**/*.kyse.go`, `app/Http/Resources/` | `aru make:module` writes the pages; `aru make:resource` | `resources/views/notes/`, `resources/views/partials/notes_table.kyse.go`, `app/Http/Resources/NoteResource.go` |
-| 11 | tests and wiring | `tests/Feature`, `tests/Unit`, `bootstrap/app.go` | `aru make:test`; `aru make:module --tenant` writes the tenant test | `tests/Feature/Notes_test.go`, `tests/Feature/CommentTenantScope_test.go`, `tests/Feature/TenantScope_test.go` |
+| 11 | tests and wiring | `tests/Feature`, `tests/Unit`, `tests/Browser`, `app/Providers/AppServiceProvider.go` | `aru make:test`; `aru make:module --tenant` writes the tenant test | `tests/Feature/Notes_test.go`, `tests/Feature/CommentTenantScope_test.go`, `tests/Feature/TenantScope_test.go` |
 
 `aru make:module <name> --fields "..." --tenant` writes the migration, the
 model and its query, the factory, the seeder, the policy, the request, the
 service, the controller, the pages and the tests in one go, and prints the
-lines of step 9 and of `bootstrap/app.go` instead of editing them; with
+lines of step 9 and of the provider instead of editing them; with
 `--parent=<resource>` it nests the module under another. `aru model:build`
 rewrites the query whenever the entity changes.
 
@@ -49,14 +60,15 @@ Beyond the eleven steps, each in the example:
 | what | generator | example |
 | --- | --- | --- |
 | a domain event, stored by the write | `aru make:event` | `app/Events/NotePublished.go`, stored by `NoteService.Publish` |
-| a listener, run by the relay | `aru make:listener` | `app/Listeners/NotifyNoteAuthor.go`, in `listeners.Each` in `bootstrap/app.go` |
+| a listener, run by the relay | `aru make:listener` | `app/Listeners/NotifyNoteAuthor.go`, in `listeners.Each` in `app/Providers/AppServiceProvider.go` |
 | a notification | `aru make:notification` | `app/Notifications/NotePublished.go`, over the database channel |
-| a job and its schedule | `aru make:job` | `app/Jobs/SendNotesDigest.go`, scheduled in `app/Providers/AppServiceProvider.go` |
+| a job and its schedule | `aru make:job` | `app/Jobs/SendNotesDigest.go`, scheduled in `Schedule` in `routes/console.go`, its handler in `RegisterJobs` of `app/Providers/AppServiceProvider.go` |
 | an external client and its fake | `aru make:client` | `app/Clients/NewsletterClient.go`, `app/Clients/NewsletterFake.go` |
-| a received webhook, verified before anything else | `aru make:controller`, `aru make:event` | `app/Http/Controllers/NewsletterWebhookController.go` at `/webhooks/newsletter`, exempt from CSRF by `middleware.CSRFExcept("/webhooks/")` in `bootstrap/app.go` |
+| a received webhook, verified before anything else | `aru make:controller`, `aru make:event` | `app/Http/Controllers/NewsletterWebhookController.go` at `/webhooks/newsletter`, exempt from CSRF by `m.ValidateCSRFTokensExcept("/webhooks/")` in `WithMiddleware`, in `bootstrap/app.go` |
 | a write a program makes with a bearer token | none: a route in the `/api` group | `POST /api/notes` in `routes/web.go`, behind `RequireToken` and `Idempotent`; the tokens are `app/Services/PersonalAccessTokenService.go` |
 | a tool, resource or prompt of an MCP server | `aru make:mcp-tool`, `aru make:mcp-resource`, `aru make:mcp-prompt` | none: this project does not require the mcp module |
-| a console command | `aru make:command` | none |
+| a console command | `aru make:command` | `app/Console/Commands/NotesDigest.go`, listed in `Commands` in `routes/console.go`: `notes:digest` queues the digest now |
+| a test that drives the browser | none: a Go test behind the `browser` build tag | `tests/Browser/Home_test.go`, run by `aru test --browser`; it skips without Chrome |
 
 ## Where each kind of code lives
 
@@ -73,9 +85,13 @@ Beyond the eleven steps, each in the example:
 | an engine that wraps another technology, a client another project would reuse | a `github.com/hyz-is/arandu-*` module | a service, a job | live in `app/Services` |
 | background work, a loop, a retry | `app/Jobs`, run by the worker or the scheduler | the scheduler, a listener | be a goroutine started in a constructor or in `Boot`, be dispatched by a service |
 | a reaction to something that happened | `app/Listeners`, through the outbox, listed in `listeners.Each` | the relay | call a controller |
-| telling a person something | `app/Notifications`, sent through the `Notifier` `bootstrap/app.go` builds | a listener, a service | write its own row or send mail by hand |
+| telling a person something | `app/Notifications`, sent through the `Notifier` the provider builds | a listener, a service | write its own row or send mail by hand |
 | a closed set of values | `app/Enums` (`aru make:enum`) | anything | — |
-| a console command | `app/Console/Commands` (`aru make:command`), registered in `routes/console.go` | the console | put its logic in `bootstrap/` |
+| a console command | `app/Console/Commands`, a function answering a `console.Command`, listed in `Commands` in `routes/console.go` | the framework's console kernel, through `main.go` | put its logic in `bootstrap/`, be a program under `cmd/` or `scripts/`, take a name the framework already answers |
+| a scheduled task | `Schedule` in `routes/console.go` | the framework's scheduler, in the process that serves | start a goroutine of its own |
+| building a service over the drivers | a provider in `app/Providers`, listed in `WithProviders` in `bootstrap/app.go` | `bootstrap/app.go` | build a cache, session, queue, mail transport or disk by hand: the framework builds them from the configuration |
+| a setting of this application | a section of its own in `config/`, beside the framework's `bootstrap.Settings` that `config.Config` embeds | the provider | copy a section the framework reads (`app`, `cache`, `database`, `filesystems`, `http`, `logging`, `mail`, `queue`, `session`) |
+| a test that drives a browser | `tests/Browser`, behind the `browser` build tag | `aru test --browser` | be a program under `scripts/` |
 | a JSON answer about the domain | a `JsonResource`, in `app/Http/Resources` | a controller, with `ctx.JSON` | `json.NewEncoder` on the ResponseWriter |
 | an API error | a problem document, written by the router | the router | a format of its own |
 | a rejected form | the `validation.Errors` the service returns; the router answers it | the router | a 422 written by a controller |
@@ -125,6 +141,10 @@ compiler by a build tag, and `gofmt` is the only tool in the chain that ignores
 build tags — without the filter it reports a syntax error on every view.
 `testdata/` holds fixtures that are invalid on purpose.
 
+The browser suite is not one of the eight: `aru test --browser` runs
+`tests/Browser` where Chrome is installed, and each test there skips without
+one.
+
 CI runs these too, except `aru model:build --check`, whose question
 `aru doctor` also asks as `model-query-stale`. It then builds the container
 image and runs `govulncheck`, which need Docker and the network.
@@ -136,10 +156,11 @@ them is missing by accident; each was considered and refused.
 
 | A model reaches for | What is here instead |
 | --- | --- |
-| a service container, dependency injection | `bootstrap/app.go`, a list. Reading it tells you what every route was given |
+| a service container, dependency injection | `bootstrap/app.go`, one chain of typed calls, and the providers it lists. Reading them tells you what every route was given |
 | facades, static proxies | the collaborator, passed to the constructor |
 | an ORM model with fillable fields, Active Record | an entity struct that embeds `model.Model`, with its table declared once beside it; every terminal takes an `auth.Grant`, and a typed request decides which fields a write may touch |
-| service providers, auto-discovery | `foundation.Module`: `Name()` and `Routes()`, registered explicitly |
+| service providers, auto-discovery | `foundation.Module`: `Name()` and `Routes()`, listed in `WithProviders` by hand |
+| a console kernel of the application's own, a `switch` over the command name | `main.go` hands the command line to the framework's `HandleCommand`, which answers the built-in commands and the ones `routes/console.go` lists |
 | a routes file loaded by convention, an `api.go` beside `web.go` | `routes/web.go`, called; a JSON client is answered by the same routes |
 | middleware that authorizes | a Policy that `auth.Authorize` consults before it issues a `Grant`. Middleware answers "is there a session", puts the subject on the request, and stops |
 | an ORM query builder on the model | `models.Notes(db)`, the typed query `aru model:build` generates beside the entity, finished by a terminal that takes the `Grant`; a repository with parameterised SQL only for a query the builder cannot say |
@@ -160,7 +181,7 @@ segment, a body, a query or a header.
 
 Prefer generating it. `aru make:module` writes a model, a migration, a policy, a
 request, a service, a controller, views and tests, all shaped correctly, and
-prints the three lines of wiring to paste. The `notes` resource is the example
+prints the lines of wiring to paste. The `notes` resource is the example
 to read first. What
 the generator does not cover goes between `// arandu:begin custom` and
 `// arandu:end custom`, which survives regeneration.

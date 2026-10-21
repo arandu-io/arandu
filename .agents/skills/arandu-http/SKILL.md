@@ -115,7 +115,7 @@ type PublishNote struct {
 	notes *services.NoteService
 }
 
-// NewPublishNote takes the service it calls, built in bootstrap/app.go.
+// NewPublishNote takes the service it calls, built in app/Providers.
 func NewPublishNote(notes *services.NoteService) *PublishNote {
 	return &PublishNote{notes: notes}
 }
@@ -171,11 +171,14 @@ the custom block of `Validate`.
 
 - `routes/web.go`: the controller's field on `Deps`, and the route lines in the
   custom block, behind a guard.
-- `bootstrap/app.go`: the constructor in the `routes.Deps` literal, with the
-  service built once and shared -- the example builds `notes` once and hands it
-  to both controllers that need it.
-- A middleware of the application is constructed in `bootstrap/app.go` and
-  put on the route or the group that needs it.
+- `app/Providers/AppServiceProvider.go`: the constructor in the `routes.Deps`
+  literal, with the service built once and shared -- the example builds
+  `p.Notes` once and hands it to both controllers that need it. aru v0.74.0
+  prints this line for "bootstrap/app.go"; it goes here, where `db` is in
+  scope the same way.
+- A middleware of the application is constructed in the provider and put on
+  the route or the group that needs it. One for every request is
+  `m.Append(...)` in `WithMiddleware` in `bootstrap/app.go`.
 
 ## Acceptance test
 

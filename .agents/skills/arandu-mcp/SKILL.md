@@ -63,7 +63,7 @@ error. The tools, and when to call each:
    disagree, the card is the contract and the example is reported.
 4. **Generate preview-first.** Call `generate` without `apply`, read the files
    it lists, and only then call it again with `apply=true`. Paste the wiring it
-   returns into `bootstrap/app.go` and `routes/web.go` yourself -- the tool
+   returns into the provider in `app/Providers` and `routes/web.go` yourself -- the tool
    never edits them, and refuses a generator whose plan would.
 5. **Run the doctor** through the `doctor` tool after the change, fix each
    finding by moving the code to where its card says, and run it again until
@@ -120,8 +120,8 @@ func Unpin(ctx context.Context, db *database.DB, actor auth.Subject, id string) 
 ## Do not
 
 - Call `generate` with `apply=true` before reading its preview.
-- Ask the tool to write wiring, run a migration or edit `bootstrap/` or
-  `routes/`: it refuses, and working around it in a shell is the edit the
+- Ask the tool to write wiring, run a migration or edit `bootstrap/`,
+  `app/Providers` or `routes/`: it refuses, and working around it in a shell is the edit the
   refusal exists to keep in a person's hands.
 - Copy a card's text into a document or a skill of this project: ask the tool
   again next time, so the answer follows the `aru` that is pinned.

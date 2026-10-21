@@ -44,10 +44,15 @@ bundle, and authorization the compiler charges for: a repository call with no
 - **A binary, not a toolchain** — it runs with `git clone && aru dev`. No
   `node_modules`, no `package.json`, no JavaScript lockfile, and no Node
   installed: the view compiler and every script are embedded in the binary.
-- **`bootstrap/app.go`** — the one place the application is wired. `aru
-  make:module` prints the lines a generated module needs and never edits this
-  file itself: a generator that rewrites your wiring behind your back is a
-  generator whose output nobody can account for.
+- **`bootstrap/app.go`** — the one place the application is configured, and
+  the only file in `bootstrap/`: one chain of typed calls naming its providers,
+  routes, middleware, commands, schedule, job handlers and seeders. The drivers
+  -- cache, sessions, queue, mail, disks -- are built by the framework from
+  `config/`, the services by the providers in `app/Providers`, and `main.go`
+  hands the command line to the framework's console kernel, the way `artisan`
+  does. `aru make:module` prints the lines a generated module needs and never
+  edits a file of wiring itself: a generator that rewrites your wiring behind
+  your back is a generator whose output nobody can account for.
 
 ## The example resource
 
@@ -74,14 +79,16 @@ generator for it and opened by hand where the generator stops --
   a listener of the outbox (`aru make:listener`);
 - **a nightly digest**, a scheduled task that enqueues a job (`aru make:job`)
   which hands the published notes to a newsletter client (`aru make:client`) --
-  the fake in the tests, nothing at all when no `NEWSLETTER_API_URL` is set;
+  the fake in the tests, nothing at all when no `NEWSLETTER_API_URL` is set --
+  and `notes:digest`, a command in `app/Console/Commands` that queues the same
+  job now;
 - **an API for a program**, `POST /api/notes` and its publish, behind
   `RequireToken` and `Idempotent` and answered by the same actions, for a
   client holding one of the personal access tokens the application issues;
 - **a received webhook**, `POST /webhooks/newsletter`, where the newsletter
   provider reports on a digest: the signature is verified with
   `hesape/webhook` before anything else, the route is exempt from CSRF by
-  name in `bootstrap/app.go`, and it answers 404 until
+  name in `WithMiddleware` in `bootstrap/app.go`, and it answers 404 until
   `NEWSLETTER_WEBHOOK_SECRET` is set.
 
 `tests/Feature/Notes_test.go` and `tests/Feature/Comments_test.go` prove each
@@ -105,6 +112,7 @@ There is no command for it. Delete these files:
 .agents/skills/notes/SKILL.md
 app/Clients/NewsletterClient.go
 app/Clients/NewsletterFake.go
+app/Console/Commands/NotesDigest.go
 app/Events/NewsletterEventReceived.go
 app/Events/NotePublished.go
 app/Http/Controllers/CommentController.go
@@ -157,16 +165,12 @@ routes/web.go                        Note *controllers.NoteController, Comment a
 routes/web.go                        notes := r.Group("", middleware.RequireAuth(d.Sessions)), and the three lines that use it
 routes/web.go                        api := r.Group("/api", middleware.RequireToken(d.Tokens)), and the two api.Action that use it
 routes/web.go                        r.Action("POST", "/webhooks/newsletter", ...)
-bootstrap/app.go                     Notes *services.NoteService, in App, and Notes: notes where Build returns App
-bootstrap/app.go                     listeners.NewNotifyNoteAuthor(notifier),
-bootstrap/app.go                     notes := services.NewNoteService(db).WithNewsletter(newsletter(cfg.Services.Newsletter))
-bootstrap/app.go                     Note:    controllers.NewNoteController(notes),
-bootstrap/app.go                     Comment: controllers.NewCommentController(services.NewCommentService(db, notes)),
-bootstrap/app.go                     NewsletterWebhook: controllers.NewNewsletterWebhookController(...), two lines
 bootstrap/app.go                     _ ".../storage/framework/views/partials"   (once no other partial is left)
-bootstrap/app.go                     func newsletter, at the end of the file
-bootstrap/background.go              w.Handle(appjobs.SendNotesDigestName, appjobs.NewSendNotesDigestHandler(app.Notes))
-app/Providers/AppServiceProvider.go  the notes.digest task in Schedule
+app/Providers/AppServiceProvider.go  Notes *services.NoteService, the field, and p.Notes = ... where it is built
+app/Providers/AppServiceProvider.go  listeners.NewNotifyNoteAuthor(p.Notifier),
+app/Providers/AppServiceProvider.go  Note, Comment and NewsletterWebhook in the routes.Deps literal
+app/Providers/AppServiceProvider.go  Notes: p.Notes in Console, and the w.Handle line in RegisterJobs
+routes/console.go                    Notes in ConsoleDeps, commands.NotesDigest in Commands, the notes.digest task in Schedule
 config/services.go                   Newsletter and NewsletterWebhook Credential, and their entries in loadServices
 .env.example                         NEWSLETTER_API_URL=, NEWSLETTER_TOKEN= and NEWSLETTER_WEBHOOK_SECRET=
 database/seeders/seeders.go          NoteSeeder{},
@@ -178,8 +182,8 @@ then the imports the deletions leave unused, which `go build` names. What
 stays is the application's own: the notifier and its table, the listener list,
 the scheduler's tenants, the queue the provider schedules on, the personal
 access tokens with their resolver and the idempotency store the routes are
-given, and the `CSRFExcept("/webhooks/")` a webhook of the application's own
-will need.
+given, and the `ValidateCSRFTokensExcept("/webhooks/")` a webhook of the
+application's own will need.
 
 A database that already ran the migrations keeps the tables: in development run
 `aru migrate:fresh` after deleting the files; anywhere else add a migration
@@ -192,7 +196,7 @@ repository missing its policy to a tenant read off the request instead of the
 build, a warning stays the to-do it is, and a new project is never red for code
 the generator wrote.
 
-11,664 lines of Go outside the tests and 12,511 in them, across 64 test files,
+8,831 lines of Go outside the tests and 13,045 in them, across 66 test files,
 the example resource included, counted with `wc -l` over the tracked `.go`
 files — small on purpose: it is what a project starts from, not what it grows
 into.

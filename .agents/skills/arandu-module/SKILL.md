@@ -146,12 +146,14 @@ outside them and are changed by hand.
 
 ## Wiring
 
-`aru make:module` prints three lines and the claim:
+`aru make:module` prints three lines and the claim. It names
+`bootstrap/app.go` for the second one, whose `routes.Deps` literal is in the
+provider now:
 
 ```go
 // routes/web.go, the field on Deps
 Note *controllers.NoteController
-// bootstrap/app.go, in the routes.Deps literal
+// app/Providers/AppServiceProvider.go, in the routes.Deps literal
 Note: controllers.NewNoteController(services.NewNoteService(db)),
 ```
 
