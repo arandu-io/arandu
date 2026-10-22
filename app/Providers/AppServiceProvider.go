@@ -5,6 +5,7 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/arandu-io/hesape/database/model"
 	hevents "github.com/arandu-io/hesape/events"
 	"github.com/arandu-io/hesape/geo"
+	hhttp "github.com/arandu-io/hesape/http"
 	hnotifications "github.com/arandu-io/hesape/notifications"
 	"github.com/arandu-io/hesape/notifications/channels"
 	"github.com/arandu-io/hesape/onetime"
@@ -110,6 +112,11 @@ func NewAppServiceProvider(cfg appconfig.Config, d *foundation.Drivers) (*AppSer
 	}
 	p.Tokens = services.NewPersonalAccessTokenService(db, p.Users, cfg.Auth.Tenant)
 
+	// A session keeps who signed in, not what they may do: every request reads
+	// the account again through currentSubject, so a role taken away, or an
+	// account removed or closed, stops working on the next request.
+	d.Sessions.ResolveSubjects(p.currentSubject)
+
 	p.Notes = services.NewNoteService(db).WithNewsletter(clients.NewNewsletter(clients.NewsletterConfig{
 		BaseURL: cfg.Services.Newsletter.URL,
 		Token:   cfg.Services.Newsletter.Secret,
@@ -127,6 +134,23 @@ func NewAppServiceProvider(cfg appconfig.Config, d *foundation.Drivers) (*AppSer
 			services.NewNewsletterEventService(db, cfg.Auth.Tenant)),
 	}
 	return p, nil
+}
+
+// currentSubject is the session store's resolver: the subject of the account a
+// session was opened for, as the account is stored now. It is built by
+// services.CurrentSubject, through User.Subject, the one place a subject is
+// made from a user, so a session and a sign-in cannot disagree about what an
+// account may do.
+//
+// An account that is gone, closed or refused answers hhttp.ErrSubjectGone,
+// which ends the session. Any other error is the read failing, and the store
+// fails the request with it instead of using the roles the session began with.
+func (p *AppServiceProvider) currentSubject(ctx context.Context, who auth.Subject) (auth.Subject, error) {
+	subject, err := services.CurrentSubject(ctx, p.Users, who.Tenant, who.ID)
+	if errors.Is(err, services.ErrAccountGone) {
+		return auth.Subject{}, hhttp.ErrSubjectGone
+	}
+	return subject, err
 }
 
 // Name is the module identifier.
