@@ -68,6 +68,9 @@ The flow of an organization's data is fixed:
    `bootstrap/app.go`; then `aru migrate`, and preview what it publishes
    with `aru vendor:publish --tag=view` before `--apply`. Each module's README
    has its exact `Config`.
+   Roles a module contributes reach a session through `User.Subject`,
+   which the session store's one resolver reads on every request; a second
+   `drivers.Sessions.ResolveSubjects` panics.
 4. **When no module owns it**, stop and report: name the capability, the
    modules checked, why none owns it, and whether one should be extended. A new
    reusable capability starts from `github.com/arandu-io/package-skeleton` as a

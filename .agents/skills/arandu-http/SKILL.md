@@ -49,6 +49,15 @@ A guard goes on the group or the route -- `r.Group("", middleware.RequireAuth(d.
 -- with `middleware "github.com/arandu-io/hesape/http/middleware"`, never at
 the top of an action.
 
+
+The session keeps who signed in, not what they may do. On every request the
+store asks the resolver `AppServiceProvider` installs (`currentSubject`, over
+`services.CurrentSubject` and `User.Subject`) for the account as it is stored
+now, so `RequireRole` and every Policy read the current roles: a demotion
+holds on the next request, a deleted or closed account is sent to the sign-in
+screen, and a read that fails answers 503. A session is started from
+`User.Subject()` and from nothing else.
+
 ## Procedure
 
 1. **Pick the shape.** CRUD on a record is a resource. A record reached
