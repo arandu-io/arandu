@@ -83,6 +83,10 @@ USER nonroot:nonroot
 # query and its arguments, prints stack traces on the error page and drops
 # Secure from the cookies. A staging deployment sets APP_ENV=staging; nothing
 # that runs this image should need dev.
+#
+# Production asks two things of the deployment at boot: a real mailer, because
+# MAIL_URL unset or log:// writes reset codes into the log, and no
+# SESSION_SECURE_COOKIE=false. Either one stops the process naming the variable.
 ENV APP_ENV=prod
 
 EXPOSE 8080
