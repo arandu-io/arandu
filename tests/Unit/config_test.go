@@ -136,10 +136,10 @@ func TestTheSessionCookieIsHTTPSOnlyWhereverItWasStatedToBe(t *testing.T) {
 			about: "the variable answers the question by itself",
 		},
 		{
-			name:  "SESSION_SECURE_COOKIE off, declared, in production",
-			env:   map[string]string{"APP_ENV": "prod", "SESSION_SECURE_COOKIE": "false"},
+			name:  "SESSION_SECURE_COOKIE off, declared, in staging",
+			env:   map[string]string{"APP_ENV": "staging", "SESSION_SECURE_COOKIE": "false"},
 			want:  false,
-			about: "a declared no is how a deployment served over http outside dev says so",
+			about: "a declared no is how a staging deployment served over http says so; production refuses it",
 		},
 		{
 			name:  "an https address in dev",

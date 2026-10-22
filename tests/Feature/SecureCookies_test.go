@@ -31,7 +31,7 @@ func TestEveryCookieTheApplicationWritesFollowsTheOneSecureDecision(t *testing.T
 	}{
 		{name: "dev", appEnv: "dev", want: false},
 		{name: "prod, nothing declared", appEnv: "prod", want: true},
-		{name: "prod, declared false to serve over http", appEnv: "prod", secure: "false", want: false},
+		{name: "staging, declared false to serve over http", appEnv: "staging", secure: "false", want: false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			sqliteEnv(t)

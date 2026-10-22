@@ -15,6 +15,8 @@ import (
 // guest cookie and the flash cookie all take Config.Framework.Session.Secure --
 // so what is asserted is that value, under the three ways a deployment can
 // answer: by naming dev, by naming anything else, and by declaring the variable.
+// A declared false is taken in dev and staging; production refuses it, which is
+// TestAnInsecureSessionCookieIsRefusedInProduction.
 //
 // APP_URL takes no part. Behind a proxy that ends TLS the address this process
 // knows is http, and the browser's connection is https all the same.
@@ -30,7 +32,7 @@ func TestTheSessionCookieIsSecureUnlessTheEnvironmentIsDev(t *testing.T) {
 		{name: "dev, with an https address", appEnv: "dev", appURL: "https://localhost:8443", want: false},
 		{name: "staging over http, nothing declared", appEnv: "staging", appURL: "http://app.internal:8080", want: true},
 		{name: "prod over http, nothing declared", appEnv: "prod", appURL: "http://app.internal:8080", want: true},
-		{name: "prod, declared false to serve over http", appEnv: "prod", appURL: "http://app.example.test", secure: "false", want: false},
+		{name: "staging, declared false to serve over http", appEnv: "staging", appURL: "http://app.example.test", secure: "false", want: false},
 		{name: "dev, declared true", appEnv: "dev", appURL: "https://localhost:8443", secure: "true", want: true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -55,6 +57,29 @@ func TestTheSessionCookieIsSecureUnlessTheEnvironmentIsDev(t *testing.T) {
 					got, c.want, c.appEnv, c.appURL, c.secure)
 			}
 		})
+	}
+}
+
+// TestAnInsecureSessionCookieIsRefusedInProduction: a session cookie without
+// Secure travels in the clear, and the cookie is the whole credential. A
+// deployment served over http is a staging one, where a declared false is
+// still taken; production with it stops the boot, and the refusal names the
+// variable and the environment that serves over http.
+func TestAnInsecureSessionCookieIsRefusedInProduction(t *testing.T) {
+	_, err := loadConfigurationWith(t, map[string]string{
+		"APP_ENV":               "prod",
+		"APP_URL":               "http://app.example.test",
+		"APP_DEBUG":             "",
+		"MAIL_URL":              "array://",
+		"SESSION_SECURE_COOKIE": "false",
+	})
+	if err == nil {
+		t.Fatal("the boot accepted SESSION_SECURE_COOKIE=false in production: the session cookie would travel in the clear")
+	}
+	for _, want := range []string{"SESSION_SECURE_COOKIE=false", "APP_ENV=staging"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to contain %q", err, want)
+		}
 	}
 }
 
