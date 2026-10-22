@@ -110,8 +110,16 @@ jobs:
           } > CHANGELOG.next
           mv CHANGELOG.next CHANGELOG.md
 
-          git config user.name "Paulo R. Lima"
-          git config user.email "paulorlima@hyz.is"
+          # `aru new` copies this file into every project, so the changelog
+          # commit is signed by the Actions bot unless this is the skeleton's
+          # own repository.
+          if [ "${GITHUB_REPOSITORY}" = "arandu-io/arandu" ]; then
+            git config user.name "HYZIS"
+            git config user.email "admin@hyz.is"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          fi
           git add CHANGELOG.md
           # A release with an empty body leaves the file alone, which is not a
           # failure.
