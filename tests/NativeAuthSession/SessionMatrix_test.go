@@ -156,6 +156,16 @@ func newSessionHarness(t *testing.T) *sessionHarness {
 	factors := &fakeFactors{}
 	backend := &countingBackend{}
 	sessions := hhttp.NewSessionStore(appKey, time.Hour, false, backend)
+	// The provider installs the resolver over the application's accounts; the
+	// harness installs it over the account the fake keeps as stored, through
+	// the same User.Subject. Without one the store refuses a subject with
+	// roles, and no sign-in would write a session.
+	sessions.ResolveSubjects(func(_ context.Context, who nativeauth.Subject) (nativeauth.Subject, error) {
+		if who.ID != current.ID || who.Tenant != current.TenantID {
+			return nativeauth.Subject{}, hhttp.ErrSubjectGone
+		}
+		return current.Subject(), nil
+	})
 	module := authui.New(
 		users, factors, nil, sessions, session.NewCSRF(appKey, time.Hour), nil, nil,
 		appKey, authui.FixedTenant("tenant-a"), false,
