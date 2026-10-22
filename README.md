@@ -171,7 +171,7 @@ app/Providers/AppServiceProvider.go  listeners.NewNotifyNoteAuthor(p.Notifier),
 app/Providers/AppServiceProvider.go  Note, Comment and NewsletterWebhook in the routes.Deps literal
 app/Providers/AppServiceProvider.go  Notes: p.Notes in Console, and the w.Handle line in RegisterJobs
 routes/console.go                    Notes in ConsoleDeps, commands.NotesDigest in Commands, the notes.digest task in Schedule
-config/services.go                   Newsletter and NewsletterWebhook Credential, and their entries in loadServices
+config/services.go                   Newsletter and NewsletterWebhook Credential, their entries in loadServices, and the NEWSLETTER_WEBHOOK_SECRET check
 .env.example                         NEWSLETTER_API_URL=, NEWSLETTER_TOKEN= and NEWSLETTER_WEBHOOK_SECRET=
 database/seeders/seeders.go          NoteSeeder{},
 database/seeders/DatabaseSeeder.go   return NoteSeeder{}.Run(ctx, d)   (becomes: return nil)

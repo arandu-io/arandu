@@ -50,7 +50,11 @@ func From(settings bootstrap.Settings) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	return Config{Settings: settings, Auth: auth, Geo: geoConfig, Services: loadServices()}, nil
+	services, err := loadServices()
+	if err != nil {
+		return Config{}, err
+	}
+	return Config{Settings: settings, Auth: auth, Geo: geoConfig, Services: services}, nil
 }
 
 // The readers below are the only place this package touches the environment.

@@ -434,6 +434,7 @@ func loadConfigurationWith(t *testing.T, values map[string]string) (appconfig.Co
 		"AUTH_PASSWORD_RESET_TTL",
 		"MAIL_URL", "MAIL_MAILER", "MAIL_HOST", "MAIL_PORT", "MAIL_USERNAME",
 		"MAIL_PASSWORD", "MAIL_ENCRYPTION", "MAIL_KEY",
+		"NEWSLETTER_WEBHOOK_SECRET",
 	} {
 		t.Setenv(key, "")
 	}
@@ -452,4 +453,43 @@ func fromBase(base bootstrap.Configuration) (appconfig.Config, error) {
 		return appconfig.Config{}, err
 	}
 	return appconfig.From(settings)
+}
+
+// TestAShortWebhookSecretStopsTheBoot: the webhook's signature is an
+// HMAC-SHA256, and a secret shorter than 32 bytes is one an attacker can guess
+// offline from a single captured delivery. A deployment that sets one does not
+// boot; one that sets none keeps the route answering 404, and one of 32 bytes
+// boots.
+//
+// The refusal names the variable and never quotes the value: a boot error is a
+// log line, and the value is a secret.
+func TestAShortWebhookSecretStopsTheBoot(t *testing.T) {
+	const short = "only-31-bytes-of-webhook-secret"
+	if len(short) != appconfig.MinWebhookSecretBytes-1 {
+		t.Fatalf("the short secret is %d bytes, want %d", len(short), appconfig.MinWebhookSecretBytes-1)
+	}
+	_, err := loadConfigurationWith(t, map[string]string{"NEWSLETTER_WEBHOOK_SECRET": short})
+	if err == nil {
+		t.Fatal("a 31-byte NEWSLETTER_WEBHOOK_SECRET booted")
+	}
+	if !strings.Contains(err.Error(), "NEWSLETTER_WEBHOOK_SECRET") {
+		t.Errorf("error = %q, want it to name NEWSLETTER_WEBHOOK_SECRET", err)
+	}
+	if strings.Contains(err.Error(), short) {
+		t.Errorf("error = %q, and it quotes the secret", err)
+	}
+
+	for name, secret := range map[string]string{
+		"none":     "",
+		"32 bytes": strings.Repeat("s", appconfig.MinWebhookSecretBytes),
+	} {
+		cfg, err := loadConfigurationWith(t, map[string]string{"NEWSLETTER_WEBHOOK_SECRET": secret})
+		if err != nil {
+			t.Errorf("%s: Load: %v", name, err)
+			continue
+		}
+		if cfg.Services.NewsletterWebhook.Secret != secret {
+			t.Errorf("%s: the secret was not loaded", name)
+		}
+	}
 }

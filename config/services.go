@@ -1,5 +1,7 @@
 package config
 
+import "fmt"
+
 // Credential is what a third-party service needs to be called: an endpoint and
 // a pair of secrets. One shape for all of them, so adding a service is a field
 // and not a struct.
@@ -37,8 +39,14 @@ type Services struct {
 	NewsletterWebhook Credential
 }
 
-func loadServices() Services {
-	return Services{
+// MinWebhookSecretBytes is the shortest secret a received webhook is verified
+// with. The signature is an HMAC-SHA256: a key shorter than its 32-byte output
+// is weaker than the hash it keys, and one captured delivery is all an attacker
+// needs to guess it offline.
+const MinWebhookSecretBytes = 32
+
+func loadServices() (Services, error) {
+	services := Services{
 		Cloudflare: Credential{
 			URL:    env("CLOUDFLARE_API_URL", "https://api.cloudflare.com/client/v4"),
 			Key:    env("CLOUDFLARE_ACCOUNT_ID", ""),
@@ -62,4 +70,11 @@ func loadServices() Services {
 			Secret: env("NEWSLETTER_WEBHOOK_SECRET", ""),
 		},
 	}
+	if secret := services.NewsletterWebhook.Secret; secret != "" && len(secret) < MinWebhookSecretBytes {
+		// The value is not quoted: it is a secret, and a boot error is a log line.
+		// Remove the check with the list under "The example resource" in README.md.
+		return Services{}, fmt.Errorf("NEWSLETTER_WEBHOOK_SECRET is %d bytes; a webhook secret is %d bytes or more, "+
+			"or empty to keep /webhooks/newsletter answering 404", len(secret), MinWebhookSecretBytes)
+	}
+	return services, nil
 }
