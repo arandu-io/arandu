@@ -10,6 +10,65 @@ comment or a test that is the skeleton's own is not.
 
 ---
 
+## v0.37.0 — production refuses the log mailer and an insecure cookie, and a missing APP_ENV is production
+
+This skeleton requires framework v0.62.0 and hesape v0.76.0. Nothing in the
+code a project wrote has to change; what changes is what a deployment has to
+say, and a project that moves without saying it stops at the boot with a line
+naming the variable.
+
+### 1. Require the releases
+
+```sh
+go get github.com/arandu-io/framework@v0.62.0 github.com/arandu-io/hesape@v0.76.0
+go mod tidy
+```
+
+### 2. The environment
+
+- **A development machine names `APP_ENV=dev` in its `.env`.** An unset
+  `APP_ENV` was dev and is production now, which turns off the debug console,
+  the stack on the error page and the commands that empty a database. The
+  `.env` copied from `.env.example` already has the line.
+- **Production names a real mailer.** `MAIL_URL=log://`, and an unset
+  `MAIL_URL`, which means the same, stop a production boot: the log transport
+  writes every message, password-reset codes included, into the log. Set
+  `smtp://`, `smtps://`, `resend://` or `sendgrid://`.
+- **Production drops `SESSION_SECURE_COOKIE=false`.** It stops a production
+  boot. A deployment served over http is a staging one: it sets
+  `APP_ENV=staging`, where the value is still taken.
+- **`aru migrate` runs before the new binary takes jobs.** On the database
+  queue, a pop reads the new nullable `impersonator` column of the `jobs`
+  table. The migration ships with the queue driver; there is nothing to copy
+  into `database/migrations`.
+
+### 3. The tests
+
+A test that boots in production names the mailer a test reads,
+`MAIL_URL=array://`, beside `APP_ENV=prod`; `tests.Kernel` does it for a
+production kernel, and `productionEnv` in `tests/Feature/Commands_test.go` for
+the commands. A case that declared `SESSION_SECURE_COOKIE=false` in production
+declares it in staging, and `TestAnInsecureSessionCookieIsRefusedInProduction`
+asserts the refusal. A test that named no environment and meant dev names it.
+
+### Beside it
+
+- A route that answers a path the framework mounts under `/_arandu/`, in a
+  method the framework's route does not take, stops the boot. The usual cause
+  is `r.Post("/", ...)`, whose pattern matches every path below it; write
+  `"/{$}"`. This skeleton has none.
+- A project that registers hesape's webhook module deletes the
+  `ValidateCSRFTokensExcept` line for its receivers and the module's
+  `RegisterJobHandlers` call in `WithJobs`: `Create` asks the module for both.
+  This skeleton's `/webhooks/` is its own controller, so its line stays.
+- A page that queued work, broadcast or cached a write while an operator
+  viewed the account read-only now gets `auth.ErrReadOnly`; ask
+  `Grant.ReadOnly()` to leave the action out of the page.
+
+Then `aru view:build`, `go test ./...` and `aru doctor`.
+
+---
+
 ## v0.35.1 — closing an account takes its tokens away
 
 `Users.Close` released the address and locked the password, and every personal
