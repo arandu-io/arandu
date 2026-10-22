@@ -77,6 +77,14 @@ COPY --from=build /app /app
 # escape away from being root on the node.
 USER nonroot:nonroot
 
+# Production unless the deployment says otherwise. Left unset, APP_ENV reads as
+# dev, and dev serves /_arandu/debug with every recent query and its arguments,
+# prints stack traces on the error page and drops Secure from the cookies -- an
+# image that forgets one variable would ship all of that to the internet. A
+# staging deployment sets APP_ENV=staging; nothing that runs this image should
+# need dev.
+ENV APP_ENV=prod
+
 EXPOSE 8080
 
 # The migration is NOT here. `aru migrate` is a pipeline step, before the

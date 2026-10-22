@@ -108,6 +108,36 @@ func TestTheContainerDoesNotRunAsRoot(t *testing.T) {
 	}
 }
 
+// finalStage is the Dockerfile from its last FROM on: the stage that becomes
+// the image. An ENV in the build stage does not reach the container.
+func finalStage(t *testing.T) string {
+	t.Helper()
+	body := dockerfile(t)
+	at := strings.LastIndex(body, "\nFROM ")
+	if at < 0 {
+		t.Fatal("the Dockerfile has no second stage")
+	}
+	return body[at:]
+}
+
+// TestTheImageRunsInProductionByDefault: APP_ENV left unset reads as dev, and
+// dev serves the debug page with every recent query and its arguments. The
+// image a deployment pulls has to be production unless the deployment says
+// otherwise.
+func TestTheImageRunsInProductionByDefault(t *testing.T) {
+	found := ""
+	for _, raw := range strings.Split(finalStage(t), "\n") {
+		line := strings.TrimSpace(raw)
+		if strings.HasPrefix(line, "ENV ") && strings.Contains(line, "APP_ENV") {
+			found = line
+		}
+	}
+	if found != "ENV APP_ENV=prod" {
+		t.Errorf("the final stage sets %q, want ENV APP_ENV=prod: without it the container boots as dev "+
+			"and serves /_arandu/debug", found)
+	}
+}
+
 // TestTheImageDoesNotMigrateAtBoot checks the rule where it would be broken.
 // With N replicas starting together, N migrations race -- and the tempting place
 // to put `aru migrate` is exactly the entrypoint.
