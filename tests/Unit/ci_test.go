@@ -92,3 +92,72 @@ func TestTheWorkflowIsWrittenInEnglish(t *testing.T) {
 		}
 	}
 }
+
+// pinnedAction is a step's action pinned to a full commit, with the release it
+// is in the comment: owner/repo[/path]@<40 hex> # vMAJOR.MINOR.PATCH.
+var pinnedAction = regexp.MustCompile(`^[\w.-]+/[\w.-]+(/[\w./-]+)?@[0-9a-f]{40} # v\d+\.\d+\.\d+$`)
+
+// TestEveryActionIsPinnedToACommit: a tag is a pointer its owner can move, and
+// a moved tag runs somebody else's code with the repository's token. Every
+// third-party action in every workflow `aru new` copies is pinned to a commit,
+// and the comment names the release so a person and Dependabot can read it.
+func TestEveryActionIsPinnedToACommit(t *testing.T) {
+	dir := filepath.Join(tests.Root(t), ".github", "workflows")
+	files, err := filepath.Glob(filepath.Join(dir, "*.yml"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no workflow under %s: %v", dir, err)
+	}
+	checked := 0
+	for _, file := range files {
+		body, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("reading %s: %v", file, err)
+		}
+		for i, raw := range strings.Split(string(body), "\n") {
+			line := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "- "))
+			if !strings.HasPrefix(line, "uses:") {
+				continue
+			}
+			action := strings.TrimSpace(strings.TrimPrefix(line, "uses:"))
+			if strings.HasPrefix(action, "./") {
+				continue
+			}
+			checked++
+			if !pinnedAction.MatchString(action) {
+				t.Errorf("%s:%d uses %q: pin it to the release's commit, as owner/repo@<sha> # vX.Y.Z",
+					filepath.Base(file), i+1, action)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no action found in the workflows, so nothing was checked")
+	}
+}
+
+// TestTheCIInstallsTheAruTheDockerfilePins: an aru installed @latest makes the
+// same commit pass or fail depending on the day, and lets the CI check the
+// architecture with a release other than the one the image compiles the views
+// with. The workflow reads ARU_VERSION from the Dockerfile and installs that.
+func TestTheCIInstallsTheAruTheDockerfilePins(t *testing.T) {
+	body := workflow(t)
+	readsThePin, installsThePin := false, false
+	for i, raw := range strings.Split(body, "\n") {
+		line := strings.TrimSpace(raw)
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.Contains(line, "arandu-io/aru@") && !strings.Contains(line, "arandu-io/aru@${aru_version}") {
+			t.Errorf("%s:%d installs aru at %q, not at the Dockerfile's ARU_VERSION", workflowPath, i+1, line)
+		}
+		if strings.Contains(line, `sed -n 's/^ARG ARU_VERSION=//p' Dockerfile`) {
+			readsThePin = true
+		}
+		if strings.Contains(line, `go install "github.com/arandu-io/aru@${aru_version}"`) {
+			installsThePin = true
+		}
+	}
+	if !readsThePin || !installsThePin {
+		t.Errorf("the workflow does not install the aru the Dockerfile pins (reads ARU_VERSION: %v, installs it: %v)",
+			readsThePin, installsThePin)
+	}
+}

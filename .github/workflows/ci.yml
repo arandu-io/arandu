@@ -23,10 +23,14 @@ jobs:
     # proof in its own CI adds a redis service here and runs the connector's
     # tests with REDIS_ADDRESS set.
 
+    # Each action is pinned to a commit, with its release in the comment. A tag
+    # is a pointer its owner can move, and a moved tag runs somebody else's code
+    # with this repository's token; a commit cannot be moved. Dependabot bumps
+    # the commit and the comment together.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           # Not go-version-file: go.mod declares the MINIMUM language version
           # ("go 1.26"), and setup-go installs exactly that -- 1.26.0, whose
@@ -37,6 +41,19 @@ jobs:
           # be testing against. The minimum in go.mod stays where it is.
           go-version: stable
 
+      # The aru the Dockerfile builds the image with, read from its
+      # ARU_VERSION, so the CI and the image cannot disagree about which release
+      # compiled the views or checked the architecture. @latest would make the
+      # same commit pass or fail depending on the day it was built.
+      - name: install aru
+        run: |
+          aru_version="$(sed -n 's/^ARG ARU_VERSION=//p' Dockerfile)"
+          if [ -z "$aru_version" ]; then
+            echo "the Dockerfile declares no ARG ARU_VERSION default"
+            exit 1
+          fi
+          go install "github.com/arandu-io/aru@${aru_version}"
+
       # The views are compiled here, not committed.
       #
       # `aru view:build` turns every .kyse.go into the Go beside it, and that
@@ -46,7 +63,6 @@ jobs:
       # failure is `undefined: renderHome` rather than anything about views.
       - name: build the views
         run: |
-          go install github.com/arandu-io/aru@latest
           "$(go env GOPATH)/bin/aru" view:build
 
       - name: gofmt
@@ -113,9 +129,7 @@ jobs:
       # still printed with the file and the line, and opening it is still the
       # next thing to do. What changed is that a to-do is reported as a to-do.
       - name: doctor
-        run: |
-          go install github.com/arandu-io/aru@latest
-          aru doctor
+        run: aru doctor
 
       # The image, for real. Doc 17 promises one artifact that every platform
       # consumes, and a Dockerfile that stopped building is found on the day
