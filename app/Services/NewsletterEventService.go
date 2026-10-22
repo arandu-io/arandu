@@ -4,6 +4,7 @@ package services
 
 import (
 	"context"
+	"errors"
 
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database"
@@ -11,12 +12,17 @@ import (
 
 	appevents "github.com/arandu-io/arandu/app/Events"
 	requests "github.com/arandu-io/arandu/app/Http/Requests"
+	models "github.com/arandu-io/arandu/app/Models"
 )
 
 // NewsletterEventReceive is the action an event the newsletter provider
 // reported is stored under. Nobody asks a policy for it: the provider is not an
 // account, and the signature the controller verified is what admitted it.
 const NewsletterEventReceive auth.Action = "newsletter.event.receive"
+
+// ErrNewsletterDeliveryReplayed is what Receive returns for a delivery id this
+// tenant has already received. Nothing was stored.
+var ErrNewsletterDeliveryReplayed = errors.New("services: this newsletter delivery was already received")
 
 // NewsletterEventService records what the newsletter provider reports about
 // the digests NoteService sent it.
@@ -41,7 +47,12 @@ func NewNewsletterEventService(db *database.DB, tenant string) *NewsletterEventS
 }
 
 // Receive validates the event and stores it, under the delivery id the
-// provider gave it.
+// provider gave it, once: a delivery id the tenant has already received
+// returns ErrNewsletterDeliveryReplayed and stores nothing.
+//
+// The delivery id is recorded in the same transaction as the event, so either
+// both are stored or neither is, and the unique index on the tenant and the
+// delivery id decides between two copies that arrive together.
 func (s *NewsletterEventService) Receive(ctx context.Context, deliveryID string, in requests.NewsletterEventRequest) error {
 	if errs := in.Validate(); errs.Any() {
 		return errs
@@ -49,6 +60,18 @@ func (s *NewsletterEventService) Receive(ctx context.Context, deliveryID string,
 	//arandu:system-grant a webhook delivery has no subject; its signature was verified with this deployment's secret, and the tenant is the one the digests are sent for
 	g := auth.SystemGrant(NewsletterEventReceive, s.tenant)
 	return database.Transaction(ctx, s.db, func(ctx context.Context) error {
+		delivery, err := models.NewsletterDeliveries(s.db).New()
+		if err != nil {
+			return err
+		}
+		delivery.TenantID = auth.Tenant(g)
+		delivery.DeliveryID = deliveryID
+		if _, err := delivery.Save(ctx, g); err != nil {
+			if errors.Is(err, database.ErrUniqueViolation) {
+				return ErrNewsletterDeliveryReplayed
+			}
+			return err
+		}
 		return s.outbox.Store(ctx, g, []events.Event{appevents.NewsletterEventReceived{
 			Kind:   in.Event,
 			Digest: in.Digest,

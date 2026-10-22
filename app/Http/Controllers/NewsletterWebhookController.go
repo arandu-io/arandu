@@ -4,6 +4,7 @@ package controllers
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -65,6 +66,12 @@ func NewNewsletterWebhookController(secret string, events *services.NewsletterEv
 
 // Store verifies one delivery, records it and answers 202.
 //
+// A delivery id already received is answered 200 and stores nothing. Inside
+// the tolerance a captured delivery still verifies, so the id is what keeps it
+// from being stored twice. The answer is a success on purpose: a provider
+// retries, under the same id, a delivery whose answer it never saw, and a
+// refusal would have it retry again or mark failed a delivery that arrived.
+//
 // The body is read whole first, because the signature is over the exact bytes
 // the provider sent; the body limit of the pipeline bounds it. Only then is it
 // bound into the request, from those same bytes. What the event means is the
@@ -91,7 +98,10 @@ func (c *NewsletterWebhookController) Store(ctx *hhttp.Context) error {
 	if err := ctx.Bind(&in); err != nil {
 		return err
 	}
-	if err := c.events.Receive(ctx.Ctx(), delivery, in); err != nil {
+	switch err := c.events.Receive(ctx.Ctx(), delivery, in); {
+	case errors.Is(err, services.ErrNewsletterDeliveryReplayed):
+		return ctx.Status(http.StatusOK)
+	case err != nil:
 		return err
 	}
 	return ctx.Status(http.StatusAccepted)

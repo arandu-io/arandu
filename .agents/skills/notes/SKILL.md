@@ -36,7 +36,8 @@ hold the rules.
 | client | `app/Clients/NewsletterClient.go`, `app/Clients/NewsletterFake.go` | `aru make:client Newsletter` | `SendDigest` on the client, the interface and the fake |
 | nested resource | `app/Models/Comment.go` and the rest of the comment files | `aru make:module comment --fields "body:text!" --tenant --parent=notes` | the `user_id` author, the opened policy, the note key as text, the listing's index |
 | an API for a token client | the `/api` group in the custom block of `routes/web.go` | by hand: two `api.Action` lines pointing at `NoteController.Store` and `Publish` | the JSON branch of `Store`, answering 201 with `Location` |
-| a received webhook | `app/Http/Controllers/NewsletterWebhookController.go`, `app/Http/Requests/NewsletterEventRequest.go`, `app/Services/NewsletterEventService.go` | by hand, to the webhook card of `aru mcp`'s `where_does_it_go` | the signature and timestamp check before the bind, the 404 with no secret |
+| a received webhook | `app/Http/Controllers/NewsletterWebhookController.go`, `app/Http/Requests/NewsletterEventRequest.go`, `app/Services/NewsletterEventService.go` | by hand, to the webhook card of `aru mcp`'s `where_does_it_go` | the signature and timestamp check before the bind, the 404 with no secret, the delivery id recorded once |
+| its record of deliveries | `app/Models/NewsletterDelivery.go`, `database/migrations/2026_10_22_000001_create_newsletter_deliveries_table.go` | `aru make:model NewsletterDelivery --fields "delivery_id:string!u" --tenant -m` | the listing index dropped: the unique index on the tenant and the delivery id is the only read |
 | its event | `app/Events/NewsletterEventReceived.go` | `aru make:event NewsletterEventReceived --aggregate=newsletter_delivery --event-name=newsletter.event_received --fields "event:string,digest:string"` | the field `Event` renamed `Kind`: the generated one collides with the `Event` method |
 
 No specification is kept -- there is no `database/specs/` -- so there is
@@ -75,8 +76,9 @@ refused (403); a note published twice is a conflict (409).
   member's note, replays a retried write once, and is refused 401 for an
   unknown or revoked token, 403 cross-site and 419 riding a cookie.
 - **A webhook**: `tests/Feature/NewsletterWebhook_test.go` posts a signed
-  delivery with no CSRF token and sees it stored, and sees every unsigned,
-  altered or stale one refused with nothing stored.
+  delivery with no CSRF token and sees it stored, sees every unsigned,
+  altered or stale one refused with nothing stored, and sees the same delivery
+  id stored once per tenant.
 
 ## Before calling a change finished
 

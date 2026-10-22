@@ -66,8 +66,9 @@ var scopedByTenant = map[string]string{
 	"personal_access_tokens": "PersonalAccessTokenService reads and writes every token through the model's tenant scope, Resolve under the deployment's tenant",
 	// The example resource. Remove it with the list under "The example
 	// resource" in README.md.
-	"notes":    "the example resource: NoteService authorizes first and reads every note through the model's tenant scope",
-	"comments": "the example resource's comments: CommentService loads the note under its own policy, then authorizes and reads every comment through the model's tenant scope",
+	"notes":                 "the example resource: NoteService authorizes first and reads every note through the model's tenant scope",
+	"comments":              "the example resource's comments: CommentService loads the note under its own policy, then authorizes and reads every comment through the model's tenant scope",
+	"newsletter_deliveries": "the example resource's received webhook deliveries: NewsletterEventService records each under the system grant of the tenant the digests are sent for, through the model's tenant scope, unique per tenant and delivery id",
 }
 
 func TestEveryTableWithATenantColumnIsOneThatFiltersByTenant(t *testing.T) {

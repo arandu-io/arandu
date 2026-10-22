@@ -18,9 +18,10 @@ const NewsletterEventReceivedName = "newsletter.event_received"
 // "look it up" is an event that reads a row which has already changed.
 //
 // It is stored by NewsletterEventService when the newsletter provider reports
-// on a digest, with the provider's delivery id as the aggregate id: a delivery
-// the provider retries is stored again, and a listener that acts on it keys on
-// that id, as every consumer of an at-least-once relay has to.
+// on a digest, with the provider's delivery id as the aggregate id, once per
+// delivery id: a delivery the provider sends again is not stored again. The
+// relay still hands an event over at least once, so a listener that acts on it
+// keys on that id, as every consumer of an at-least-once relay has to.
 type NewsletterEventReceived struct {
 	// Kind is what the provider reports, such as "digest.delivered". It is
 	// not called Event, because Event is the method below.

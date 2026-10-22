@@ -34,9 +34,9 @@ is `arandu-module`; the job or listener that makes it later is `arandu-async`.
 | a request | only through the factory: `c.http.CreatePendingRequest().BaseURL(...)`, which carries a deadline, bounds the body and refuses an address inside the network |
 | a caller | a service, a job or a listener, through the interface; never a controller, a model or a view |
 | configuration | a `Credential` in `config/services.go`, read from the environment, named in `.env.example` |
-| webhook received | `app/Http/Controllers/<Vendor>WebhookController.go`, `Store(ctx)`, under `/webhooks/`: it reads the raw body and checks `webhook.Verify(secrets, timestamp, deliveryID, body, signature)` from `github.com/arandu-io/hesape/webhook` -- the headers are `X-Arandu-Timestamp`, `X-Arandu-Delivery-ID` and `X-Arandu-Signature` -- and the timestamp's age, before it binds or stores anything; then a service records the delivery and the answer is 2xx |
+| webhook received | `app/Http/Controllers/<Vendor>WebhookController.go`, `Store(ctx)`, under `/webhooks/`: it reads the raw body and checks `webhook.Verify(secrets, timestamp, deliveryID, body, signature)` from `github.com/arandu-io/hesape/webhook` -- the headers are `X-Arandu-Timestamp`, `X-Arandu-Delivery-ID` and `X-Arandu-Signature` -- and the timestamp's age, before it binds or stores anything; then a service records the delivery id and the event in one transaction, under a model unique on the tenant and the delivery id, and the answer is 2xx -- 200 with nothing stored for an id already received |
 | CSRF | `/webhooks/` is exempt by name, in `bootstrap/app.go`: `WithMiddleware(func(m *foundation.Middleware) { m.ValidateCSRFTokensExcept("/webhooks/") })`. A route under it has no protection but its own signature check |
-| webhook secret | a `Credential` in `config/services.go` (`NEWSLETTER_WEBHOOK_SECRET`), 32 bytes or more, named empty in `.env.example`; with none the controller answers 404 |
+| webhook secret | a `Credential` in `config/services.go` (`NEWSLETTER_WEBHOOK_SECRET`), 32 bytes or more or the boot stops, named empty in `.env.example`; with none the controller answers 404 |
 | webhook sent | `webhook.NewPublisher(manager, resolver)` is an `events.Publisher`: a listener in `listeners.Each` that delivers outbox events, signed, with retries |
 | MCP | `app/Mcp/<Name>.go`: a tool with `Name`, `Description`, `Schema` and `Handle(ctx, r mcp.Request)`, calling a service with `r.Subject()`, from `github.com/arandu-io/mcp` |
 
@@ -156,6 +156,12 @@ func Receive(ctx *hhttp.Context, secrets webhook.SecretSet, events *services.New
 The controller also refuses a timestamp more than five minutes from its clock,
 which this reduction leaves out: the signature covers the timestamp, so a
 captured delivery replayed later is refused even though it still verifies.
+Inside those five minutes it is the delivery id that stops a replay:
+`NewsletterEventService.Receive` records it in `newsletter_deliveries`, unique
+on the tenant and the id, and returns `ErrNewsletterDeliveryReplayed` for one
+already there, which the controller answers 200 with nothing stored -- a
+success, because a provider retries a delivery whose answer it never saw under
+the same id.
 
 An MCP tool, as `aru make:mcp-tool ShowNote --service=Note` writes it. It is
 not compiled here, because this project does not require the mcp module:
@@ -224,7 +230,9 @@ config struct and in its `LogValue` only if it is not a secret.
 - A received webhook, as `tests/Feature/NewsletterWebhook_test.go` does: a
   delivery signed with `webhook.Sign` and no CSRF token answers 2xx and is
   recorded; another secret, a changed body, no signature and an old timestamp
-  answer 401 with nothing recorded; no secret configured answers 404.
+  answer 401 with nothing recorded; the same delivery id again answers 200
+  with nothing recorded, and the same id for another tenant is recorded; no
+  secret configured answers 404.
 
 ## Limits
 

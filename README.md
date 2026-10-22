@@ -88,8 +88,8 @@ generator for it and opened by hand where the generator stops --
 - **a received webhook**, `POST /webhooks/newsletter`, where the newsletter
   provider reports on a digest: the signature is verified with
   `hesape/webhook` before anything else, the route is exempt from CSRF by
-  name in `WithMiddleware` in `bootstrap/app.go`, and it answers 404 until
-  `NEWSLETTER_WEBHOOK_SECRET` is set.
+  name in `WithMiddleware` in `bootstrap/app.go`, each delivery id is stored
+  once per tenant, and it answers 404 until `NEWSLETTER_WEBHOOK_SECRET` is set.
 
 `tests/Feature/Notes_test.go` and `tests/Feature/Comments_test.go` prove each
 path, including another tenant's note (404) and another member's (403);
@@ -126,6 +126,8 @@ app/Jobs/SendNotesDigest.go
 app/Listeners/NotifyNoteAuthor.go
 app/Models/Comment.go
 app/Models/CommentQuery.go        (generated; aru model:build also removes it once Comment.go is gone)
+app/Models/NewsletterDelivery.go
+app/Models/NewsletterDeliveryQuery.go   (generated; aru model:build also removes it once NewsletterDelivery.go is gone)
 app/Models/Note.go
 app/Models/NoteQuery.go           (generated; aru model:build also removes it once Note.go is gone)
 app/Notifications/NotePublished.go
@@ -139,6 +141,7 @@ database/factories/NoteFactory.go
 database/migrations/2026_10_01_000001_create_notes_table.go
 database/migrations/2026_10_09_000001_create_comments_table.go
 database/migrations/2026_10_09_000002_add_published_at_to_notes.go
+database/migrations/2026_10_22_000001_create_newsletter_deliveries_table.go
 database/seeders/NoteSeeder.go
 resources/views/comments/         (the directory, four views)
 resources/views/notes/            (the directory, four views)
@@ -175,7 +178,7 @@ config/services.go                   Newsletter and NewsletterWebhook Credential
 .env.example                         NEWSLETTER_API_URL=, NEWSLETTER_TOKEN= and NEWSLETTER_WEBHOOK_SECRET=
 database/seeders/seeders.go          NoteSeeder{},
 database/seeders/DatabaseSeeder.go   return NoteSeeder{}.Run(ctx, d)   (becomes: return nil)
-tests/Feature/TenantScope_test.go    "notes": "...", and "comments": "...",
+tests/Feature/TenantScope_test.go    "notes": "...", "comments": "..." and "newsletter_deliveries": "...",
 ```
 
 then the imports the deletions leave unused, which `go build` names. What
