@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -490,9 +489,11 @@ func csrfTokenFromPage(t *testing.T, html string) string {
 	return ""
 }
 
+// TestUnknownCommandIsRejected names its environment, as every command test
+// here does: an unset APP_ENV is production, where the boot asks for a real
+// mailer before any command is looked up.
 func TestUnknownCommandIsRejected(t *testing.T) {
-	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
-	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
+	sqliteEnv(t)
 
 	err := tests.Dispatch("migrat", nil)
 

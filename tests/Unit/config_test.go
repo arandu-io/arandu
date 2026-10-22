@@ -19,9 +19,9 @@ import (
 //
 // Secure has one reader, the framework's loader: SESSION_SECURE_COOKIE when it
 // is written, and otherwise Secure in every environment except dev. APP_ENV
-// left unset counts as dev there, as it does for APP_DEBUG and every other
-// development surface, so a deployment fixes an unnamed environment by naming
-// it rather than by a second variable.
+// left unset counts as production, as it does for APP_DEBUG and every other
+// development surface: a deployment that forgets the variable gets the Secure
+// cookie, and a laptop names dev in its .env.
 
 // unstatedEnv puts one test in a directory with no .env and blanks the variables
 // that decide the cookie, so what is asserted is a property of the code and not
@@ -124,10 +124,10 @@ func TestTheSessionCookieIsHTTPSOnlyWhereverItWasStatedToBe(t *testing.T) {
 			about: "the session travels over the network as the plain credential it is",
 		},
 		{
-			name:  "no environment named, which counts as dev",
+			name:  "no environment named, which counts as production",
 			env:   map[string]string{},
-			want:  false,
-			about: "APP_ENV left unset is dev for every development surface, and naming the environment is the fix",
+			want:  true,
+			about: "APP_ENV left unset is production, so a deployment that forgets it does not drop Secure; a laptop names dev",
 		},
 		{
 			name:  "SESSION_SECURE_COOKIE alone, with no environment named",
