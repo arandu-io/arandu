@@ -10,6 +10,122 @@ comment or a test that is the skeleton's own is not.
 
 ---
 
+## v0.38.0 — a session's roles are read on every request, and a password reset revokes the tokens
+
+This skeleton requires framework v0.62.1 and hesape v0.77.0. The session store
+kept the roles written at sign-in, so an account that was demoted, deleted or
+closed kept its access until the session ended. hesape v0.77.0 reads them
+through a resolver the application installs, and refuses to write or read a
+session with roles without one: **a project whose accounts carry roles makes
+step 3 before it serves requests with the new release**, or every sign-in of
+such an account, and every session one already holds, answers 500.
+
+### 1. Require the releases
+
+```sh
+go get github.com/arandu-io/framework@v0.62.1 github.com/arandu-io/hesape@v0.77.0
+go mod tidy
+```
+
+### 2. Migrate before the new binary serves
+
+`aru migrate` adds the nullable `outbox.impersonator` column, which the outbox
+names on every write. The migration ships with the events module; there is
+nothing to copy into `database/migrations`. A project that registers hesape's
+webhook module gets `webhook_client_calls.delivery_id` the same way.
+
+### 3. The session resolver
+
+Add `app/Services/CurrentSubject.go`, the one read of an account's current
+subject -- through `User.Subject`, the builder a sign-in uses:
+
+```go
+var ErrAccountGone = errors.New("account: gone, closed or refused")
+
+func CurrentSubject(ctx context.Context, users *account.Users, tenant, userID string) (auth.Subject, error) {
+	found, err := users.FindForAuthentication(ctx, tenant, userID)
+	if errors.Is(err, account.ErrUserNotFound) {
+		return auth.Subject{}, ErrAccountGone
+	}
+	if err != nil {
+		return auth.Subject{}, err
+	}
+	if err := users.Admit(ctx, found); err != nil {
+		return auth.Subject{}, ErrAccountGone
+	}
+	user, ok := found.(*models.User)
+	if !ok {
+		return auth.Subject{}, fmt.Errorf("account: the account is a %T, not a *models.User", found)
+	}
+	return user.Subject(), nil
+}
+```
+
+In `PersonalAccessTokenService.Resolve`, replace the lines from
+`FindForAuthentication` to `return user.Subject(), nil` with the same read:
+
+```go
+subject, err := CurrentSubject(ctx, s.users, found.TenantID, found.UserID)
+if errors.Is(err, ErrAccountGone) {
+	return auth.Subject{}, ErrTokenNotAccepted
+}
+return subject, err
+```
+
+In `app/Providers/AppServiceProvider.go`, install the resolver once, after
+`p.Users` is built, and add the method it names:
+
+```go
+d.Sessions.ResolveSubjects(p.currentSubject)
+```
+
+```go
+func (p *AppServiceProvider) currentSubject(ctx context.Context, who auth.Subject) (auth.Subject, error) {
+	subject, err := services.CurrentSubject(ctx, p.Users, who.Tenant, who.ID)
+	if errors.Is(err, services.ErrAccountGone) {
+		return auth.Subject{}, hhttp.ErrSubjectGone
+	}
+	return subject, err
+}
+```
+
+with `hhttp "github.com/arandu-io/hesape/http"`. A session then answers the
+account's roles, tenant and verification as they are stored on that request: a
+deleted, closed or refused account ends the session and the guards send the
+person to the sign-in screen, and a read that fails answers 503 instead of the
+roles the session began with. It is one read of the account per authenticated
+request.
+
+Keep `User.Subject()` the only place a subject is made from a user. The auth
+kit the project published signs people in through it from the kit release that
+requires hesape v0.77.0; a project still running an earlier kit's
+`subjectOf` republishes the kit.
+
+### 4. A password reset revokes the tokens
+
+In the same `account.Hooks`, beside `AfterClose`:
+
+```go
+AfterResetPassword: func(ctx context.Context, g auth.Grant, user account.Account) error {
+	return p.Tokens.RevokeAll(ctx, g, user.AccountID())
+},
+```
+
+It runs inside the reset's transaction, for a reset link and for
+`Users.SetPassword`; `ChangePassword`, which proves the current password,
+revokes nothing.
+
+### 5. The tests
+
+A session is now worth only what the stored account says. A test that signed
+in a subject whose id is not in the users table is sent to the sign-in screen;
+sign in an account the test created (`tests.Register`, `factories.Users`). A
+test that signs in over `tests.Kernel`, whose database cannot be opened,
+answers 503. `tests/Feature/FreshAuthorization_test.go` is the skeleton's proof
+of step 3, and `TestAPasswordResetRevokesThePersonalAccessTokens` of step 4.
+
+---
+
 ## v0.37.0 — production refuses the log mailer and an insecure cookie, and a missing APP_ENV is production
 
 This skeleton requires framework v0.62.0 and hesape v0.76.0. Nothing in the
