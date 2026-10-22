@@ -10,8 +10,8 @@ import (
 
 	appjobs "github.com/arandu-io/arandu/app/Jobs"
 
-	"github.com/arandu-io/framework/scheduler"
 	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/hesape/console/scheduling"
 	"github.com/arandu-io/hesape/database"
 	"github.com/arandu-io/hesape/foundation"
 	"github.com/arandu-io/hesape/queue"
@@ -49,11 +49,11 @@ func TestTheSchedulerEnqueuesAndTheWorkerRuns(t *testing.T) {
 		},
 	}
 
-	sched, err := scheduler.New([]foundation.Task{task}, scheduler.Options{
+	sched, err := scheduling.NewTaskScheduler([]foundation.Task{task}, scheduling.TaskOptions{
 		Tenants: func(context.Context) ([]string, error) { return []string{appconfig.Tenant()}, nil },
 	})
 	if err != nil {
-		t.Fatalf("New: %v", err)
+		t.Fatalf("NewTaskScheduler: %v", err)
 	}
 
 	// Run it now rather than waiting for 3am, on the same path the loop uses.
