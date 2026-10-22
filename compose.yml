@@ -18,6 +18,11 @@
 #
 # A setting that names one of them before its import is in stops the boot and
 # prints both lines.
+#
+# Both publish on 127.0.0.1 only. The Postgres password is printed below for
+# anyone to read and Redis has none at all, so bound to every interface they
+# are two databases anyone on the same network -- a cafe, an office, a cloud VM
+# with a public address -- can read and write.
 
 services:
   postgres:
@@ -27,7 +32,7 @@ services:
       POSTGRES_PASSWORD: arandu
       POSTGRES_DB: arandu
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres:/var/lib/postgresql/data
     healthcheck:
@@ -39,7 +44,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis:/data
     healthcheck:
