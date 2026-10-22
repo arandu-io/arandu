@@ -157,7 +157,7 @@ func newSessionHarness(t *testing.T) *sessionHarness {
 	backend := &countingBackend{}
 	sessions := hhttp.NewSessionStore(appKey, time.Hour, false, backend)
 	module := authui.New(
-		users, factors, nil, sessions, session.NewCSRF(appKey, time.Hour), nil,
+		users, factors, nil, sessions, session.NewCSRF(appKey, time.Hour), nil, nil,
 		appKey, authui.FixedTenant("tenant-a"), false,
 	)
 	router := controllers.NewRouter()
