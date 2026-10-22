@@ -51,6 +51,7 @@ func TestGeoRejectsUnknownSurfacesAndContradictoryFlags(t *testing.T) {
 func TestGeoIndexingRequiresASafePublicOriginAtBoot(t *testing.T) {
 	cfg, err := loadConfigurationWith(t, map[string]string{
 		"APP_ENV": "prod", "APP_URL": "https://app.example.test", "GEO_INDEXING_ENABLED": "true",
+		"MAIL_URL": "array://",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +65,7 @@ func TestGeoIndexingRequiresASafePublicOriginAtBoot(t *testing.T) {
 
 	unsafe, err := loadConfigurationWith(t, map[string]string{
 		"APP_ENV": "prod", "APP_URL": "http://app.example.test", "GEO_INDEXING_ENABLED": "true",
+		"MAIL_URL": "array://",
 	})
 	if err != nil {
 		t.Fatal(err)

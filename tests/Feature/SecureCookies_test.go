@@ -39,6 +39,9 @@ func TestEveryCookieTheApplicationWritesFollowsTheOneSecureDecision(t *testing.T
 			t.Setenv("APP_DEBUG", "")
 			t.Setenv("APP_URL", "http://app.internal:8080")
 			t.Setenv("SESSION_SECURE_COOKIE", c.secure)
+			// The mailer takes no part in the cookies, and production refuses
+			// the log one an unset MAIL_URL means; array:// is a test's.
+			t.Setenv("MAIL_URL", "array://")
 			app := bootedInstance(t)
 
 			page := httptest.NewRecorder()

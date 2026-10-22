@@ -45,6 +45,10 @@ func unstatedEnv(t *testing.T) {
 	} {
 		t.Setenv(key, "")
 	}
+	// The mailer takes no part in the cookie, and production refuses the log
+	// one an unset MAIL_URL means, because it writes reset codes into the log.
+	// array:// is the transport a test names.
+	t.Setenv("MAIL_URL", "array://")
 }
 
 // sessionCookie returns the cookie a started session writes under one

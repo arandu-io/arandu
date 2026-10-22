@@ -76,6 +76,15 @@ const AppName = "Brandproof Ledger"
 func Kernel(t *testing.T, env config.Env, extra ...foundation.Module) *foundation.Application {
 	t.Helper()
 
+	// The mailer is the one setting the framework still reads from the
+	// environment here, and production refuses the log transport, which is
+	// what an unset MAIL_URL means: it writes every message, reset codes
+	// included, into the log. A production deployment names a real transport;
+	// array:// is the one a test names, and it keeps every message in memory.
+	if env.IsProduction() {
+		t.Setenv("MAIL_URL", "array://")
+	}
+
 	cfg := fwbootstrap.Configuration{
 		App: config.App{
 			Name: AppName,

@@ -98,7 +98,7 @@ func TestNothingIsAppliedWhenTheLockCannotBeReached(t *testing.T) {
 // that does not start.
 func TestIsolationIsRefusedWithTheInProcessStoreInProduction(t *testing.T) {
 	sqliteEnv(t)
-	t.Setenv("APP_ENV", "prod")
+	productionEnv(t)
 	t.Setenv("CACHE_STORE", "memory")
 
 	err := tests.Dispatch("migrate", nil)
@@ -149,7 +149,7 @@ func TestEveryMigrationCommandIsIsolated(t *testing.T) {
 	for _, command := range []string{"migrate", "migrate:rollback", "migrate:reset", "migrate:refresh", "migrate:fresh"} {
 		t.Run(command, func(t *testing.T) {
 			sqliteEnv(t)
-			t.Setenv("APP_ENV", "prod")
+			productionEnv(t)
 			t.Setenv("CACHE_STORE", "memory")
 
 			err := tests.Dispatch(command, nil)
@@ -195,7 +195,7 @@ func TestTheCommandsThatEmptyTheSchemaDoNotRunInProduction(t *testing.T) {
 			if err := tests.Dispatch("migrate", nil); err != nil {
 				t.Fatalf("migrate: %v", err)
 			}
-			t.Setenv("APP_ENV", "prod")
+			productionEnv(t)
 			useStore(t, server.address)
 
 			err := tests.Dispatch(command, nil)
@@ -230,7 +230,7 @@ func TestRollbackStillRunsInProduction(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	t.Setenv("APP_ENV", "prod")
+	productionEnv(t)
 	useStore(t, borrowRESP(t).address)
 
 	if err := tests.Dispatch("migrate:rollback", nil); err != nil {

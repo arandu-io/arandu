@@ -26,6 +26,18 @@ func sqliteEnv(t *testing.T) {
 	t.Setenv("ARANDU_TENANT_ID", "11111111-1111-4111-8111-111111111111")
 }
 
+// productionEnv turns the environment sqliteEnv wrote into production.
+//
+// Production refuses the log mailer, which is what an unset MAIL_URL means,
+// because it writes every message, reset codes included, into the log. A
+// deployment names a real transport; a test names array://, which keeps the
+// messages in memory, so the refusal reached is the one the test is about.
+func productionEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("APP_ENV", "prod")
+	t.Setenv("MAIL_URL", "array://")
+}
+
 // TestMigrateAndRollbackOnSQLite walks the deploy commands in the order a person
 // actually uses them.
 func TestMigrateAndRollbackOnSQLite(t *testing.T) {
@@ -283,7 +295,7 @@ func TestTheOldClassFlagSaysWhatToTypeInstead(t *testing.T) {
 func TestFreshRefusesOutsideDevelopment(t *testing.T) {
 	server := borrowRESP(t)
 	sqliteEnv(t)
-	t.Setenv("APP_ENV", "prod")
+	productionEnv(t)
 	useStore(t, server.address)
 
 	err := tests.Dispatch("migrate:fresh", nil)

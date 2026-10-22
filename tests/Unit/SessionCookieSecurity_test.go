@@ -43,6 +43,9 @@ func TestTheSessionCookieIsSecureUnlessTheEnvironmentIsDev(t *testing.T) {
 				// Validate -- an error about a variable no case here sets,
 				// instead of the answer being asked for.
 				"APP_DEBUG": "",
+				// The mailer takes no part in the cookie, and production
+				// refuses the log one an unset MAIL_URL means.
+				"MAIL_URL": "array://",
 			})
 			if err != nil {
 				t.Fatalf("loading the configuration: %v", err)
