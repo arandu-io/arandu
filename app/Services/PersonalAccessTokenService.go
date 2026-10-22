@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/arandu-io/hesape/auth"
@@ -156,25 +155,13 @@ func (s *PersonalAccessTokenService) Resolve(ctx context.Context, tokenDigest st
 		return auth.Subject{}, ErrTokenNotAccepted
 	}
 
-	owner, err := s.users.FindForAuthentication(ctx, found.TenantID, found.UserID)
-	if errors.Is(err, account.ErrUserNotFound) {
-		return auth.Subject{}, ErrTokenNotAccepted
-	}
-	if err != nil {
-		return auth.Subject{}, err
-	}
 	// The account answers to the rules a sign-in is held to: a closed one,
 	// or one Hooks.Admit refuses, acts through no token either.
-	if err := s.users.Admit(ctx, owner); err != nil {
+	subject, err := CurrentSubject(ctx, s.users, found.TenantID, found.UserID)
+	if errors.Is(err, ErrAccountGone) {
 		return auth.Subject{}, ErrTokenNotAccepted
 	}
-	// The account rules hand back the *User this application's users query
-	// built; its roles are what the subject carries.
-	user, ok := owner.(*models.User)
-	if !ok {
-		return auth.Subject{}, fmt.Errorf("personal access token: the account is a %T, not a *models.User", owner)
-	}
-	return user.Subject(), nil
+	return subject, err
 }
 
 // digest is the stored form of a token: its SHA-256, as hexadecimal -- the
