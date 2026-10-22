@@ -120,10 +120,11 @@ func finalStage(t *testing.T) string {
 	return body[at:]
 }
 
-// TestTheImageRunsInProductionByDefault: APP_ENV left unset reads as dev, and
-// dev serves the debug page with every recent query and its arguments. The
-// image a deployment pulls has to be production unless the deployment says
-// otherwise.
+// TestTheImageRunsInProductionByDefault: dev serves the debug page with every
+// recent query and its arguments, so the image a deployment pulls has to be
+// production unless the deployment says otherwise. The configuration reads a
+// missing APP_ENV as production too; the image states it rather than resting
+// on that default.
 func TestTheImageRunsInProductionByDefault(t *testing.T) {
 	found := ""
 	for _, raw := range strings.Split(finalStage(t), "\n") {
@@ -133,8 +134,8 @@ func TestTheImageRunsInProductionByDefault(t *testing.T) {
 		}
 	}
 	if found != "ENV APP_ENV=prod" {
-		t.Errorf("the final stage sets %q, want ENV APP_ENV=prod: without it the container boots as dev "+
-			"and serves /_arandu/debug", found)
+		t.Errorf("the final stage sets %q, want ENV APP_ENV=prod: without it the image rests on a library "+
+			"default for the one variable that turns the debug surface on", found)
 	}
 }
 
