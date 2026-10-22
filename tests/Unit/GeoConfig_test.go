@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arandu-io/framework/geo"
 	hgeo "github.com/arandu-io/hesape/geo"
 )
 
@@ -17,7 +16,7 @@ func TestGeoDefaultsToAllSurfacesWithIndexingClosed(t *testing.T) {
 	if !cfg.Geo.Enabled || cfg.Geo.Indexing || cfg.Geo.Surfaces != hgeo.AllSurfaces {
 		t.Fatalf("GEO defaults = enabled %t indexing %t surfaces %d", cfg.Geo.Enabled, cfg.Geo.Indexing, cfg.Geo.Surfaces)
 	}
-	module := geo.NewModule(cfg.Geo, nil)
+	module := hgeo.NewModule(cfg.Geo, nil)
 	if err := module.Boot(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +58,7 @@ func TestGeoIndexingRequiresASafePublicOriginAtBoot(t *testing.T) {
 	if !cfg.Geo.Indexing {
 		t.Fatal("explicit production indexing was not preserved")
 	}
-	if err := geo.NewModule(cfg.Geo, nil).Boot(context.Background()); err != nil {
+	if err := hgeo.NewModule(cfg.Geo, nil).Boot(context.Background()); err != nil {
 		t.Fatalf("safe production GEO config: %v", err)
 	}
 
@@ -70,7 +69,7 @@ func TestGeoIndexingRequiresASafePublicOriginAtBoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := geo.NewModule(unsafe.Geo, nil).Boot(context.Background()); err == nil {
+	if err := hgeo.NewModule(unsafe.Geo, nil).Boot(context.Background()); err == nil {
 		t.Fatal("plain HTTP origin enabled public GEO indexing")
 	}
 }
