@@ -167,3 +167,60 @@ func TestAClosedAccountActsThroughNoToken(t *testing.T) {
 		t.Fatalf("a token reaching a closed account resolved with %v, want ErrUnknownToken", err)
 	}
 }
+
+// TestAPasswordResetRevokesThePersonalAccessTokens: a reset is how somebody
+// takes an account back, and a token minted by whoever held the old password
+// went on acting as the account after it. Both resets -- the link a person
+// follows and the operator's command -- now revoke the account's tokens in the
+// reset's own transaction, and leave another account's tokens alone.
+func TestAPasswordResetRevokesThePersonalAccessTokens(t *testing.T) {
+	const password = "a password long enough to reset"
+	for name, reset := range map[string]func(t *testing.T, app tests.Application, user *models.User){
+		"through the link": func(t *testing.T, app tests.Application, user *models.User) {
+			if _, err := app.Users.ResetPassword(context.Background(), appconfig.Tenant(), user.ID, user.Email,
+				accounts.Fingerprint(user.Password), "another password long enough"); err != nil {
+				t.Fatalf("resetting the password through the link: %v", err)
+			}
+		},
+		"by an operator's command": func(t *testing.T, app tests.Application, user *models.User) {
+			if _, err := app.Users.SetPassword(context.Background(), appconfig.Tenant(), user.Email,
+				"another password long enough"); err != nil {
+				t.Fatalf("setting the password: %v", err)
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			app := tests.Booted(t)
+			ctx := context.Background()
+			resolver := appmiddleware.NewPersonalAccessTokens(app.Tokens)
+
+			ana := tests.Register(t, app, "Ana", "ana.resets@example.test", password)
+			bea := tests.Register(t, app, "Bea", "bea.stays@example.test", password)
+			anas, _, err := app.Tokens.Issue(ctx, ana.Subject(), "deploy script", 0)
+			if err != nil {
+				t.Fatalf("issuing Ana's token: %v", err)
+			}
+			beas, _, err := app.Tokens.Issue(ctx, bea.Subject(), "backup script", 0)
+			if err != nil {
+				t.Fatalf("issuing Bea's token: %v", err)
+			}
+
+			reset(t, app, ana)
+
+			if _, err := resolver.ResolveToken(ctx, middleware.DigestToken(anas)); !errors.Is(err, middleware.ErrUnknownToken) {
+				t.Errorf("a token issued before the reset resolved with %v, want ErrUnknownToken", err)
+			}
+			left, err := models.PersonalAccessTokens(app.DB).Where("user_id", "=", ana.ID).
+				First(ctx, auth.SystemGrant(policies.PersonalAccessTokenList, appconfig.Tenant()))
+			if err != nil {
+				t.Fatalf("reading the reset account's tokens: %v", err)
+			}
+			if left != nil {
+				t.Errorf("the reset left the token %q stored", left.Name)
+			}
+			if _, err := resolver.ResolveToken(ctx, middleware.DigestToken(beas)); err != nil {
+				t.Errorf("another account's token was refused after Ana's reset: %v", err)
+			}
+		})
+	}
+}

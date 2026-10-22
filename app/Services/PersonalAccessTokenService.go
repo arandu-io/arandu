@@ -125,14 +125,16 @@ func (s *PersonalAccessTokenService) Revoke(ctx context.Context, actor auth.Subj
 }
 
 // RevokeAll deletes every token of the account userID, under the Grant of the
-// close that is taking the account away: Hooks.AfterClose calls it inside that
-// close's transaction, so a closed account keeps no token and an account whose
-// close failed loses none.
-func (s *PersonalAccessTokenService) RevokeAll(ctx context.Context, closing auth.Grant, userID string) error {
-	if err := closing.Check(account.ActionUserUpdate); err != nil {
+// close or the password reset that calls it: Hooks.AfterClose calls it inside a
+// close's transaction and Hooks.AfterResetPassword inside a password reset's,
+// so a closed account keeps no token, a token minted by whoever held the old
+// password stops working with it, and a close or a reset that failed revokes
+// nothing.
+func (s *PersonalAccessTokenService) RevokeAll(ctx context.Context, taking auth.Grant, userID string) error {
+	if err := taking.Check(account.ActionUserUpdate); err != nil {
 		return err
 	}
-	_, err := models.PersonalAccessTokens(s.db).Where("user_id", "=", userID).Delete(ctx, closing)
+	_, err := models.PersonalAccessTokens(s.db).Where("user_id", "=", userID).Delete(ctx, taking)
 	return err
 }
 

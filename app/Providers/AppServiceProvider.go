@@ -91,7 +91,9 @@ func NewAppServiceProvider(cfg appconfig.Config, d *foundation.Drivers) (*AppSer
 		listeners.NewNotifyNoteAuthor(p.Notifier),
 	}, events.RelayOptions{Locker: d.Locker})
 
-	// Closing an account revokes its tokens in the close's own transaction.
+	// Closing an account, or resetting its password, revokes its tokens in that
+	// write's own transaction: a token minted by whoever held the old password
+	// would otherwise outlive it.
 	p.Users, err = account.NewUsers(account.Config{
 		DB:     db,
 		Outbox: outbox,
@@ -99,6 +101,9 @@ func NewAppServiceProvider(cfg appconfig.Config, d *foundation.Drivers) (*AppSer
 		Policy: account.PolicyOf(policies.UserPolicy{}),
 		Hooks: account.Hooks{
 			AfterClose: func(ctx context.Context, g auth.Grant, user account.Account) error {
+				return p.Tokens.RevokeAll(ctx, g, user.AccountID())
+			},
+			AfterResetPassword: func(ctx context.Context, g auth.Grant, user account.Account) error {
 				return p.Tokens.RevokeAll(ctx, g, user.AccountID())
 			},
 		},
