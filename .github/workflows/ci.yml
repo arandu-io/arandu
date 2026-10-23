@@ -278,7 +278,6 @@ jobs:
           --health-retries 30
     env:
       ARANDU_TEST_DATABASE_URL: postgres://arandu:arandu@127.0.0.1:5432/arandu?sslmode=disable
-      ARANDU_E2E_TRACE_DIR: ${{ runner.temp }}/e2e-traces
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -299,7 +298,11 @@ jobs:
         run: |
           "$(go env GOPATH)/bin/aru" view:build
 
+      # runner.temp is read in a step: the job-level env is evaluated before
+      # the runner exists, and a workflow that names it there does not start.
       - name: journeys
+        env:
+          ARANDU_E2E_TRACE_DIR: ${{ runner.temp }}/e2e-traces
         run: go test -count=1 -tags e2e ./tests/E2E/...
 
       - name: upload the traces
