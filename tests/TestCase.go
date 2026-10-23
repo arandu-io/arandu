@@ -381,20 +381,14 @@ func Migrate(_ context.Context, env test.Env) error {
 }
 
 // Open opens a browser page on the server with a driver of Drivers, resolving
-// route names through the application's routes.
+// route names through the application's routes. A name the application does
+// not route fails the step that visits it, with the name.
 //
 //	page := tests.Open(t, server)
 //	page.Visit("notes.index")
 func Open(t *testing.T, server *Server) *browser.Page {
 	t.Helper()
-	routes := func(name string, params ...any) (string, error) {
-		values := make([]string, len(params))
-		for i, p := range params {
-			values[i] = fmt.Sprint(p)
-		}
-		return server.Route(name, values...), nil
-	}
-	return browser.Open(t, Drivers, browser.BaseURL(server.URL), browser.Routes(routes))
+	return browser.Open(t, Drivers, browser.BaseURL(server.URL), browser.Routes(server.Resolve))
 }
 
 // SignIn signs the account in on the server and returns a browser carrying
