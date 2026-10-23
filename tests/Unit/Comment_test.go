@@ -81,3 +81,18 @@ func TestTheCommentPolicyDeniesWhatItDoesNotKnow(t *testing.T) {
 // arandu:begin custom
 // Tests for the rules you wrote go here, and survive regeneration.
 // arandu:end custom
+
+// TestTheCommentPolicyNamesItsWrites: reading and listing comments issue a
+// Grant that reads, so a comment cannot be saved under one; adding, changing
+// and removing one write.
+func TestTheCommentPolicyNamesItsWrites(t *testing.T) {
+	writes := map[auth.Action]bool{
+		policies.CommentCreate: true, policies.CommentUpdate: true, policies.CommentDelete: true,
+		policies.CommentView: false, policies.CommentList: false, "comment.unknown": false,
+	}
+	for action, want := range writes {
+		if got := (policies.CommentPolicy{}).Writes(action); got != want {
+			t.Errorf("CommentPolicy.Writes(%s) = %v, want %v", action, got, want)
+		}
+	}
+}

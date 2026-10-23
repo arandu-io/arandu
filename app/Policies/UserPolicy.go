@@ -53,4 +53,19 @@ func (UserPolicy) Can(_ context.Context, subject auth.Subject, action auth.Actio
 	return fmt.Errorf("insufficient role for %s", action)
 }
 
-var _ auth.Policy[*models.User] = UserPolicy{}
+// Writes reports which account actions change the account: creating,
+// updating and deleting it. Viewing it and reading the public names are
+// reads, and a Grant auth.Authorize issues for one of them is refused on every
+// write with auth.ErrReadGrant.
+func (UserPolicy) Writes(action auth.Action) bool {
+	switch action {
+	case account.ActionUserCreate, account.ActionUserUpdate, account.ActionUserDelete:
+		return true
+	}
+	return false
+}
+
+var (
+	_ auth.Policy[*models.User] = UserPolicy{}
+	_ auth.Writes               = UserPolicy{}
+)

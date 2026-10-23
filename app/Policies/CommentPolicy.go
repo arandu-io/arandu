@@ -37,8 +37,12 @@ const (
 // generator. Open what this module actually needs, and nothing else.
 type CommentPolicy struct{}
 
-// Compile-time proof that the policy answers about this entity and no other.
-var _ auth.Policy[models.Comment] = CommentPolicy{}
+// Compile-time proof that the policy answers about this entity and no other,
+// and says which of its actions write.
+var (
+	_ auth.Policy[models.Comment] = CommentPolicy{}
+	_ auth.Writes                 = CommentPolicy{}
+)
 
 // Can decides whether the subject may perform the action.
 func (CommentPolicy) Can(ctx context.Context, s auth.Subject, a auth.Action, co models.Comment) error {
@@ -73,4 +77,16 @@ func (CommentPolicy) Can(ctx context.Context, s auth.Subject, a auth.Action, co 
 	// arandu:end custom
 
 	return fmt.Errorf("no rule allows %s on comment", a)
+}
+
+// Writes reports which actions change a comment. The Grant of every other
+// action is marked as one that reads, and a write made with it is refused
+// with auth.ErrReadGrant. The writes are listed rather than the reads, so an
+// action added later reads until it is listed here.
+func (CommentPolicy) Writes(a auth.Action) bool {
+	switch a {
+	case CommentCreate, CommentUpdate, CommentDelete:
+		return true
+	}
+	return false
 }

@@ -5,6 +5,7 @@ package feature_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -711,4 +712,43 @@ func scheduledRow(listed, id, spec, singleton string) bool {
 		}
 	}
 	return false
+}
+
+// TestAGrantIssuedToViewANoteCannotSaveIt: NotePolicy says which of its
+// actions write, so the Grant auth.Authorize issues for note.view is one that
+// reads. The author's own Grant to view the note -- a decision the policy
+// allows -- is refused by Save and by Delete, and the row is as it was. The
+// Grant for note.update, about the same row, saves it.
+func TestAGrantIssuedToViewANoteCannotSaveIt(t *testing.T) {
+	f := newNotesFixture(t)
+	address := f.write(t, f.ana, "Groceries")
+	ctx := context.Background()
+	ana := auth.Subject{ID: f.anaID, Tenant: appconfig.Tenant()}
+	note := f.stored(t, address)
+
+	viewing, err := auth.Authorize(ctx, policies.NotePolicy{}, ana, policies.NoteView, *note)
+	if err != nil {
+		t.Fatalf("authorizing the author to view the note: %v", err)
+	}
+	note.Title = "Changed under a view"
+	if _, err := note.Save(ctx, viewing); !errors.Is(err, auth.ErrReadGrant) {
+		t.Fatalf("Save under the note.view Grant = %v, want auth.ErrReadGrant", err)
+	}
+	if _, err := note.Delete(ctx, viewing); !errors.Is(err, auth.ErrReadGrant) {
+		t.Fatalf("Delete under the note.view Grant = %v, want auth.ErrReadGrant", err)
+	}
+	if stored := f.stored(t, address); stored == nil || stored.Title != "Groceries" {
+		t.Fatalf("a refused write left the note as %+v", stored)
+	}
+
+	updating, err := auth.Authorize(ctx, policies.NotePolicy{}, ana, policies.NoteUpdate, *note)
+	if err != nil {
+		t.Fatalf("authorizing the author to update the note: %v", err)
+	}
+	if _, err := note.Save(ctx, updating); err != nil {
+		t.Fatalf("Save under the note.update Grant: %v", err)
+	}
+	if stored := f.stored(t, address); stored.Title != "Changed under a view" {
+		t.Fatalf("the note.update Grant left the title %q", stored.Title)
+	}
 }

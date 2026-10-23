@@ -40,8 +40,12 @@ const (
 // generator. Open what this module actually needs, and nothing else.
 type PersonalAccessTokenPolicy struct{}
 
-// Compile-time proof that the policy answers about this entity and no other.
-var _ auth.Policy[models.PersonalAccessToken] = PersonalAccessTokenPolicy{}
+// Compile-time proof that the policy answers about this entity and no other,
+// and says which of its actions write.
+var (
+	_ auth.Policy[models.PersonalAccessToken] = PersonalAccessTokenPolicy{}
+	_ auth.Writes                             = PersonalAccessTokenPolicy{}
+)
 
 // Can decides whether the subject may perform the action.
 func (PersonalAccessTokenPolicy) Can(ctx context.Context, s auth.Subject, a auth.Action, p models.PersonalAccessToken) error {
@@ -72,4 +76,16 @@ func (PersonalAccessTokenPolicy) Can(ctx context.Context, s auth.Subject, a auth
 	// arandu:end custom
 
 	return fmt.Errorf("no rule allows %s on personal_access_token", a)
+}
+
+// Writes reports which actions change a token. The Grant of every other
+// action is marked as one that reads, and a write made with it is refused
+// with auth.ErrReadGrant. Resolving a token is a read, and is made under a
+// system grant this policy is never asked for.
+func (PersonalAccessTokenPolicy) Writes(a auth.Action) bool {
+	switch a {
+	case PersonalAccessTokenCreate, PersonalAccessTokenUpdate, PersonalAccessTokenDelete:
+		return true
+	}
+	return false
 }

@@ -40,8 +40,12 @@ const (
 // generator. Open what this module actually needs, and nothing else.
 type NotePolicy struct{}
 
-// Compile-time proof that the policy answers about this entity and no other.
-var _ auth.Policy[models.Note] = NotePolicy{}
+// Compile-time proof that the policy answers about this entity and no other,
+// and says which of its actions write.
+var (
+	_ auth.Policy[models.Note] = NotePolicy{}
+	_ auth.Writes              = NotePolicy{}
+)
 
 // Can decides whether the subject may perform the action.
 func (NotePolicy) Can(ctx context.Context, s auth.Subject, a auth.Action, n models.Note) error {
@@ -77,4 +81,19 @@ func (NotePolicy) Can(ctx context.Context, s auth.Subject, a auth.Action, n mode
 	// arandu:end custom
 
 	return fmt.Errorf("no rule allows %s on note", a)
+}
+
+// Writes reports which actions change a note. auth.Authorize marks the Grant
+// of every other action as one that reads, and a save, a delete or an event
+// stored with it is refused with auth.ErrReadGrant: a service that authorized
+// note.view and then saved the note fails instead of writing.
+//
+// The writes are listed rather than the reads, so an action added later reads
+// until it is listed here, and a write made with it says so.
+func (NotePolicy) Writes(a auth.Action) bool {
+	switch a {
+	case NoteCreate, NoteUpdate, NoteDelete, NotePublish:
+		return true
+	}
+	return false
 }
