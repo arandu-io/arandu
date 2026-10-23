@@ -10,6 +10,144 @@ comment or a test that is the skeleton's own is not.
 
 ---
 
+## v0.39.0 — a policy says which actions write, the layout draws the flash, and the application translates
+
+This skeleton requires hesape v0.78.0, with framework v0.62.1 as before, and
+builds with aru v0.76.1. **Once a policy declares its writes, a service that
+wrote with the Grant of an action that only reads fails with 403 instead of
+writing**: that is the defect the declaration finds, and it is fixed in the
+service, not in the policy.
+
+### 1. Require the release
+
+```sh
+go get github.com/arandu-io/hesape@v0.78.0
+go mod tidy
+```
+
+and build with the aru that knows it, in the `Dockerfile` (the CI installs
+what it says):
+
+```dockerfile
+ARG ARU_VERSION=v0.76.1
+```
+
+### 2. Every policy declares its writes
+
+Beside `Can`, list the actions that change something, and assert the
+interface beside the policy's own:
+
+```go
+var (
+	_ auth.Policy[models.Note] = NotePolicy{}
+	_ auth.Writes              = NotePolicy{}
+)
+
+func (NotePolicy) Writes(a auth.Action) bool {
+	switch a {
+	case NoteCreate, NoteUpdate, NoteDelete, NotePublish:
+		return true
+	}
+	return false
+}
+```
+
+`auth.Authorize` then marks the Grant of every other action as one that
+reads, and a save, a delete, an event stored in the outbox, a file, a cache
+entry or a job made with it is refused with `auth.ErrReadGrant`, which wraps
+`auth.ErrForbidden` and is answered 403. List the writes rather than the
+reads, so an action added later reads until it is listed. A named action that
+changes the row, like `NotePublish`, is a write; a `SystemGrant` writes
+whatever it names.
+
+Then run the suite. A test that now fails with `ErrReadGrant` names a service
+that read under `note.view` and saved with that Grant: authorize the action
+that writes, against the row it read, and write with the Grant that call
+returns.
+
+`UserPolicy` declares `user.create`, `user.update` and `user.delete`. The
+account rules ask it through `account.PolicyOf`, which hesape v0.78.0 does not
+forward the declaration through, so a Grant the account rules issue writes as
+before; the declaration holds where `UserPolicy` is asked directly.
+
+### 3. The layout draws the flash
+
+In `resources/views/layouts/app.kyse.go`, draw the toast inside `#toaster`:
+
+```html
+<div id="toaster" class="toaster" aria-live="polite">
+	{!! components.Toast(components.ToastProps{Page: ., Dismissible: true}) !!}
+</div>
+```
+
+It draws the sentence the request before this one left under
+`hhttp.StatusKey`, and nothing when it left none. An action that redirects
+after a write says what it did before redirecting:
+
+```go
+return ctx.With(hhttp.StatusKey, "Note saved.").RedirectRoute("notes.show", updated.ID)
+```
+
+A layout typed by an interface of its own, rather than by `view.Layout`, adds
+`Flashed`, `FieldError` and `OldOr` to it, as hesape's upgrade guide shows.
+
+### 4. The translator
+
+Add `lang/lang.go`, which embeds the catalogue, and `lang/en.json`, which
+holds the lines (`{}` is a valid start):
+
+```go
+package lang
+
+import "embed"
+
+//go:embed *.json
+var Files embed.FS
+```
+
+Build the translator in `NewAppServiceProvider`, on a new `Translator
+*translation.Translator` field, before anything else:
+
+```go
+translator, err := translation.NewFromDirectory(lang.Files, ".", cfg.App.Locale, "en")
+if err != nil {
+	return nil, fmt.Errorf("providers: read the catalogue in lang: %w", err)
+}
+p.Translator = translator
+```
+
+with `"github.com/arandu-io/hesape/translation"` and the project's `lang`
+package imported, and hand it to every request in `Configure` in
+`bootstrap/app.go`, after `WithRouting`:
+
+```go
+WithTranslator(app.Translator).
+```
+
+A page then says `{{ .Trans("notes.new") }}` with a key of `lang/en.json`, and
+a locale is `lang/<locale>.json` with the same keys. A file there that does
+not parse stops the boot. Without the translator a page shows the key instead
+of failing, as it did before.
+
+### Beside it
+
+- `tests/TestCase.go` gains `tests.FromPage` and `tests.CSRFTokenFromPage`,
+  which lived in the example's tests. A project that deleted the example and
+  writes through htmx in a test copies the two functions from this release's
+  `tests/TestCase.go`.
+- The example resource now pages its listings with `components.Pagination`,
+  offers Edit, Delete and Publish only to whoever the policy allows
+  (`NoteService.Abilities`, over `auth.Allows`), and reads the edit form under
+  `note.update` (`NoteService.GetForUpdate`), so another member is answered
+  403 instead of a form whose submission would be. A project that kept the
+  example and wants the same copies those changes; nothing requires it.
+- `AGENTS.md` and the skills describe aru v0.76.1, say when an account's roles
+  are `users.roles` and when arandu-permission's, and teach `Writes`, the
+  flash, `.Trans` and the pager. A project that keeps its own copy of them
+  brings it in step with `aru skills:sync`.
+
+---
+
 ## v0.38.0 — a session's roles are read on every request, and a password reset revokes the tokens
 
 This skeleton requires framework v0.62.1 and hesape v0.77.0. The session store
