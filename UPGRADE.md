@@ -10,6 +10,77 @@ comment or a test that is the skeleton's own is not.
 
 ---
 
+## v0.41.0 — an unset APP_ENV is production, and aru v0.78.0
+
+This skeleton requires framework v0.64.0, hesape v0.84.1 and kyse v0.43.1, and
+builds with aru v0.78.0. **framework v0.64.0 reads an unset or empty `APP_ENV`
+as `prod`**, as hesape already did: a server deployed without the variable no
+longer serves the debug page, keeps the session cookie `Secure` and refuses the
+log mailer.
+
+### 1. Require the releases
+
+```sh
+go get github.com/arandu-io/framework@v0.64.0 github.com/arandu-io/hesape@v0.84.1 github.com/arandu-io/kyse@v0.43.1
+go mod tidy
+aru view:build
+```
+
+The connectors stay at v0.11.0. `aru view:build` rebuilds `assets/app.css` for
+the classes the new components draw.
+
+### 2. Say APP_ENV where development is meant
+
+Write `APP_ENV=dev` in the development `.env`, as `.env.example` does, and in
+every test helper that loads the configuration or runs a command without
+`tests.Serve` (this skeleton's `sqliteEnv` and `loadConfigurationWith` do). A
+deployment that relied on the old default now boots as production and refuses
+what production refuses.
+
+### 3. Build with aru v0.78.0
+
+```dockerfile
+ARG ARU_VERSION=v0.78.0
+```
+
+CI reads the version from there. The doctor gains `policy-declares-no-writes`
+and seven rules over the test suite, warnings until 2026-12-15; run `aru
+doctor` and fix what it names. A project that copied the doctor rule table into
+`.agents/skills/arandu-doctor` and `tests/Unit/DoctorSkill_test.go` copies both
+from this release. The journeys run with `aru test --e2e`: change the
+`journeys` step of the `e2e-smoke` job to `aru test --e2e -count=1`, as
+`.github/workflows/ci.yml` does.
+
+### 4. Resolve route names through the server
+
+In `tests/TestCase.go`, `Open` hands the page `browser.Routes(server.Resolve)`
+and the adapter that called `server.Route` goes:
+
+```go
+return browser.Open(t, Drivers, browser.BaseURL(server.URL), browser.Routes(server.Resolve))
+```
+
+A route name the application does not have now fails the step that visits it.
+
+### 5. Hand the page to the theme toggle
+
+In `resources/views/layouts/app.kyse.go`, draw
+`components.ThemeToggle(components.ThemeToggleProps{Page: .})`, so its words
+come from the catalogue under `kyse.theme_toggle` (`label`, `menu`, `auto`,
+`light`, `dark`) when the project translates them.
+
+### 6. Store instants in UTC and show them in APP_TIMEZONE
+
+A service that hands an entity `time.Now` stores the server's zone in a column
+that keeps no offset, and on SQLite reads it back hours off; the example's
+`NoteService.Publish` did. Stamp with `support.Now().UTC()`. A controller that
+formats a date moves it into `APP_TIMEZONE` first, the zone
+`cfg.Framework.App.Timezone` holds, as `shownAt` in
+`app/Http/Controllers/Controller.go` does; formatting what the driver handed
+back mixes UTC and the server's zone on one page.
+
+---
+
 ## v0.40.0 — the tests run on `framework/test`, on Postgres, with a journey in Chrome
 
 This skeleton requires framework v0.63.0 and hesape v0.84.0, and builds with
