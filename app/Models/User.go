@@ -40,6 +40,11 @@ type User struct {
 
 // The roles this application recognises. Strings, because that is what the
 // column holds and what a Policy compares against.
+//
+// They are the fixed roles of the deployment's one tenant. Roles people grant
+// to others -- permission groups, a member's role in an organization -- belong
+// to github.com/hyz-is/arandu-permission, which fills the subject's roles
+// through User.Subject; once it is installed nothing writes this column.
 const (
 	// RoleAdmin may administer the tenant.
 	RoleAdmin = "admin"

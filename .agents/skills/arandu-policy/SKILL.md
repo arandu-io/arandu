@@ -133,9 +133,10 @@ func Pin(ctx context.Context, db *database.DB, actor auth.Subject, id string) er
 - Answer another tenant's row with 403. A guessed id is not found -- a 403
   confirms the row exists -- and the tenant scope of every query already makes
   it so.
-- Add a role column, an `is_admin` flag or an ACL table: roles are
-  arandu-permission's (`arandu-ecosystem`), and the policy reads them off the
-  subject.
+- Add a role column beside `users.roles`, an `is_admin` flag or an ACL
+  table: `users.roles` holds the fixed roles of the one tenant, roles people
+  grant to others are arandu-permission's (`arandu-ecosystem`), and the policy
+  reads either off the subject.
 
 ## Extending it
 

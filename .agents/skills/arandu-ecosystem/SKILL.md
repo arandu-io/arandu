@@ -50,8 +50,15 @@ The flow of an organization's data is fixed:
    8. Does it expose an HTTP API someone else calls? arandu-swagger.
    9. Is it a Brazilian document or amount? arandu-br.
    10. Would the next project need the same thing? Then it is a module (step 4).
-2. **Use the owner.** A role is arandu-permission's, never a `role` column or an
-   ACL table; a balance is arandu-wallet's, never a `balance` column, a
+2. **Use the owner.** A role people grant to others -- a permission group, a
+   member's role in an organization, a screen that administers access -- is
+   arandu-permission's, never a new role column or an ACL table. The
+   `users.roles` column this skeleton ships is not a second place for those:
+   it holds the fixed roles of the deployment's one tenant, `RoleAdmin` and
+   `RoleMember`, which `UserPolicy` reads off the subject. Use it while those
+   two are all the application needs; once arandu-permission is installed the
+   subject's roles come from it, through `User.Subject`, and nothing writes the
+   column any more. A balance is arandu-wallet's, never a `balance` column, a
    `credits` table or a `*_ledger`. This application may own the commercial
    side -- a catalog, prices, a contract with a payment provider -- and calls
    the wallet to move value.
@@ -107,8 +114,9 @@ func Listing(title string, cents int64) (slug, price string) {
 
 ## Do not
 
-- Create a `role`, `is_admin`, `balance` or `credits` column, a tags table, a
-  Markdown renderer or a hand-kept OpenAPI file.
+- Create a role column beside `users.roles`, an `is_admin`, `balance` or
+  `credits` column, a tags table, a Markdown renderer or a hand-kept OpenAPI
+  file.
 - Write a `Slugify`, a CPF validator or a BRL formatter in the application:
   `helper-reimplemented`.
 - Point `go.mod` at a local checkout with `replace`, or work around a module's
