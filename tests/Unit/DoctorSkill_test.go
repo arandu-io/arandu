@@ -36,6 +36,7 @@ var doctorRules = []doctorRule{
 	{"grant-not-checked", "error", ""},
 	{"grant-check-discarded", "error", ""},
 	{"policy-never-opened", "warning", ""},
+	{"policy-declares-no-writes", "warning", ""},
 	{"action-not-a-constant", "error", ""},
 	{"enum-rule-not-derived", "error or warning", ""},
 	{"handler-reaches-data", "error", ""},
@@ -100,6 +101,13 @@ var doctorRules = []doctorRule{
 	{"program-under-cmd", "warning", ""},
 	{"command-outside-commands", "warning", ""},
 	{"program-under-scripts", "warning", ""},
+	{"test-sleep", "warning", ""},
+	{"test-forged-subject", "warning", ""},
+	{"test-css-locator", "warning", ""},
+	{"test-copied-conformance", "warning", ""},
+	{"e2e-not-run-in-ci", "warning", ""},
+	{"skip-without-reason", "warning", ""},
+	{"driver-specific-api-in-test", "warning", ""},
 }
 
 // performanceOnly opens the description of a row the doctor checks only under

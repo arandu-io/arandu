@@ -76,8 +76,9 @@ All from `github.com/arandu-io/hesape/auth`:
 
 - `aru make:policy <module>` writes a policy that denies every action
 - `aru make:module` writes one with the module
-- Neither writes `Writes` in v0.76.1: add it by hand after generating, and
-  `aru doctor` does not ask for it yet
+- Both write `Writes`, answering true for the create, update and delete
+  actions; a write action you add goes in its custom block, and `aru doctor`
+  reports a policy without the method as `policy-declares-no-writes`
 - `aru action:list` lists the actions the source declares, with the constant and the line of each
 
 ## Example

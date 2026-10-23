@@ -46,6 +46,7 @@ Dockerfile pins, when that list differs from what `aru doctor --list` prints.
 | `grant-not-checked` | error | a method that takes a Grant and never calls `Check` on it |
 | `grant-check-discarded` | error | a `Check` whose answer is thrown away, as in `_ = g.Check(...)` |
 | `policy-never-opened` | warning | a policy that denies every action |
+| `policy-declares-no-writes` | warning | a policy with no `Writes(a auth.Action) bool` method, so a Grant it issues for any action, a view included, can write |
 | `action-not-a-constant` | error | an action built from a value rather than named as a constant |
 | `enum-rule-not-derived` | error or warning | an `enum` rule that lists cases its type does not declare (error), or repeats the ones it does (warning) |
 | `handler-reaches-data` | error | a controller, a middleware or a route file that uses the data package beyond `data.Query` |
@@ -110,6 +111,13 @@ Dockerfile pins, when that list differs from what `aru doctor --list` prints.
 | `program-under-cmd` | warning | a Go program under `cmd/` other than `cmd/native`, which is a command of this binary in `app/Console/Commands` |
 | `command-outside-commands` | warning | a command whose `Run` is a function declared outside `app/Console/Commands` |
 | `program-under-scripts` | warning | a Go program under `scripts/` that runs the application's code, or drives a browser (whose place is `tests/E2E`, behind the `e2e` tag) |
+| `test-sleep` | warning | a test that calls `time.Sleep` instead of letting the page wait or moving the clock with `support.Travel` or `support.FreezeTime` |
+| `test-forged-subject` | warning | a test outside `tests/Unit` that writes the `auth.Subject` a request or a session runs as, or calls `ActingAs`, instead of signing the account in |
+| `test-css-locator` | warning | a journey that finds an element by CSS, or by `querySelector` in a script, with no reason given |
+| `test-copied-conformance` | warning | a file that is a copy of one of the framework's suites where a conformance kit exists |
+| `e2e-not-run-in-ci` | warning | journeys behind the `e2e` tag that no CI workflow runs |
+| `skip-without-reason` | warning | a `t.Skip` that does not say why |
+| `driver-specific-api-in-test` | warning | a test that imports one browser driver's package, or asserts the page's driver to its type, outside `tests/TestCase.go` |
 
 ## Procedure
 
