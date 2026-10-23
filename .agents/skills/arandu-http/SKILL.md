@@ -181,9 +181,7 @@ the custom block of `Validate`.
   custom block, behind a guard.
 - `app/Providers/AppServiceProvider.go`: the constructor in the `routes.Deps`
   literal, with the service built once and shared -- the example builds
-  `p.Notes` once and hands it to both controllers that need it. aru v0.74.0
-  prints this line for "bootstrap/app.go"; it goes here, where `db` is in
-  scope the same way.
+  `p.Notes` once and hands it to both controllers that need it.
 - A middleware of the application is constructed in the provider and put on
   the route or the group that needs it. One for every request is
   `m.Append(...)` in `WithMiddleware` in `bootstrap/app.go`.

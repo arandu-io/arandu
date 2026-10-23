@@ -65,7 +65,7 @@ type Deps struct {
 //	r.Get("/", handler).Name("home")
 //	r.Resource("invoices", invoiceController)      // the seven REST routes
 //
-// The guards live in github.com/arandu-io/framework/http/middleware:
+// The guards live in github.com/arandu-io/hesape/http/middleware:
 //
 //	r.Action("GET", "/dashboard", ctrl.Index, middleware.RequireAuth(d.Sessions)).Name("dashboard")
 //	admin := r.Group("/admin", middleware.RequireRole(d.Sessions, "admin"))

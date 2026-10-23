@@ -73,8 +73,8 @@ collaborators.
 **4. Generate, then finish by hand.** Every generator prints its wiring and
 edits neither the provider nor `routes/web.go` nor `routes/console.go`. Paste
 what it printed, read it, and write what it could not know in the custom
-blocks. aru v0.74.0 still names `bootstrap/app.go` and `bootstrap/background.go`
-for some of those lines; `AGENTS.md` says where each goes now.
+blocks. `AGENTS.md` names the two lines the pinned aru still prints behind
+the code.
 
 **5. Test the path.** A feature test that drives the feature the way its
 caller does, the tenant isolation of every new table, and the answers the

@@ -280,7 +280,8 @@ so a clean report means none of these shapes was found.
   signature over the body instead of a cookie and a token, and it is safe on
   that promise alone. An exempt route that verifies nothing takes a write from
   any page a signed-in person opens, and from anybody who can reach it.
-- **Scope.** Every `CSRFExcept` string literal under `bootstrap/`; every route
+- **Scope.** Every `CSRFExcept` string literal under `bootstrap/` and every
+  literal `ValidateCSRFTokensExcept` is given; every route
   under `routes/` that changes state (POST, PUT, PATCH, DELETE or any method)
   whose path the prefix exempts the way the framework matches it -- the path
   itself, or anything below a prefix that ends in `/`; and the controller
@@ -291,13 +292,9 @@ so a clean report means none of these shapes was found.
   below a prefix written without the slash (`/hooks/legacy` for `"/hooks"`)
   are not reported. Known false positive: an action that hands the raw body to
   a service, helper or middleware that verifies it.
-- **Limit.** The prefix is read only from a `CSRFExcept` literal. aru v0.74.0
-  does not read `ValidateCSRFTokensExcept`, which is what `bootstrap/app.go`
-  calls now, so on this application the rule finds no exempt prefix and reports
-  nothing whatever the webhook action does: the `webhook.Verify` in
-  `NewsletterWebhookController` is held by its feature test, not by the doctor.
-  Function-local: only the body of the action the route reaches is
-  read, and nothing it calls is followed. A prefix held in a variable, a
+- **Limit.** The prefix is read only from a string literal. Function-local:
+  only the body of the action the route reaches is read, and nothing it calls
+  is followed. A prefix held in a variable, a
   handler that is a function literal or a controller the route table does not
   resolve, and a prefix behind a path parameter are not read. A clean report
   means no unverified action was found, not that none exists.

@@ -18,21 +18,20 @@ The order a feature is built and checked in. It is not the order a request runs
 through, and not every feature has every step: a task with no table gets no
 migration, an API with no screen gets no view.
 
-Every generator below exists in `aru` v0.74.0, the version the Dockerfile
+Every generator below exists in `aru` v0.76.1, the version the Dockerfile
 builds with, and prints its wiring instead of editing a provider,
-`routes/web.go` or `routes/console.go`. The example column is the `notes`
-resource, which has every step; `.agents/skills/notes` says which command wrote
-each file.
+`routes/web.go` or `routes/console.go`: the `routes.Deps` literal and
+`RegisterJobs` of `app/Providers/AppServiceProvider.go`, the custom block of
+`routes/web.go`, and `Commands` and `Schedule` in `routes/console.go`. The
+example column is the `notes` resource, which has every step;
+`.agents/skills/notes` says which command wrote each file.
 
-v0.74.0 still names the files `bootstrap/` held before the console kernel moved
-into the framework, and the line it prints goes where that code lives now: a
-line for "the routes.Deps literal in bootstrap/app.go" goes in the `routes.Deps`
-literal of `app/Providers/AppServiceProvider.go`, where `db` is in scope as it
-was there; a line for `registerHandlers` in `bootstrap/background.go` goes in
-`RegisterJobs` in the same provider, with `p.Notes` where it says `app.Notes`;
-and a command `aru make:command` writes is listed in `Commands` in
-`routes/console.go` as a `console.Command`, the shape
-`app/Console/Commands/NotesDigest.go` has.
+Two lines v0.76.1 prints are still behind the code. `aru make:module` asks for
+`"github.com/arandu-io/framework/http/middleware"` in `routes/web.go`, which
+already imports `github.com/arandu-io/hesape/http/middleware` under the same
+name: leave the import as it is, or the file stops compiling with `middleware
+redeclared`. And the doctor's `generated-not-wired` names `bootstrap/app.go`
+and `routes/web.go`, where the wiring now goes in the provider.
 
 | # | step | file | generator | example in this repository |
 | --- | --- | --- | --- | --- |
@@ -108,8 +107,8 @@ framework version in `go.mod`, and `aru doctor` reports the other spelling as
 `github.com/arandu-io/hesape/routing/controllers`; the `Context` an action
 takes, the `SessionStore` and the route guards from
 `github.com/arandu-io/hesape/http` and `github.com/arandu-io/hesape/http/middleware`.
-`aru make:*` v0.74.0 still writes `github.com/arandu-io/framework/http` in what
-it generates; `aru imports:catalog --fix --apply` rewrites it.
+`aru make:middleware` v0.76.1 still writes `github.com/arandu-io/framework/http`
+in what it generates; `aru imports:catalog --fix --apply` rewrites it.
 
 ## The gates
 
@@ -133,10 +132,10 @@ entity; `aru model:build` without the flag rewrites them. `aru view:build`
 writes the compiled views the compiler then reads, so it runs before anything
 that compiles. `aru dev` and `aru build` run both for you.
 
-The `aru` in these commands is the release the Dockerfile pins, v0.74.0. An
+The `aru` in these commands is the release the Dockerfile pins, v0.76.1. An
 older one reports fewer rules than the ones this project is held to, so a clean
 `aru doctor` from it says less than it seems to.
-`go run github.com/arandu-io/aru@v0.74.0 <command>` runs that release without
+`go run github.com/arandu-io/aru@v0.76.1 <command>` runs that release without
 installing it.
 
 Both filters on `gofmt` are load-bearing. A `.kyse.go` is excluded from the

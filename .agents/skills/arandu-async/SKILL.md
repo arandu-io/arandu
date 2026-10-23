@@ -70,8 +70,7 @@ a mail, a console command. The service that a job or a listener calls is
 6. **An operator's action is a command.** A function in
    `app/Console/Commands` that takes what it reaches and answers a
    `console.Command`, as `NotesDigest` does, and a line in `Commands` in
-   `routes/console.go`. `aru make:command` v0.74.0 still writes a type whose
-   `Run` takes `[]string`; wrap it, or write the function by hand.
+   `routes/console.go`. `aru make:command` writes that function.
 
 ## Commands
 
@@ -181,9 +180,7 @@ All in two files, by hand:
   the handler in `RegisterJobs`, built from the services the provider holds;
   and what a task or a command reaches, in `ConsoleDeps` through `Console`.
   `aru make:job --services=<Entity>` writes the constructor with those
-  services; v0.74.0 prints the line for `registerHandlers` in
-  `bootstrap/background.go`, which is `RegisterJobs` here, with `p.` where it
-  says `app.`.
+  services and prints the line for `RegisterJobs`.
 - `routes/console.go`: the task in `Schedule` and the command in `Commands`.
 
 `bootstrap/app.go` already hands all of it to the framework --
