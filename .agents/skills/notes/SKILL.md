@@ -23,8 +23,8 @@ hold the rules.
 | factory and seeder | `database/factories/NoteFactory.go`, `database/seeders/NoteSeeder.go` | `aru make:factory Note`, `aru make:seeder Note` | notes by two authors nobody can sign in as |
 | policy | `app/Policies/NotePolicy.go` | `aru make:module` | the rules below, and `NotePublish` |
 | request | `app/Http/Requests/NoteRequest.go` | `aru make:module` | nothing |
-| service | `app/Services/NoteService.go` | `aru make:module` | the author from the subject, `Publish`, `SendDigest`, `WithNewsletter` |
-| controller | `app/Http/Controllers/NoteController.go` | `aru make:module`; `Publish` by `aru make:controller Note --resource --action=publish` | the table fragment, the JSON branches, the publish button's address |
+| service | `app/Services/NoteService.go` | `aru make:module` | the author from the subject, `Publish` at the framework clock in UTC, `SendDigest`, `WithNewsletter` |
+| controller | `app/Http/Controllers/NoteController.go` | `aru make:module`; `Publish` by `aru make:controller Note --resource --action=publish` | the table fragment, the JSON branches, the publish button's address, the dates in `APP_TIMEZONE` |
 | routes | the custom block of `routes/web.go` | printed by each generator | one sign-in group for all three lines |
 | views | `resources/views/notes/`, `resources/views/partials/notes_table.kyse.go` | `aru make:module` | the table moved to a partial, the publish form |
 | JSON Resource | `app/Http/Resources/NoteResource.go` | `aru make:resource Note` | the next page's link |

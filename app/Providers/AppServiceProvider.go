@@ -147,8 +147,8 @@ func NewAppServiceProvider(cfg appconfig.Config, d *foundation.Drivers) (*AppSer
 		Sessions:    d.Sessions,
 		Tokens:      appmiddleware.NewPersonalAccessTokens(p.Tokens),
 		Idempotency: d.Idempotency,
-		Note:        controllers.NewNoteController(p.Notes),
-		Comment:     controllers.NewCommentController(services.NewCommentService(db, p.Notes)),
+		Note:        controllers.NewNoteController(p.Notes, cfg.Framework.App.Timezone),
+		Comment:     controllers.NewCommentController(services.NewCommentService(db, p.Notes), cfg.Framework.App.Timezone),
 		NewsletterWebhook: controllers.NewNewsletterWebhookController(cfg.Services.NewsletterWebhook.Secret,
 			services.NewNewsletterEventService(db, cfg.Auth.Tenant)),
 	}

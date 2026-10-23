@@ -3,6 +3,8 @@
 package controllers
 
 import (
+	"time"
+
 	hhttp "github.com/arandu-io/hesape/http"
 	"github.com/arandu-io/hesape/pagination"
 	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
@@ -39,12 +41,15 @@ type CommentController struct {
 	Controller
 
 	svc *services.CommentService
+	// zone is where a date is shown: APP_TIMEZONE.
+	zone *time.Location
 }
 
-// NewCommentController returns the controller. bootstrap builds it and hands it to
-// the routes.
-func NewCommentController(svc *services.CommentService) *CommentController {
-	return &CommentController{svc: svc}
+// NewCommentController returns the controller, showing every date in zone,
+// the zone the application renders dates in. bootstrap builds it and hands it
+// to the routes.
+func NewCommentController(svc *services.CommentService, zone *time.Location) *CommentController {
+	return &CommentController{svc: svc, zone: zone}
 }
 
 // Compile-time proof of the seven actions fhttp.Router.Resource looks for. It
@@ -186,7 +191,7 @@ func (c *CommentController) row(ctx *hhttp.Context, co *models.Comment) views.Co
 		ID:      co.ID,
 		URL:     ctx.URL("notes.comments.show", co.ID),
 		Body:    co.Body,
-		Created: co.CreatedAt.Format("2006-01-02 15:04"),
+		Created: shownAt(co.CreatedAt, c.zone),
 	}
 }
 

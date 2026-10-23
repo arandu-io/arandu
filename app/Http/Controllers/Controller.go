@@ -13,6 +13,8 @@
 // for JSON gets a 422 problem document with the messages by field.
 package controllers
 
+import "time"
+
 // Controller is the type every controller in this directory embeds.
 //
 // It carries no dependencies and no methods, and that is deliberate. A base
@@ -21,3 +23,14 @@ package controllers
 // or a second way to answer something the router already answers. A
 // controller's collaborators are fields it declares and the constructor sets.
 type Controller struct{}
+
+// shownAt is an instant as a page shows it: in zone, to the minute.
+//
+// The database stores every instant in UTC, and a driver may hand one back in
+// UTC or in the zone of the server it runs on. Formatting what it handed back
+// is what once showed a note created in UTC beside its publication in the
+// server's time; moving each instant into the one zone first is what makes
+// two dates on a page comparable.
+func shownAt(at time.Time, zone *time.Location) string {
+	return at.In(zone).Format("2006-01-02 15:04")
+}

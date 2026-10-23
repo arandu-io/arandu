@@ -6,10 +6,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"html"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+	// The zone database, linked into this test binary, so the zone
+	// TestANotesDatesAreShownInTheApplicationsTimeZone serves under loads on
+	// a host that ships none.
+	_ "time/tzdata"
 
 	"github.com/arandu-io/framework/test"
 	"github.com/arandu-io/hesape/auth"
@@ -873,4 +878,89 @@ func TestTheListingIsPagedByThePager(t *testing.T) {
 	if strings.Contains(table, "<html") || !strings.Contains(table, `rel="prev"`) || strings.Contains(table, `rel="next"`) {
 		t.Errorf("the second page, asked for by the pager, is not the table alone stepping back only:\n%s", table)
 	}
+}
+
+// TestANotesDatesAreShownInTheApplicationsTimeZone: every date a page shows
+// is in APP_TIMEZONE, the zone the application renders dates in, whatever
+// zone the database handed it back in and whatever zone the server runs in.
+//
+// The zone is one that is neither UTC nor the zone of the machine running
+// the test, so a date left in either is caught here: the note page once
+// showed when it was created in UTC and when it was published in the
+// server's time, one beside the other.
+func TestANotesDatesAreShownInTheApplicationsTimeZone(t *testing.T) {
+	zone := zoneOfItsOwn(t)
+	t.Setenv("APP_TIMEZONE", zone.String())
+	f := newNotesFixture(t)
+	address := f.write(t, f.ana, "Groceries")
+	tests.FromPage(t, f.ana, address).Post(address+"/publish", nil).AssertStatus(http.StatusSeeOther)
+	comment := f.comment(t, f.ana, address, "Add coffee.")
+
+	note := f.stored(t, address)
+	if note.PublishedAt == nil {
+		t.Fatalf("the note was not published: %+v", note)
+	}
+	// Published a moment after it was written, and stored as that instant: a
+	// clock read in the server's zone is stored hours off by a column that
+	// keeps no offset.
+	if gap := note.PublishedAt.Sub(note.CreatedAt); gap < 0 || gap > time.Minute {
+		t.Errorf("the note is stored published %s after it was created (created %s, published %s), want within a minute",
+			gap, note.CreatedAt.UTC().Format(time.RFC3339), note.PublishedAt.UTC().Format(time.RFC3339))
+	}
+	page := f.ana.Get(address).AssertOk().GetContent()
+	for term, at := range map[string]time.Time{"Created": note.CreatedAt, "Published": *note.PublishedAt} {
+		if got, want := definition(t, page, term), at.In(zone).Format("2006-01-02 15:04"); got != want {
+			t.Errorf("the note page shows %s %q, want %q: the instant %s in %s",
+				term, got, want, at.UTC().Format(time.RFC3339), zone)
+		}
+	}
+
+	stored := f.storedComment(t, comment)
+	page = f.ana.Get(comment).AssertOk().GetContent()
+	if got, want := definition(t, page, "Created"), stored.CreatedAt.In(zone).Format("2006-01-02 15:04"); got != want {
+		t.Errorf("the comment page shows Created %q, want %q: the instant %s in %s",
+			got, want, stored.CreatedAt.UTC().Format(time.RFC3339), zone)
+	}
+}
+
+// zoneOfItsOwn answers a zone whose offset now is neither UTC's nor the
+// local zone's. A half-hour offset comes first, so a date left in another
+// zone differs in its minutes as well as in its hour.
+func zoneOfItsOwn(t *testing.T) *time.Location {
+	t.Helper()
+	now := time.Now()
+	_, local := now.Zone()
+	for _, name := range []string{"Asia/Kolkata", "Asia/Kathmandu", "Pacific/Kiritimati"} {
+		zone, err := time.LoadLocation(name)
+		if err != nil {
+			t.Fatalf("loading %s: %v", name, err)
+		}
+		if _, offset := now.In(zone).Zone(); offset != 0 && offset != local {
+			return zone
+		}
+	}
+	t.Fatal("no candidate zone differs from both UTC and the local zone")
+	return nil
+}
+
+// definition answers the text of the <dd> that follows the <dt> holding term
+// on a page, and fails the test when the page has no such term.
+func definition(t *testing.T, page, term string) string {
+	t.Helper()
+	start := strings.Index(page, ">"+term+"</dt>")
+	if start < 0 {
+		t.Fatalf("the page has no %q term", term)
+	}
+	rest := page[start:]
+	open := strings.Index(rest, "<dd")
+	if open < 0 {
+		t.Fatalf("the %q term has no definition", term)
+	}
+	rest = rest[open:]
+	body := strings.IndexByte(rest, '>')
+	end := strings.Index(rest, "</dd>")
+	if body < 0 || end < body {
+		t.Fatalf("the definition of %q is not terminated", term)
+	}
+	return strings.TrimSpace(html.UnescapeString(rest[body+1 : end]))
 }

@@ -4,6 +4,7 @@ package controllers
 
 import (
 	"net/http"
+	"time"
 
 	hhttp "github.com/arandu-io/hesape/http"
 	"github.com/arandu-io/hesape/pagination"
@@ -38,12 +39,15 @@ type NoteController struct {
 	Controller
 
 	svc *services.NoteService
+	// zone is where a date is shown: APP_TIMEZONE.
+	zone *time.Location
 }
 
-// NewNoteController returns the controller. bootstrap builds it and hands it to
+// NewNoteController returns the controller, showing every date in zone, the
+// zone the application renders dates in. bootstrap builds it and hands it to
 // the routes.
-func NewNoteController(svc *services.NoteService) *NoteController {
-	return &NoteController{svc: svc}
+func NewNoteController(svc *services.NoteService, zone *time.Location) *NoteController {
+	return &NoteController{svc: svc, zone: zone}
 }
 
 // Compile-time proof of the seven actions fhttp.Router.Resource looks for. It
@@ -242,10 +246,10 @@ func (c *NoteController) row(ctx *hhttp.Context, n *models.Note) views.NoteRow {
 		Title:   n.Title,
 		Body:    n.Body,
 		Pinned:  n.Pinned,
-		Created: n.CreatedAt.Format("2006-01-02 15:04"),
+		Created: shownAt(n.CreatedAt, c.zone),
 	}
 	if n.PublishedAt != nil {
-		row.Published = n.PublishedAt.Format("2006-01-02 15:04")
+		row.Published = shownAt(*n.PublishedAt, c.zone)
 	}
 	return row
 }
