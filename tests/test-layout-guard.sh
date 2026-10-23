@@ -175,9 +175,11 @@ fi
 #    failure on any module that has a tests tree at all, which is every module
 #    it is meant to protect.
 #
-#    The tags are passed the way the framework passes them, with `browser`
-#    beside them: tests/Browser sits behind that tag, and a production package
-#    that reached the tests tree only under it would otherwise go unseen. The tag that must NEVER be passed here is `kyse`: it
+#    The tags are the two the tests tree compiles under: `e2e`, which
+#    tests/E2E sits behind, and `authui`, which the sign-in screens' matrix in
+#    tests/Conformance sits behind. A production package that reached the tests
+#    tree only under one of them would otherwise go unseen. The tag that must
+#    NEVER be passed here is `kyse`: it
 #    would pull resources/views/*.kyse.go into the build, and those do not parse
 #    as Go by design.
 asked=0
@@ -205,7 +207,7 @@ while IFS= read -r module; do
 	# below is about to ask for, so the cache is still warm.
 	(cd "$module" && GOWORK=off go mod download >/dev/null 2>&1) || true
 
-	if ! packages=$(cd "$module" && GOWORK=off go list -tags 'integration e2e browser' ./... 2>&1); then
+	if ! packages=$(cd "$module" && GOWORK=off go list -tags 'e2e authui' ./... 2>&1); then
 		echo "[FAILED] go list failed in $module, so nothing was checked there:"
 		printf '%s\n' "$packages" | sed 's/^/    /'
 		# The hint is printed only when the failure is the one it explains. A
@@ -228,7 +230,7 @@ while IFS= read -r module; do
 
 	# One import path per line and none of them has a space: the split is wanted.
 	# shellcheck disable=SC2086
-	if ! dependencies=$(cd "$module" && GOWORK=off go list -tags 'integration e2e browser' -deps $production 2>&1); then
+	if ! dependencies=$(cd "$module" && GOWORK=off go list -tags 'e2e authui' -deps $production 2>&1); then
 		echo "[FAILED] go list -deps failed in $module, so nothing was checked there:"
 		printf '%s\n' "$dependencies" | sed 's/^/    /'
 		fail=1
@@ -244,6 +246,62 @@ done < <(printf '%s\n' "$modules")
 
 if [ "$asked" -eq 0 ]; then
 	echo "[FAILED] the toolchain was asked about no module, so check 4 did not run"
+	fail=1
+fi
+
+# 5. The layers. Every directory directly under a module's tests/ is one of
+#    the layers the suite is built from, and a journey carries the tag that
+#    keeps it out of the ordinary run:
+#
+#      Unit         one rule, with nothing running
+#      Feature      the HTTP answer in process, the policy and the JSON
+#      Contract     the answers against the exported OpenAPI document
+#      E2E          the real journey, behind the e2e build tag
+#      Conformance  the framework's and the modules' kits, one call each
+#      Connectors   this skeleton's one exception: a binary that links no
+#                   connector, to ask what one without it answers
+#
+#    tests/Browser is named on its own because it is the layer E2E absorbed:
+#    a project that brings it back has two places for a browser test, and the
+#    one under the old tag is the one CI no longer runs.
+#
+#    A file in tests/E2E without `//go:build e2e` is compiled by go test ./...,
+#    which then starts a browser in every ordinary run -- or, with no browser
+#    on the machine, fails there. The tag is read from the first line, which is
+#    where the toolchain requires a build constraint to sit before the package
+#    clause.
+layers=0
+while IFS= read -r file; do
+	[ -z "$file" ] && continue
+	relative=$(module_relative "$file") || continue
+	case "$relative" in
+	tests/*/*) ;;
+	*) continue ;;
+	esac
+	layers=$((layers + 1))
+	layer=${relative#tests/}
+	layer=${layer%%/*}
+	case "$layer" in
+	Unit | Feature | Contract | E2E | Conformance | Connectors) ;;
+	Browser)
+		echo "[FAILED] $file is in tests/Browser, which tests/E2E absorbed: move the journey there, behind the e2e tag"
+		fail=1
+		continue
+		;;
+	*)
+		echo "[FAILED] $file is in tests/$layer, which is not a layer (Unit, Feature, Contract, E2E, Conformance)"
+		fail=1
+		continue
+		;;
+	esac
+	if [ "$layer" = "E2E" ] && [ "$(head -n 1 "$file")" != "//go:build e2e" ]; then
+		echo "[FAILED] $file is a journey without //go:build e2e on its first line, so go test ./... compiles it"
+		fail=1
+	fi
+done < <(git ls-files '*.go')
+
+if [ "$layers" -eq 0 ]; then
+	echo "[FAILED] no Go file sits in a layer under tests/, so the layers were not checked"
 	fail=1
 fi
 
