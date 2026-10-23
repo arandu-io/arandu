@@ -31,6 +31,8 @@ import (
 // write landing on a page that says so in a toast; the listing pages through
 // htmx without leaving the page; and Bea, a member of the same tenant, sees
 // the note without the controls to change it and is refused its edit screen.
+// The note and the listing are walked through every width and scheme, and
+// neither may be wider than the screen it is drawn on.
 func TestANoteIsWrittenChangedAndPublishedByItsAuthorOnly(t *testing.T) {
 	server := tests.Serve(t)
 	tenant := appconfig.Tenant()
@@ -68,8 +70,10 @@ func TestANoteIsWrittenChangedAndPublishedByItsAuthorOnly(t *testing.T) {
 	page.ExpectText("Note published.")
 	page.ExpectNoText("Draft")
 	page.ExpectHidden(browser.Role("button", "Publish"))
+	page.Responsive()
 
 	page.Visit("notes.index")
+	page.Responsive()
 	page.ClickRole("link", "Next")
 	page.ExpectURL("/notes?page=2")
 	page.ExpectVisible(browser.Role("link", "Previous"))
