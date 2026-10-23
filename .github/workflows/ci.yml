@@ -12,16 +12,37 @@ jobs:
   check:
     runs-on: ubuntu-latest
 
-    # No services block, and no server of any kind. The project links SQLite and
-    # nothing else, so there is no RESP client in this binary to point at one:
-    # the tests check the wiring behind the Redis connector with a connector of
-    # their own, and what a real server does under it -- two processes sharing a
-    # session, a rate limit counted across replicas -- is proved where the
-    # connector is, in github.com/arandu-io/hesape/redis, against a real server.
+    # One server: the Postgres the feature, conformance and end-to-end tests
+    # run on. tests.Serve gives every test a database of its own, copied from a
+    # template migrated once per package, so the tests prove the engine a
+    # deployment runs rather than the SQLite a fresh clone falls back to. CI is
+    # set on every runner, and with it a test that finds no database fails
+    # instead of skipping: a skipped suite reports green and proves nothing.
     #
-    # A project that links the connector with a blank import and wants that
-    # proof in its own CI adds a redis service here and runs the connector's
-    # tests with REDIS_ADDRESS set.
+    # No Redis. The project links no RESP client, so there is nothing in this
+    # binary to point at one: the tests check the wiring behind the Redis
+    # connector with a connector of their own, and what a real server does
+    # under it -- two processes sharing a session, a rate limit counted across
+    # replicas -- is proved where the connector is, in
+    # github.com/arandu-io/hesape/redis, against a real server. A project that
+    # links the connector and wants that proof in its own CI adds a redis
+    # service here and runs the connector's tests with REDIS_ADDRESS set.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: arandu
+          POSTGRES_PASSWORD: arandu
+          POSTGRES_DB: arandu
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U arandu"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+
+    env:
+      ARANDU_TEST_DATABASE_URL: postgres://arandu:arandu@127.0.0.1:5432/arandu?sslmode=disable
 
     # Each action is pinned to a commit, with its release in the comment. A tag
     # is a pointer its owner can move, and a moved tag runs somebody else's code
@@ -84,8 +105,13 @@ jobs:
             exit 1
           fi
 
+      # Twice: once as go test builds the tree, and once with the e2e tag, so a
+      # journey that stopped compiling is caught here and not only by the job
+      # that drives a browser.
       - name: vet
-        run: go vet ./...
+        run: |
+          go vet ./...
+          go vet -tags e2e ./...
 
       # The layout of the test tree, checked by the thing that can check it.
       # The first of its four rules is the one that costs the most to get wrong:
@@ -101,9 +127,10 @@ jobs:
       - name: test layout
         run: bash tests/test-layout-guard.sh
 
-      # These tests need no server: the database is SQLite in a temporary
-      # directory, and database/sql connects lazily, so the wiring, the pipeline
-      # and every route are exercised with nothing installed.
+      # Unit, Feature and Conformance. The feature and conformance tests run on
+      # the Postgres above, a database per test; the unit tests open none. A
+      # test that declares itself SQLite-safe -- the wiring of a setting, a
+      # command against a file -- still runs on a temporary SQLite file.
       - name: test
         run: go test -race ./...
 
@@ -171,3 +198,114 @@ jobs:
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
+
+  # The sign-in screens' matrix. The screens are published into
+  # app/Http/Controllers/Auth by `ui auth` and are not in this skeleton until
+  # somebody runs it, so the suite sits behind the authui tag and go test
+  # ./... never compiles it. This job publishes them into its own checkout,
+  # the way a project does once, and runs the kit against them -- on Postgres,
+  # like the rest -- so the screens a project installs are proved against the
+  # account rules this release ships.
+  authui:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: arandu
+          POSTGRES_PASSWORD: arandu
+          POSTGRES_DB: arandu
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U arandu"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      ARANDU_TEST_DATABASE_URL: postgres://arandu:arandu@127.0.0.1:5432/arandu?sslmode=disable
+      # The installer's release, pinned like aru: @latest would make the same
+      # commit pass or fail depending on the day it ran.
+      UI_VERSION: v0.28.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+
+      - name: install aru
+        run: |
+          aru_version="$(sed -n 's/^ARG ARU_VERSION=//p' Dockerfile)"
+          if [ -z "$aru_version" ]; then
+            echo "the Dockerfile declares no ARG ARU_VERSION default"
+            exit 1
+          fi
+          go install "github.com/arandu-io/aru@${aru_version}"
+
+      - name: publish the sign-in screens
+        run: go run "github.com/arandu-io/ui@${UI_VERSION}" auth
+
+      - name: build the views
+        run: |
+          "$(go env GOPATH)/bin/aru" view:build
+
+      - name: the sign-in screens' session matrix
+        run: go test -race -tags authui ./tests/Conformance/...
+
+  # The journeys, in Chrome, on Postgres. They carry the e2e build tag, so the
+  # test step above does not even compile them; this job is the one that runs
+  # them. The runner ships Chrome, and the native driver starts it over its
+  # debugging pipe with nothing else installed.
+  #
+  # No retry. A journey that fails once is a failure, and the trace -- every
+  # step with a screenshot and the DOM after it, the network, the console and
+  # what failed -- is uploaded so the failure can be read without running it
+  # again.
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: arandu
+          POSTGRES_PASSWORD: arandu
+          POSTGRES_DB: arandu
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U arandu"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      ARANDU_TEST_DATABASE_URL: postgres://arandu:arandu@127.0.0.1:5432/arandu?sslmode=disable
+      ARANDU_E2E_TRACE_DIR: ${{ runner.temp }}/e2e-traces
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+
+      - name: install aru
+        run: |
+          aru_version="$(sed -n 's/^ARG ARU_VERSION=//p' Dockerfile)"
+          if [ -z "$aru_version" ]; then
+            echo "the Dockerfile declares no ARG ARU_VERSION default"
+            exit 1
+          fi
+          go install "github.com/arandu-io/aru@${aru_version}"
+
+      - name: build the views
+        run: |
+          "$(go env GOPATH)/bin/aru" view:build
+
+      - name: journeys
+        run: go test -count=1 -tags e2e ./tests/E2E/...
+
+      - name: upload the traces
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-traces
+          path: ${{ runner.temp }}/e2e-traces
+          if-no-files-found: ignore
