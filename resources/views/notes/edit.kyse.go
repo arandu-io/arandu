@@ -41,7 +41,7 @@ var _ view.Layout = NotesEditData{}
 
 @section('content')
 	<nav class="text-sm text-slate-500 dark:text-slate-400">
-		<a class="underline underline-offset-2 hover:text-slate-900 dark:hover:text-slate-100" href="{{ .ShowURL }}">Back</a>
+		<a class="underline underline-offset-2 hover:text-slate-900 dark:hover:text-slate-100" href="{{ .ShowURL }}">{{ .Trans("notes.back") }}</a>
 	</nav>
 
 	<h1 class="mt-2 text-3xl font-semibold tracking-tight">{{ .Title }}</h1>
@@ -54,7 +54,7 @@ var _ view.Layout = NotesEditData{}
 		
 		{!! components.Field(components.FieldProps{
 			Name:  "title",
-			Label: "Title",
+			Label: .Trans("notes.title"),
 			Type:  "text",
 			Value: .Form.Title,
 			Page: .,
@@ -63,7 +63,7 @@ var _ view.Layout = NotesEditData{}
 
 		{!! components.Textarea(components.TextareaProps{
 			Name:  "body",
-			Label: "Body",
+			Label: .Trans("notes.body"),
 			Value: .Form.Body,
 			Page: .,
 			Rows:  6,
@@ -71,14 +71,14 @@ var _ view.Layout = NotesEditData{}
 
 		{!! components.Checkbox(components.CheckboxProps{
 			Name:    "pinned",
-			Label:   "Pinned",
+			Label:   .Trans("notes.pinned"),
 			Checked: .Form.Pinned,
 			Page: .,
 		}) !!}
 
 		<div class="flex items-center gap-3">
-			<button class="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300" type="submit">Save</button>
-			<a class="text-sm text-slate-500 underline underline-offset-2 dark:text-slate-400" href="{{ .ShowURL }}">Cancel</a>
+			<button class="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300" type="submit">{{ .Trans("notes.save") }}</button>
+			<a class="text-sm text-slate-500 underline underline-offset-2 dark:text-slate-400" href="{{ .ShowURL }}">{{ .Trans("notes.cancel") }}</a>
 		</div>
 	</form>
 @endsection

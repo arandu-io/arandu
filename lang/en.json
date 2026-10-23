@@ -1,0 +1,21 @@
+{
+    "notes.index": "Notes",
+    "notes.new": "New note",
+    "notes.back": "Back",
+    "notes.columns": "Columns",
+    "notes.title": "Title",
+    "notes.body": "Body",
+    "notes.pinned": "Pinned",
+    "notes.created": "Created",
+    "notes.published": "Published",
+    "notes.draft": "Draft",
+    "notes.empty.title": "No note yet.",
+    "notes.empty.message": "Add the first note to get started.",
+    "notes.save": "Save",
+    "notes.cancel": "Cancel",
+    "notes.edit": "Edit",
+    "notes.delete": "Delete",
+    "notes.delete.confirm": "Delete this note?",
+    "notes.publish": "Publish",
+    "notes.comments": "Comments"
+}

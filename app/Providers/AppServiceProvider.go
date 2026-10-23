@@ -22,6 +22,7 @@ import (
 	"github.com/arandu-io/hesape/onetime"
 	"github.com/arandu-io/hesape/queue"
 	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
+	"github.com/arandu-io/hesape/translation"
 
 	clients "github.com/arandu-io/arandu/app/Clients"
 	controllers "github.com/arandu-io/arandu/app/Http/Controllers"
@@ -33,6 +34,7 @@ import (
 	services "github.com/arandu-io/arandu/app/Services"
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/database/seeders"
+	"github.com/arandu-io/arandu/lang"
 	"github.com/arandu-io/arandu/routes"
 )
 
@@ -60,6 +62,10 @@ type AppServiceProvider struct {
 	Notifier *hnotifications.Notifier
 	// Relay empties the outbox into the listeners.
 	Relay *events.Relay
+	// Translator is the catalogue in lang/, which bootstrap hands every
+	// request: a page says its lines through .Trans in the request's language,
+	// and a component its own words.
+	Translator *translation.Translator
 
 	web routes.Deps
 }
@@ -71,6 +77,14 @@ var _ foundation.Module = (*AppServiceProvider)(nil)
 func NewAppServiceProvider(cfg appconfig.Config, d *foundation.Drivers) (*AppServiceProvider, error) {
 	p := &AppServiceProvider{cfg: cfg, drivers: d}
 	db := d.DB
+
+	// The catalogue, in APP_LOCALE and falling back to English. A file in lang/
+	// that does not parse stops the boot here.
+	translator, err := translation.NewFromDirectory(lang.Files, ".", cfg.App.Locale, "en")
+	if err != nil {
+		return nil, fmt.Errorf("providers: read the catalogue in lang: %w", err)
+	}
+	p.Translator = translator
 
 	emailCodes, err := onetime.New(d.Store.GetStore(), cfg.Framework.App.Key, onetime.Config{TTL: cfg.Auth.PasswordResetTTL})
 	if err != nil {

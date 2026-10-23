@@ -148,6 +148,10 @@ func Configure(cfg appconfig.Config, drivers *foundation.Drivers, app *providers
 		WithRouting(func(r *controllers.Router) {
 			routes.Web(r, app.Web())
 		}).
+		// The catalogue in lang/, carried by every request, so a page says
+		// .Trans("notes.new") in the request's language. Without it a page
+		// shows the key instead of the sentence.
+		WithTranslator(app.Translator).
 		WithMiddleware(func(m *foundation.Middleware) {
 			// A provider posts with no session and no token, and every route
 			// under /webhooks/ verifies the provider's signature first.

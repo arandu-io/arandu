@@ -82,18 +82,18 @@ func NoteIndexTable(data NotesIndexData) components.DataTableProps {
 	return components.DataTableProps{
 		ID: "notes-index",
 		Label: data.Title,
-		ColumnsLabel: "Columns",
+		ColumnsLabel: data.Trans("notes.columns"),
 		Columns: []components.TableColumn{
-			{Label: "Title", Key: "title"},
-			{Label: "Body", Key: "body", Hideable: true},
-			{Label: "Pinned", Key: "pinned", Hideable: true},
-			{Label: "Created", Key: "created_at", Hideable: true},
+			{Label: data.Trans("notes.title"), Key: "title"},
+			{Label: data.Trans("notes.body"), Key: "body", Hideable: true},
+			{Label: data.Trans("notes.pinned"), Key: "pinned", Hideable: true},
+			{Label: data.Trans("notes.created"), Key: "created_at", Hideable: true},
 		},
 		Rows: rows,
 		Empty: components.EmptyProps{
-			Title: "No note yet.",
-			Message: "Add the first note to get started.",
-			ActionLabel: "New note",
+			Title: data.Trans("notes.empty.title"),
+			Message: data.Trans("notes.empty.message"),
+			ActionLabel: data.Trans("notes.new"),
 			ActionURL: data.NewURL,
 		},
 	}
@@ -109,7 +109,7 @@ func NoteIndexTable(data NotesIndexData) components.DataTableProps {
 @section('content')
 	<div class="flex items-center justify-between gap-4">
 		<h1 class="text-3xl font-semibold tracking-tight">{{ .Title }}</h1>
-		<a class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900" href="{{ .NewURL }}">New note</a>
+		<a class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900" href="{{ .NewURL }}">{{ .Trans("notes.new") }}</a>
 	</div>
 
 	{{-- The table is a file of its own, because it is the one part of this page

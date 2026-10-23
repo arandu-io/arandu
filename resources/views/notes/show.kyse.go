@@ -44,7 +44,7 @@ var _ view.Layout = NotesShowData{}
 
 @section('content')
 	<nav class="text-sm text-slate-500 dark:text-slate-400">
-		<a class="underline underline-offset-2 hover:text-slate-900 dark:hover:text-slate-100" href="{{ .IndexURL }}">Notes</a>
+		<a class="underline underline-offset-2 hover:text-slate-900 dark:hover:text-slate-100" href="{{ .IndexURL }}">{{ .Trans("notes.index") }}</a>
 	</nav>
 
 	<div class="mt-2 flex items-center justify-between gap-4">
@@ -53,42 +53,42 @@ var _ view.Layout = NotesShowData{}
 			@if(d.PublishURL != "")
 				<form method="post" action="{{ .PublishURL }}">
 					@csrf
-					<button class="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300" type="submit">Publish</button>
+					<button class="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300" type="submit">{{ .Trans("notes.publish") }}</button>
 				</form>
 			@endif
-			<a class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900" href="{{ .EditURL }}">Edit</a>
-			<button class="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950" type="button" hx-delete="{{ .DeleteURL }}" hx-confirm="Delete this note?">Delete</button>
+			<a class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900" href="{{ .EditURL }}">{{ .Trans("notes.edit") }}</a>
+			<button class="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950" type="button" hx-delete="{{ .DeleteURL }}" hx-confirm="{{ .Trans("notes.delete.confirm") }}">{{ .Trans("notes.delete") }}</button>
 		</div>
 	</div>
 
 	<dl class="mt-8 divide-y divide-slate-100 border-t border-slate-200 text-sm dark:divide-slate-900 dark:border-slate-800">
 				<div class="grid grid-cols-3 gap-4 py-3">
-			<dt class="text-slate-500 dark:text-slate-400">Title</dt>
+			<dt class="text-slate-500 dark:text-slate-400">{{ .Trans("notes.title") }}</dt>
 			<dd class="col-span-2">{{ d.Note.Title }}</dd>
 		</div>
 		<div class="grid grid-cols-3 gap-4 py-3">
-			<dt class="text-slate-500 dark:text-slate-400">Body</dt>
+			<dt class="text-slate-500 dark:text-slate-400">{{ .Trans("notes.body") }}</dt>
 			<dd class="col-span-2">{{ d.Note.Body }}</dd>
 		</div>
 		<div class="grid grid-cols-3 gap-4 py-3">
-			<dt class="text-slate-500 dark:text-slate-400">Pinned</dt>
+			<dt class="text-slate-500 dark:text-slate-400">{{ .Trans("notes.pinned") }}</dt>
 			<dd class="col-span-2">{{ d.Note.Pinned }}</dd>
 		</div>
 		<div class="grid grid-cols-3 gap-4 py-3">
-			<dt class="text-slate-500 dark:text-slate-400">Created</dt>
+			<dt class="text-slate-500 dark:text-slate-400">{{ .Trans("notes.created") }}</dt>
 			<dd class="col-span-2">{{ .Note.Created }}</dd>
 		</div>
 		<div class="grid grid-cols-3 gap-4 py-3">
-			<dt class="text-slate-500 dark:text-slate-400">Published</dt>
+			<dt class="text-slate-500 dark:text-slate-400">{{ .Trans("notes.published") }}</dt>
 			@if(d.Note.Published != "")
 				<dd class="col-span-2">{{ d.Note.Published }}</dd>
 			@else
-				<dd class="col-span-2">Draft</dd>
+				<dd class="col-span-2">{{ .Trans("notes.draft") }}</dd>
 			@endif
 		</div>
 	</dl>
 
 	<p class="mt-8 text-sm">
-		<a class="underline underline-offset-2" href="{{ .CommentsURL }}">Comments</a>
+		<a class="underline underline-offset-2" href="{{ .CommentsURL }}">{{ .Trans("notes.comments") }}</a>
 	</p>
 @endsection

@@ -131,6 +131,7 @@ func TestTheApplicationTreeHasOneOwnerPerResponsibility(t *testing.T) {
 		"database/factories",
 		"database/migrations",
 		"database/seeders",
+		"lang",
 		"public",
 		"resources/css",
 		// The customisation layer, and it is required rather than optional for
@@ -173,6 +174,8 @@ func TestTheApplicationTreeHasOneOwnerPerResponsibility(t *testing.T) {
 		"bootstrap/app.go",
 		"config/app.go",
 		"database/migrations/migrations.go",
+		"lang/en.json",
+		"lang/lang.go",
 		"public/public.go",
 		// The two files a project customises, and the one that carries the
 		// second of them into the binary.

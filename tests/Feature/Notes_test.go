@@ -28,6 +28,7 @@ import (
 	appconfig "github.com/arandu-io/arandu/config"
 	factories "github.com/arandu-io/arandu/database/factories"
 	seeders "github.com/arandu-io/arandu/database/seeders"
+	"github.com/arandu-io/arandu/lang"
 	"github.com/arandu-io/arandu/tests"
 )
 
@@ -798,4 +799,33 @@ func TestAWriteThatWorkedSaysSoOnThePageItLandsOn(t *testing.T) {
 	lands("update", browser.Put(address, map[string]string{"title": "Groceries for Sunday"}), "Note saved.")
 
 	lands("destroy", fromPage(t, browser, address).Delete(address, nil), "Note deleted.")
+}
+
+// TestTheNotePagesSayTheirLinesThroughTheCatalogue: the pages say their words
+// with .Trans and a key of lang/en.json, and the provider hands the
+// application the translator built from it. A page drawn without one shows
+// the key itself, so no key of the catalogue may appear on any note page.
+func TestTheNotePagesSayTheirLinesThroughTheCatalogue(t *testing.T) {
+	raw, err := lang.Files.ReadFile("en.json")
+	if err != nil {
+		t.Fatalf("reading lang/en.json: %v", err)
+	}
+	var catalogue map[string]string
+	if err := json.Unmarshal(raw, &catalogue); err != nil {
+		t.Fatalf("lang/en.json is not a JSON object of lines: %v", err)
+	}
+	if len(catalogue) == 0 {
+		t.Fatal("lang/en.json holds no line")
+	}
+
+	f := newNotesFixture(t)
+	address := f.write(t, f.ana, "Groceries")
+	for _, page := range []string{"/notes", "/notes/create", address, address + "/edit"} {
+		body := f.ana.Get(page).AssertOk().GetContent()
+		for key := range catalogue {
+			if strings.Contains(body, key) {
+				t.Errorf("%s shows the key %q instead of its line: the request carries no translator", page, key)
+			}
+		}
+	}
 }
