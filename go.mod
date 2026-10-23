@@ -7,20 +7,18 @@ retract v0.10.0 // Requires retracted Kyse v0.15.1 and lacks method override in 
 require github.com/arandu-io/framework v0.63.0
 
 require (
-	github.com/arandu-io/hesape v0.83.0
+	github.com/arandu-io/hesape v0.84.0
+	github.com/arandu-io/hesape/database/connectors/pgx v0.11.0
 	github.com/arandu-io/hesape/database/connectors/sqlite v0.11.0
 )
 
 require (
-	github.com/arandu-io/hesape/database/connectors/pgx v0.11.0 // indirect
 	github.com/arandu-io/hesape/filesystem/s3 v0.11.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.11.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
-	golang.org/x/tools v0.49.0 // indirect
 )
 
 require (
@@ -56,3 +54,8 @@ require (
 // So a driver nobody uses is not in the build, in go.sum or in the
 // vulnerability surface, which is what ADR 0014 bought; and a setting that
 // names one the binary does not link stops the boot naming both lines.
+//
+// The pgx connector is required for the test suites alone: tests/Feature,
+// tests/Conformance and tests/E2E import it with a blank import so they run on
+// the Postgres ARANDU_TEST_DATABASE_URL names. No package of the application
+// imports it, so the binary links SQLite and nothing else.
