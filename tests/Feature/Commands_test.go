@@ -317,7 +317,7 @@ func openForTest(t *testing.T) (appconfig.Config, *database.DB, func()) {
 	if err != nil {
 		t.Fatalf("config: %v", err)
 	}
-	db, closeDB, err := tests.Open(cfg)
+	db, closeDB, err := tests.OpenDatabase(cfg)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

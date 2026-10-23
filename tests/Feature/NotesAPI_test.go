@@ -64,7 +64,7 @@ func problemStatus(t *testing.T, answer *httptest.ResponseRecorder) int {
 func TestATokenClientWritesWithNoSessionAndThePolicyStillDecides(t *testing.T) {
 	f := newNotesFixture(t)
 	ctx := context.Background()
-	token, _, err := f.app.Tokens.Issue(ctx, auth.Subject{ID: f.anaID, Tenant: appconfig.Tenant()}, "notes client", 0)
+	token, _, err := f.app.Tokens.Issue(ctx, f.subject(t, f.anaID), "notes client", 0)
 	if err != nil {
 		t.Fatalf("issuing a token: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestATokenClientWritesWithNoSessionAndThePolicyStillDecides(t *testing.T) {
 func TestATokenRouteRefusesWhatCarriesNoKnownToken(t *testing.T) {
 	f := newNotesFixture(t)
 	ctx := context.Background()
-	ana := auth.Subject{ID: f.anaID, Tenant: appconfig.Tenant()}
+	ana := f.subject(t, f.anaID)
 	revoked, row, err := f.app.Tokens.Issue(ctx, ana, "revoked", 0)
 	if err != nil {
 		t.Fatalf("issuing a token: %v", err)
@@ -158,7 +158,7 @@ func TestATokenRouteRefusesWhatCarriesNoKnownToken(t *testing.T) {
 func TestARetriedTokenWriteIsAnsweredOnce(t *testing.T) {
 	f := newNotesFixture(t)
 	ctx := context.Background()
-	token, _, err := f.app.Tokens.Issue(ctx, auth.Subject{ID: f.anaID, Tenant: appconfig.Tenant()}, "retrying client", 0)
+	token, _, err := f.app.Tokens.Issue(ctx, f.subject(t, f.anaID), "retrying client", 0)
 	if err != nil {
 		t.Fatalf("issuing a token: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestARetriedTokenWriteIsAnsweredOnce(t *testing.T) {
 func TestTheCSRFCheckStillGuardsWhatABrowserAttachesByItself(t *testing.T) {
 	f := newNotesFixture(t)
 	ctx := context.Background()
-	ana := auth.Subject{ID: f.anaID, Tenant: appconfig.Tenant()}
+	ana := f.subject(t, f.anaID)
 	token, _, err := f.app.Tokens.Issue(ctx, ana, "cross-site", 0)
 	if err != nil {
 		t.Fatalf("issuing a token: %v", err)

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arandu-io/hesape/arandutest"
+	"github.com/arandu-io/framework/test"
 	"github.com/arandu-io/hesape/auth"
 
 	models "github.com/arandu-io/arandu/app/Models"
@@ -20,7 +20,7 @@ import (
 
 // comment writes a comment under the note at noteAddress through the browser,
 // as a person would, and answers the comment's own address.
-func (f notesFixture) comment(t *testing.T, client *arandutest.Client, noteAddress, body string) string {
+func (f notesFixture) comment(t *testing.T, client *test.Client, noteAddress, body string) string {
 	t.Helper()
 	client.Get(noteAddress + "/comments/create").AssertOk()
 	created := client.Post(noteAddress+"/comments", map[string]string{"body": body}).
@@ -174,8 +174,7 @@ func TestEveryCommentPageDrawsTheAppName(t *testing.T) {
 }
 
 func TestCommentsNeedSomebodySignedIn(t *testing.T) {
-	app := tests.Booted(t)
-	guest := arandutest.NewClient(t, app.Kernel.Handler())
+	guest := tests.Serve(t).Client()
 	guest.Get("/notes/any/comments").AssertRedirect("/auth/login")
 	guest.Get("/comments/any").AssertRedirect("/auth/login")
 }

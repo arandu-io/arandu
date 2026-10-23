@@ -327,10 +327,10 @@ func TestEachSuiteHoldsWhatItsNameSays(t *testing.T) {
 	// A test that does the second and not the first was reading as booting
 	// nothing.
 	//
-	// tests.Booted is the application built and booted, which is what Feature
-	// means; a file whose fixture calls it boots as surely as one that calls
-	// tests.App.
-	boots := regexp.MustCompile(`tests\.App\(|tests\.Booted\(|tests\.Binary\(|tests\.Kernel\(|tests\.Dispatch\(|tests\.Run\(|tests\.Open\(|tests\.Build\(|httptest\.NewRequest\(|httptest\.NewServer\(|migratedDB\(`)
+	// tests.Serve is the application built, booted and served over a database
+	// of the test's own, which is what Feature means; a file whose fixture calls
+	// it boots as surely as one that serves a request itself.
+	boots := regexp.MustCompile(`tests\.Serve\(|test\.Serve\(|tests\.Binary\(|tests\.Kernel\(|tests\.Dispatch\(|tests\.Run\(|tests\.OpenDatabase\(|tests\.Build\(|httptest\.NewRequest\(|httptest\.NewServer\(|migratedDB\(`)
 
 	for _, suite := range []string{"Feature", "Unit"} {
 		dir := filepath.Join(tests.Root(t), "tests", suite)
@@ -347,6 +347,11 @@ func TestEachSuiteHoldsWhatItsNameSays(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// A file that declares no test -- the connector a suite links, a
+			// helper its tests share -- runs nothing, so it boots nothing either.
+			if !declaresATest.Match(body) {
+				continue
+			}
 
 			switch found := boots.Match(body); {
 			case suite == "Unit" && found:
@@ -359,3 +364,6 @@ func TestEachSuiteHoldsWhatItsNameSays(t *testing.T) {
 		}
 	}
 }
+
+// declaresATest matches a file that declares a test function.
+var declaresATest = regexp.MustCompile(`(?m)^func Test[A-Z_]\w*\(t \*testing\.T\)`)

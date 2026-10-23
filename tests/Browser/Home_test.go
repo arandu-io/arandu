@@ -16,7 +16,6 @@ package browser_test
 
 import (
 	"context"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -83,9 +82,7 @@ func headless(t *testing.T, binary, url string, flags ...string) string {
 func TestTheHomePageRendersInABrowser(t *testing.T) {
 	binary := chrome(t)
 
-	app := tests.Booted(t)
-	server := httptest.NewServer(app.Kernel.Handler())
-	t.Cleanup(server.Close)
+	server := tests.Serve(t)
 
 	dom := headless(t, binary, server.URL+"/", "--dump-dom")
 	if !strings.Contains(dom, tests.AppName) {

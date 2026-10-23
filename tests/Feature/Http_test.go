@@ -11,8 +11,6 @@ import (
 
 	"github.com/arandu-io/arandu/tests"
 
-	"github.com/arandu-io/framework/arandutest"
-	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/cache"
 	"github.com/arandu-io/hesape/config"
 	hhttp "github.com/arandu-io/hesape/http"
@@ -82,11 +80,11 @@ func assertDrawsTheAppName(t *testing.T, page, body string) {
 // drawn by different branches of the layout, and the name reaches the page from
 // the request, not from the controller.
 func TestEveryLandingPageVisitDrawsTheAppName(t *testing.T) {
-	app := tests.Booted(t)
-	user := tests.Register(t, app, "Ana Lima", "ana@example.test", "a-long-enough-password")
-	guest := arandutest.NewClient(t, app.Kernel.Handler()).Get("/").OK()
-	assertDrawsTheAppName(t, "the landing page, for a guest", guest.Body())
-	signedIn := tests.SignedIn(t, app, user.Subject()).Get("/").AssertOk()
+	server := tests.Serve(t)
+	user := tests.Register(t, server.App, "Ana Lima", "ana@example.test", "a-long-enough-password")
+	guest := server.Client().Get("/").AssertOk()
+	assertDrawsTheAppName(t, "the landing page, for a guest", guest.GetContent())
+	signedIn := tests.SignIn(t, server, user).Get("/").AssertOk()
 	assertDrawsTheAppName(t, "the landing page, signed in", signedIn.GetContent())
 }
 
@@ -94,10 +92,10 @@ func TestEveryLandingPageVisitDrawsTheAppName(t *testing.T) {
 // carries the subject of a live session, so the controller greets by name
 // without loading the session itself.
 func TestTheLandingPageGreetsWhoIsSignedIn(t *testing.T) {
-	app := tests.Booted(t)
-	user := tests.Register(t, app, "Ana Lima", "ana@example.test", "a-long-enough-password")
-	tests.SignedIn(t, app, user.Subject()).Get("/").AssertOk().AssertSee("Ana Lima")
-	arandutest.NewClient(t, app.Kernel.Handler()).Get("/").OK().DontSee("Ana Lima")
+	server := tests.Serve(t)
+	user := tests.Register(t, server.App, "Ana Lima", "ana@example.test", "a-long-enough-password")
+	tests.SignIn(t, server, user).Get("/").AssertOk().AssertSee("Ana Lima")
+	server.Client().Get("/").AssertOk().AssertDontSee("Ana Lima")
 }
 
 // TestTheLandingPageOffersOnlyAddressesThatAnswer: every link and every form
@@ -114,18 +112,17 @@ func TestTheLandingPageGreetsWhoIsSignedIn(t *testing.T) {
 // It asserts on addresses and statuses only. The words on the controls belong
 // to whichever layout the project has.
 func TestTheLandingPageOffersOnlyAddressesThatAnswer(t *testing.T) {
-	app := tests.Booted(t)
-	user := tests.Register(t, app, "Ana Lima", "ana@example.test", "a-long-enough-password")
-	signedIn := user.Subject()
+	server := tests.Serve(t)
+	user := tests.Register(t, server.App, "Ana Lima", "ana@example.test", "a-long-enough-password")
 
 	for _, c := range []struct {
 		who     string
-		subject *auth.Subject
+		session []*http.Cookie
 	}{
 		{"a guest", nil},
-		{"somebody signed in", &signedIn},
+		{"somebody signed in", tests.SignIn(t, server, user).Cookies()},
 	} {
-		b := newBrowser(t, app, c.subject)
+		b := newBrowser(t, server.App.Kernel.Handler(), c.session)
 		page := b.do(http.MethodGet, "/", nil)
 		if page.Code != http.StatusOK {
 			t.Fatalf("%s: GET / = %d, want 200", c.who, page.Code)
@@ -178,29 +175,13 @@ type browser struct {
 	cookies map[string]string
 }
 
-// newBrowser returns a browser for app, holding a session for subject when one
-// is given. The session is started the way tests.SignedIn starts one: through
-// the store the route guards read, on an address only this handler has.
-func newBrowser(t *testing.T, app tests.Application, subject *auth.Subject) *browser {
+// newBrowser returns a browser for handler holding the cookies given: none
+// for a guest, and the session tests.SignIn started for somebody signed in.
+func newBrowser(t *testing.T, handler http.Handler, session []*http.Cookie) *browser {
 	t.Helper()
-	const signInHere = "/_tests/sign-in"
-	inner := app.Kernel.Handler()
-	b := &browser{t: t, cookies: map[string]string{}}
-	b.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != signInHere || subject == nil {
-			inner.ServeHTTP(w, r)
-			return
-		}
-		if _, err := app.Sessions.Start(r.Context(), w, *subject); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-	if subject != nil {
-		if code := b.do(http.MethodGet, signInHere, nil).Code; code != http.StatusNoContent {
-			t.Fatalf("starting the session answered %d", code)
-		}
+	b := &browser{t: t, handler: handler, cookies: map[string]string{}}
+	for _, c := range session {
+		b.cookies[c.Name] = c.Value
 	}
 	return b
 }

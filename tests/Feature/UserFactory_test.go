@@ -19,7 +19,7 @@ import (
 // every account is in the Grant's tenant, distinct, an ordinary member, and
 // refuses every password.
 func TestTheUserFactoryMakesMembersNobodyCanSignInAs(t *testing.T) {
-	app := tests.Booted(t)
+	app := tests.Serve(t).App
 	db := app.DB
 	ctx := context.Background()
 	tenant := appconfig.Tenant()

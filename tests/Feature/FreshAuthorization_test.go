@@ -3,9 +3,9 @@ package feature_test
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
-	hesapetest "github.com/arandu-io/hesape/arandutest"
 	"github.com/arandu-io/hesape/auth"
 	accounts "github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/http/middleware"
@@ -20,37 +20,23 @@ import (
 // may do now. These tests change the stored account behind a browser that is
 // already signed in and read the answer on the very next request.
 
-// adminArea is an address guarded by RequireRole for the admin role -- the
-// guard the /admin group in the comment of routes/web.go is mounted with. It
-// exists only in front of the client signedInWithAdminArea builds.
-const adminArea = "/_tests/admin"
-
-// signedInWithAdminArea is tests.SignedIn with adminArea in front of the
-// application: a browser holding a real session for subject, started by the
-// store the route guards read.
-func signedInWithAdminArea(t *testing.T, app tests.Application, subject auth.Subject) *hesapetest.Client {
+// adminArea answers what an address guarded by RequireRole for the admin role
+// -- the guard the /admin group in the comment of routes/web.go is mounted
+// with -- answers a request carrying the session cookies: 204 when the guard
+// lets it through. The application mounts no such group, so the guard is
+// built here over the store the application's guards read.
+func adminArea(t *testing.T, server *tests.Server, session []*http.Cookie) int {
 	t.Helper()
-	const signInHere = "/_tests/sign-in"
-	handler := app.Kernel.Handler()
-	admin := middleware.RequireRole(app.Sessions, models.RoleAdmin)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	guarded := middleware.RequireRole(server.App.Sessions, models.RoleAdmin)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
-	client := hesapetest.NewClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case signInHere:
-			if _, err := app.Sessions.Start(r.Context(), w, subject); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			w.WriteHeader(http.StatusNoContent)
-		case adminArea:
-			admin.ServeHTTP(w, r)
-		default:
-			handler.ServeHTTP(w, r)
-		}
-	}))
-	client.Get(signInHere).AssertStatus(http.StatusNoContent)
-	return client
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin", nil)
+	for _, c := range session {
+		req.AddCookie(c)
+	}
+	rec := httptest.NewRecorder()
+	guarded.ServeHTTP(rec, req)
+	return rec.Code
 }
 
 // setRoles writes the roles column of one account directly, the way an
@@ -68,22 +54,28 @@ func setRoles(t *testing.T, app tests.Application, userID, roles string) {
 // opened with the role no longer carries it. Giving the role back opens the
 // area on the next request too, so the roles are read and not merely dropped.
 func TestDemotingARoleRemovesAccessOnTheNextRequest(t *testing.T) {
-	app := tests.Booted(t)
-	admin, err := factories.Users(app.DB).State(func(u *models.User) {
+	server := tests.Serve(t)
+	admin, err := factories.Users(server.App.DB).State(func(u *models.User) {
 		u.Roles = models.Roles{models.RoleAdmin}
 	}).CreateOne(context.Background(), auth.SystemGrant(accounts.ActionUserCreate, appconfig.Tenant()))
 	if err != nil {
 		t.Fatalf("creating the administrator: %v", err)
 	}
 
-	browser := signedInWithAdminArea(t, app, admin.Subject())
-	browser.Get(adminArea).AssertNoContent()
+	session := tests.SignIn(t, server, admin).Cookies()
+	if code := adminArea(t, server, session); code != http.StatusNoContent {
+		t.Fatalf("the administrator was answered %d by the admin area, want 204", code)
+	}
 
-	setRoles(t, app, admin.ID, `["member"]`)
-	browser.Get(adminArea).AssertForbidden()
+	setRoles(t, server.App, admin.ID, `["member"]`)
+	if code := adminArea(t, server, session); code != http.StatusForbidden {
+		t.Fatalf("the demoted account was answered %d by the admin area, want 403", code)
+	}
 
-	setRoles(t, app, admin.ID, `["admin"]`)
-	browser.Get(adminArea).AssertNoContent()
+	setRoles(t, server.App, admin.ID, `["admin"]`)
+	if code := adminArea(t, server, session); code != http.StatusNoContent {
+		t.Fatalf("the account given the role back was answered %d by the admin area, want 204", code)
+	}
 }
 
 // TestRemovingTheAccountEndsTheSession removes the account behind a signed-in
@@ -104,12 +96,12 @@ func TestRemovingTheAccountEndsTheSession(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			app := tests.Booted(t)
-			user := tests.Register(t, app, "Ana Lima", "ana@example.test", password)
-			browser := tests.SignedIn(t, app, user.Subject())
+			server := tests.Serve(t)
+			user := tests.Register(t, server.App, "Ana Lima", "ana@example.test", password)
+			browser := tests.SignIn(t, server, user)
 			browser.Get("/notes").AssertOk()
 
-			remove(t, app, user)
+			remove(t, server.App, user)
 
 			browser.Get("/notes").AssertRedirect(middleware.SignInPath)
 		})
@@ -122,9 +114,10 @@ func TestRemovingTheAccountEndsTheSession(t *testing.T) {
 // can be read again the same session works, because a failed read is not the
 // account going away.
 func TestAnAccountThatCannotBeReadAnswers503(t *testing.T) {
-	app := tests.Booted(t)
+	server := tests.Serve(t)
+	app := server.App
 	user := tests.Register(t, app, "Ana Lima", "ana@example.test", "a-long-enough-password")
-	browser := tests.SignedIn(t, app, user.Subject())
+	browser := tests.SignIn(t, server, user)
 	browser.Get("/notes").AssertOk()
 
 	ctx := context.Background()

@@ -8,9 +8,8 @@ import (
 
 	appconfig "github.com/arandu-io/arandu/config"
 
-	"github.com/arandu-io/framework/arandutest"
 	"github.com/arandu-io/framework/events"
-	harandutest "github.com/arandu-io/hesape/arandutest"
+	"github.com/arandu-io/framework/test"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database"
 	hevents "github.com/arandu-io/hesape/events"
@@ -47,8 +46,8 @@ func TestTheRelayPublishesWhatWasStored(t *testing.T) {
 
 	storedEvents(t, db, "invoice.paid", "invoice.closed")
 
-	var got harandutest.Collected
-	arandutest.DrainOutbox(t, ctx, outbox, &got)
+	var got test.Collected
+	test.DrainOutbox(t, ctx, outbox, &got)
 
 	if len(got.Events) != 2 {
 		t.Fatalf("published %d events, want 2: %v", len(got.Events), got.Names())
@@ -65,8 +64,8 @@ func TestTheRelayPublishesWhatWasStored(t *testing.T) {
 
 	// Published once. A second drain must not deliver them again -- at-least-once
 	// is the guarantee, not the goal.
-	var again harandutest.Collected
-	arandutest.DrainOutbox(t, ctx, outbox, &again)
+	var again test.Collected
+	test.DrainOutbox(t, ctx, outbox, &again)
 	if len(again.Events) != 0 {
 		t.Errorf("a second pass republished %d events", len(again.Events))
 	}
@@ -143,8 +142,8 @@ func TestAnEventThatKeepsFailingIsParked(t *testing.T) {
 
 	// A parked event must not block what came after it.
 	storedEvents(t, db, "invoice.closed")
-	var got harandutest.Collected
-	arandutest.DrainOutbox(t, ctx, outbox, &got)
+	var got test.Collected
+	test.DrainOutbox(t, ctx, outbox, &got)
 	if len(got.Events) != 1 || got.Events[0].Name != "invoice.closed" {
 		t.Errorf("the parked event blocked the queue: %v", got.Names())
 	}
@@ -177,8 +176,8 @@ func TestRetryPutsAParkedEventBackInLine(t *testing.T) {
 		t.Fatalf("Retry: %v", err)
 	}
 
-	var got harandutest.Collected
-	arandutest.DrainOutbox(t, ctx, outbox, &got)
+	var got test.Collected
+	test.DrainOutbox(t, ctx, outbox, &got)
 	if len(got.Events) != 1 {
 		t.Fatalf("the retried event was not published: %v", got.Names())
 	}
@@ -210,8 +209,8 @@ func TestTheLagTellsAStoppedRelayFromAnIdleOne(t *testing.T) {
 		t.Fatalf("lag = %s, want a small positive duration", lag)
 	}
 
-	var got harandutest.Collected
-	arandutest.DrainOutbox(t, ctx, outbox, &got)
+	var got test.Collected
+	test.DrainOutbox(t, ctx, outbox, &got)
 
 	// Published, so the backlog is gone and the lag with it.
 	if lag, err := outbox.Lag(ctx); err != nil || lag != 0 {

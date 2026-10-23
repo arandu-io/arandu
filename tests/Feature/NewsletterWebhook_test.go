@@ -59,7 +59,7 @@ func receivedEvents(t *testing.T, app tests.Application) []events.Stored {
 // listeners and answered 202.
 func TestASignedDeliveryIsStoredWithNoCSRFToken(t *testing.T) {
 	t.Setenv("NEWSLETTER_WEBHOOK_SECRET", newsletterSecret)
-	app := tests.Booted(t)
+	app := tests.Serve(t).App
 	body := `{"event":"digest.delivered","digest":"notes-digest-1"}`
 
 	answer := apiCall(t, app, http.MethodPost, "/webhooks/newsletter", body,
@@ -87,7 +87,7 @@ func TestASignedDeliveryIsStoredWithNoCSRFToken(t *testing.T) {
 // checked before the body is bound.
 func TestADeliveryThatIsNotTheProvidersIsRefusedBeforeAnythingIsStored(t *testing.T) {
 	t.Setenv("NEWSLETTER_WEBHOOK_SECRET", newsletterSecret)
-	app := tests.Booted(t)
+	app := tests.Serve(t).App
 	body := `{"event":"digest.bounced","digest":"notes-digest-1"}`
 
 	for name, c := range map[string]struct {
@@ -114,7 +114,7 @@ func TestADeliveryThatIsNotTheProvidersIsRefusedBeforeAnythingIsStored(t *testin
 // signed one included, since there is nothing to sign it with.
 func TestTheWebhookDoesNotExistWithoutASecret(t *testing.T) {
 	t.Setenv("NEWSLETTER_WEBHOOK_SECRET", "")
-	app := tests.Booted(t)
+	app := tests.Serve(t).App
 	body := `{"event":"digest.delivered","digest":"notes-digest-1"}`
 
 	answer := apiCall(t, app, http.MethodPost, "/webhooks/newsletter", body,
@@ -134,7 +134,7 @@ func TestTheWebhookDoesNotExistWithoutASecret(t *testing.T) {
 // nothing.
 func TestADeliveryIsStoredOnceUnderItsID(t *testing.T) {
 	t.Setenv("NEWSLETTER_WEBHOOK_SECRET", newsletterSecret)
-	app := tests.Booted(t)
+	app := tests.Serve(t).App
 	body := `{"event":"digest.bounced","digest":"notes-digest-1"}`
 	sent := signedDelivery(newsletterSecret, "delivery-once", body, time.Now())
 
@@ -166,7 +166,7 @@ func TestADeliveryIsStoredOnceUnderItsID(t *testing.T) {
 // scoped by tenant like every other table, so an id one tenant received does
 // not refuse the same id for another, and each tenant reads only its own.
 func TestADeliveryIDIsUniquePerTenant(t *testing.T) {
-	app := tests.Booted(t)
+	app := tests.Serve(t).App
 	ctx := context.Background()
 	in := requests.NewsletterEventRequest{Event: "digest.delivered", Digest: "notes-digest-1"}
 	const other = "22222222-2222-4222-8222-222222222222"

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arandu-io/hesape/arandutest"
+	"github.com/arandu-io/framework/test"
 	"github.com/arandu-io/hesape/auth"
 	accounts "github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/events"
@@ -35,34 +35,50 @@ import (
 // notesFixture is the application with two members of one tenant, each with a
 // browser signed in as them.
 type notesFixture struct {
+	server   *tests.Server
 	app      tests.Application
-	ana, bea *arandutest.Client
+	ana, bea *test.Client
 	anaID    string
 	beaID    string
+	// members are the two accounts by id, as the factory stored them.
+	members map[string]*models.User
 }
 
 func newNotesFixture(t *testing.T) notesFixture {
 	t.Helper()
-	app := tests.Booted(t)
+	server := tests.Serve(t)
 	tenant := appconfig.Tenant()
-	members, err := factories.Users(app.DB).Count(2).
+	members, err := factories.Users(server.App.DB).Count(2).
 		Create(context.Background(), auth.SystemGrant(accounts.ActionUserCreate, tenant))
 	if err != nil {
 		t.Fatalf("creating the members: %v", err)
 	}
-	ana, bea := members[0].ID, members[1].ID
+	ana, bea := members[0], members[1]
 	return notesFixture{
-		app:   app,
-		ana:   tests.SignedIn(t, app, auth.Subject{ID: ana, Tenant: tenant}),
-		bea:   tests.SignedIn(t, app, auth.Subject{ID: bea, Tenant: tenant}),
-		anaID: ana,
-		beaID: bea,
+		server:  server,
+		app:     server.App,
+		ana:     tests.SignIn(t, server, ana),
+		bea:     tests.SignIn(t, server, bea),
+		anaID:   ana.ID,
+		beaID:   bea.ID,
+		members: map[string]*models.User{ana.ID: ana, bea.ID: bea},
 	}
+}
+
+// subject is the session subject of one of the two members, read from the
+// account the factory stored: what the resolver answers for them.
+func (f notesFixture) subject(t *testing.T, id string) auth.Subject {
+	t.Helper()
+	member, ok := f.members[id]
+	if !ok {
+		t.Fatalf("%s is not one of the fixture's members", id)
+	}
+	return member.Subject()
 }
 
 // write creates a note through the browser, as a person would, and answers
 // its address.
-func (f notesFixture) write(t *testing.T, client *arandutest.Client, title string) string {
+func (f notesFixture) write(t *testing.T, client *test.Client, title string) string {
 	t.Helper()
 	client.Get("/notes/create").AssertOk()
 	created := client.Post("/notes", map[string]string{"title": title, "body": "Written in a test.", "pinned": "1"}).
@@ -337,8 +353,7 @@ func TestEveryNotePageDrawsTheAppName(t *testing.T) {
 }
 
 func TestNotesNeedSomebodySignedIn(t *testing.T) {
-	app := tests.Booted(t)
-	guest := arandutest.NewClient(t, app.Kernel.Handler())
+	guest := tests.Serve(t).Client()
 	guest.Get("/notes").AssertRedirect("/auth/login")
 	guest.Get("/notes/create").AssertRedirect("/auth/login")
 }
@@ -493,14 +508,14 @@ func TestPublishingIsNeverAGet(t *testing.T) {
 
 // asJSON sends one request as a client that asked for JSON, and puts the
 // client back the way it was.
-func asJSON(client *arandutest.Client, send func(*arandutest.Client) *arandutest.Response) *arandutest.Response {
+func asJSON(client *test.Client, send func(*test.Client) *test.Response) *test.Response {
 	answer := send(client.WithHeader("Accept", "application/json"))
 	client.WithHeader("Accept", "")
 	return answer
 }
 
 // decodeJSON reads an answer that must be JSON of the given media type.
-func decodeJSON(t *testing.T, answer *arandutest.Response, mediaType string, into any) {
+func decodeJSON(t *testing.T, answer *test.Response, mediaType string, into any) {
 	t.Helper()
 	if got := answer.Header("Content-Type"); !strings.HasPrefix(got, mediaType) {
 		t.Fatalf("Content-Type = %q, want %s", got, mediaType)
@@ -519,7 +534,7 @@ func TestAJSONClientIsAnsweredThroughTheNoteResource(t *testing.T) {
 	address := f.write(t, f.ana, "Groceries")
 	id := strings.TrimPrefix(address, "/notes/")
 
-	shown := asJSON(f.ana, func(c *arandutest.Client) *arandutest.Response { return c.Get(address) }).AssertOk()
+	shown := asJSON(f.ana, func(c *test.Client) *test.Response { return c.Get(address) }).AssertOk()
 	if vary := shown.Header("Vary"); !strings.Contains(vary, "Accept") {
 		t.Errorf("Vary = %q: the record answers HTML or JSON by Accept", vary)
 	}
@@ -534,7 +549,7 @@ func TestAJSONClientIsAnsweredThroughTheNoteResource(t *testing.T) {
 		t.Error("the tenant left in the answer, and the resource does not list it")
 	}
 
-	listed := asJSON(f.ana, func(c *arandutest.Client) *arandutest.Response { return c.Get("/notes") }).AssertOk()
+	listed := asJSON(f.ana, func(c *test.Client) *test.Response { return c.Get("/notes") }).AssertOk()
 	var page struct {
 		Data struct {
 			Notes []map[string]any `json:"notes"`
@@ -546,7 +561,7 @@ func TestAJSONClientIsAnsweredThroughTheNoteResource(t *testing.T) {
 	}
 
 	browser := tests.FromPage(t, f.ana, address)
-	publishedNow := asJSON(browser, func(c *arandutest.Client) *arandutest.Response {
+	publishedNow := asJSON(browser, func(c *test.Client) *test.Response {
 		return c.Post(address+"/publish", nil)
 	}).AssertOk()
 	decodeJSON(t, publishedNow, "application/json", &one)
@@ -575,15 +590,15 @@ func TestAJSONClientIsRefusedWithProblemDocuments(t *testing.T) {
 	for _, refused := range []struct {
 		kind   string
 		status int
-		send   func(*arandutest.Client) *arandutest.Response
+		send   func(*test.Client) *test.Response
 	}{
-		{"another tenant's note", http.StatusNotFound, func(c *arandutest.Client) *arandutest.Response {
+		{"another tenant's note", http.StatusNotFound, func(c *test.Client) *test.Response {
 			return c.Get("/notes/" + theirs.ID)
 		}},
-		{"another member's note published", http.StatusForbidden, func(c *arandutest.Client) *arandutest.Response {
+		{"another member's note published", http.StatusForbidden, func(c *test.Client) *test.Response {
 			return c.Post(beas+"/publish", nil)
 		}},
-		{"a note published twice", http.StatusConflict, func(c *arandutest.Client) *arandutest.Response {
+		{"a note published twice", http.StatusConflict, func(c *test.Client) *test.Response {
 			return c.Post(anas+"/publish", nil)
 		}},
 	} {
@@ -621,7 +636,7 @@ func TestTheAuthorOfAPublishedNoteIsToldThroughTheOutbox(t *testing.T) {
 	store := hnotifications.NewTableStore(f.app.DB)
 	bell := func(who string) []hnotifications.Record {
 		t.Helper()
-		g, err := auth.Authorize(ctx, hnotifications.Policy{}, auth.Subject{ID: who, Tenant: appconfig.Tenant()},
+		g, err := auth.Authorize(ctx, hnotifications.Policy{}, f.subject(t, who),
 			hnotifications.ActionList, hnotifications.Record{})
 		if err != nil {
 			t.Fatalf("authorizing the bell menu of %s: %v", who, err)
@@ -721,7 +736,7 @@ func TestAGrantIssuedToViewANoteCannotSaveIt(t *testing.T) {
 	f := newNotesFixture(t)
 	address := f.write(t, f.ana, "Groceries")
 	ctx := context.Background()
-	ana := auth.Subject{ID: f.anaID, Tenant: appconfig.Tenant()}
+	ana := f.subject(t, f.anaID)
 	note := f.stored(t, address)
 
 	viewing, err := auth.Authorize(ctx, policies.NotePolicy{}, ana, policies.NoteView, *note)
@@ -776,7 +791,7 @@ func TestAWriteThatWorkedSaysSoOnThePageItLandsOn(t *testing.T) {
 	browser := f.ana.WithHeader("Accept", "text/html")
 	defer f.ana.WithHeader("Accept", "")
 
-	lands := func(step string, answer *arandutest.Response, sentence string) {
+	lands := func(step string, answer *test.Response, sentence string) {
 		t.Helper()
 		answer.AssertStatus(http.StatusSeeOther)
 		address := answer.Header("Location")

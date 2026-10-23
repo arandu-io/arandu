@@ -125,7 +125,7 @@ func TestThePoolSettingsReachTheDriver(t *testing.T) {
 		t.Errorf("the connection carries ConnMaxLifetime %s, want 1s: DB_CONN_MAX_LIFETIME was read and dropped", conn.ConnMaxLifetime)
 	}
 
-	db, closeDB, err := tests.Open(cfg)
+	db, closeDB, err := tests.OpenDatabase(cfg)
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestSQLiteTakesOneWriterWhateverThePoolAsksFor(t *testing.T) {
 		t.Fatalf("the connection carries MaxOpenConns %d, want 7", cfg.Database.Connection.MaxOpenConns)
 	}
 
-	db, closeDB, err := tests.Open(cfg)
+	db, closeDB, err := tests.OpenDatabase(cfg)
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)
 	}

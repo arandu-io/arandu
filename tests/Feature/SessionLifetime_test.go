@@ -1,14 +1,11 @@
 package feature_test
 
 import (
-	"context"
-	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/arandu-io/hesape/auth"
+	"github.com/arandu-io/framework/test"
 
-	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/tests"
 )
 
@@ -30,32 +27,10 @@ func TestTheSessionLifetimeReachesTheCookie(t *testing.T) {
 		{name: "unset, the framework's default", lifetime: "", want: 2 * time.Hour},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			sqliteEnv(t)
-			t.Setenv("SESSION_LIFETIME", c.lifetime)
+			server := tests.Serve(t, test.Setenv("SESSION_LIFETIME", c.lifetime))
+			user := tests.Register(t, server.App, "Ana Lima", "ana@example.test", "a-long-enough-password")
 
-			cfg, err := appconfig.Load()
-			if err != nil {
-				t.Fatalf("loading the configuration: %v", err)
-			}
-			db, closeDB, err := tests.Open(cfg)
-			if err != nil {
-				t.Fatalf("opening the database: %v", err)
-			}
-			t.Cleanup(closeDB)
-			app, err := tests.Build(cfg, db)
-			if err != nil {
-				t.Fatalf("wiring the application: %v", err)
-			}
-
-			response := httptest.NewRecorder()
-			subject := auth.Subject{
-				ID:     "11111111-1111-4111-8111-111111111111",
-				Tenant: "22222222-2222-4222-8222-222222222222",
-			}
-			if _, err := app.Sessions.Start(context.Background(), response, subject); err != nil {
-				t.Fatalf("starting a session: %v", err)
-			}
-			cookies := response.Result().Cookies()
+			cookies := tests.SignIn(t, server, user).Cookies()
 			if len(cookies) != 1 {
 				t.Fatalf("a started session wrote %d cookies, want exactly the session cookie", len(cookies))
 			}

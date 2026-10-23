@@ -15,22 +15,23 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/arandu-io/framework/arandutest"
-
 	"github.com/arandu-io/framework/foundation"
 	fwbootstrap "github.com/arandu-io/framework/foundation/bootstrap"
-	hesapetest "github.com/arandu-io/hesape/arandutest"
+	"github.com/arandu-io/framework/test"
+	"github.com/arandu-io/framework/test/browser"
+	"github.com/arandu-io/framework/test/browser/cdp"
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/cache"
@@ -203,9 +204,9 @@ func Build(cfg appconfig.Config, db *database.DB, extra ...foundation.Module) (A
 	}, nil
 }
 
-// Open connects to the database cfg names, the way the framework's drivers
-// do: one DSN, built in one place.
-func Open(cfg appconfig.Config) (*database.DB, func(), error) {
+// OpenDatabase connects to the database cfg names, the way the framework's
+// drivers do: one DSN, built in one place.
+func OpenDatabase(cfg appconfig.Config) (*database.DB, func(), error) {
 	return database.Open(cfg.Database.Connection)
 }
 
@@ -275,22 +276,6 @@ func File(t *testing.T, name string) string {
 	return string(body)
 }
 
-// App boots the whole application on a throwaway SQLite database, migrated, and
-// returns a browser for it.
-//
-// A fresh database and a request client in one call, which is the difference
-// between a feature test worth writing and one nobody writes: every alternative
-// starts with twelve lines of environment, connection and migration that have
-// nothing to do with what is being proved.
-//
-// SQLite in a temporary directory, so the tests need nothing installed and two
-// of them cannot see each other's rows. The file goes with t.TempDir.
-func App(t *testing.T) (*arandutest.Client, *database.DB) {
-	t.Helper()
-	app := Booted(t)
-	return arandutest.NewClient(t, app.Kernel.Handler()), app.DB
-}
-
 // Binary builds this application's binary the way the Dockerfile does, with
 // the version and the commit stamped into main, and answers its path. It is
 // the artisan a deploy runs: a test that runs a command through it proves what
@@ -307,64 +292,171 @@ func Binary(t *testing.T, version, commit string) string {
 	return out
 }
 
-// Booted is what App boots, returned whole: the services, the session store and
-// the database, for a test that has to reach one of them as well as browse.
-func Booted(t *testing.T) Application {
-	t.Helper()
+// Drivers are the browser drivers the journeys in tests/E2E run with, named
+// once here: ARANDU_E2E_DRIVER picks one and ARANDU_E2E_BROWSER the engine.
+// cdp is the native driver, Chrome over its debugging pipe with the standard
+// library alone. A project that installs github.com/hyz-is/arandu-playwright
+// adds its Launch here under a name of its own, and no journey changes.
+var Drivers = browser.Registry{"cdp": cdp.Launch}
 
+// Server is the application Serve booted, serving on a port of its own over a
+// database of the test's own, with what bootstrap/app.go composed it from.
+//
+// App is a named field rather than an embedded one: both carry a database,
+// and the test reaches the application's services through App and the
+// server's address, routes and database through the server.
+type Server struct {
+	*test.Server
+	// App is the composed application: its services, its drivers and the
+	// kernel serving the socket.
+	App Application
+}
+
+// Serve boots the application the way its binary boots, on a free port of
+// 127.0.0.1, over a database migrated for this test alone, and stops it when
+// the test ends.
+//
+// The database is made on the engine the test environment names:
+// ARANDU_TEST_DATABASE_URL, or DATABASE_URL when that is empty. Postgres
+// gives every test a copy of a template migrated once per package, named
+// arandutest_ and dropped when the test ends. With neither set, outside CI,
+// the test runs on a temporary SQLite file, so a clone with nothing installed
+// still runs the suite; in CI a missing database fails the test instead of
+// skipping it. A test whose assertion no engine decides passes test.SQLite()
+// and runs on SQLite everywhere.
+//
+// The configuration of this application is read from the environment, so the
+// database and the address are exported into it with t.Setenv: a test that
+// calls Serve cannot call t.Parallel.
+func Serve(t *testing.T, opts ...test.Option) *Server {
+	t.Helper()
+	testEnvironment(t)
+
+	var app Application
+	boot := func(ctx context.Context, env test.Env) (test.Application, error) {
+		var err error
+		app, err = bootOver(ctx, env)
+		if err != nil {
+			return test.Application{}, err
+		}
+		return served(app), nil
+	}
+	options := append([]test.Option{test.Migrate(Migrate), test.ExportEnv()}, engine()...)
+	server := test.Serve(t, boot, append(options, opts...)...)
+	return &Server{Server: server, App: app}
+}
+
+// Boot composes and boots the application over the test's database, the way
+// bootstrap/app.go composes it for the binary. It is what Serve boots, for a
+// test that calls test.Serve itself; it reads the configuration from the
+// environment, so it is handed to test.Serve with test.ExportEnv.
+func Boot(ctx context.Context, env test.Env) (test.Application, error) {
+	app, err := bootOver(ctx, env)
+	if err != nil {
+		return test.Application{}, err
+	}
+	return served(app), nil
+}
+
+// Migrate builds the schema through the command a deploy runs, `migrate`,
+// over the database the environment names. A test that creates its tables
+// another way is a test that keeps passing after a migration breaks.
+//
+// The command reads DATABASE_URL, which test.ExportEnv points at the database
+// being migrated; one that names another database is refused rather than
+// migrated.
+func Migrate(_ context.Context, env test.Env) error {
+	if got := os.Getenv("DATABASE_URL"); got != env.DatabaseURL {
+		return errors.New("Migrate reads DATABASE_URL and it does not name the database being migrated: " +
+			"hand test.Serve the option test.ExportEnv")
+	}
+	return Dispatch("migrate", nil)
+}
+
+// Open opens a browser page on the server with a driver of Drivers, resolving
+// route names through the application's routes.
+//
+//	page := tests.Open(t, server)
+//	page.Visit("notes.index")
+func Open(t *testing.T, server *Server) *browser.Page {
+	t.Helper()
+	routes := func(name string, params ...any) (string, error) {
+		values := make([]string, len(params))
+		for i, p := range params {
+			values[i] = fmt.Sprint(p)
+		}
+		return server.Route(name, values...), nil
+	}
+	return browser.Open(t, Drivers, browser.BaseURL(server.URL), browser.Routes(routes))
+}
+
+// SignIn signs the account in on the server and returns a browser carrying
+// that session.
+//
+// It is test.As with the account's identity and nothing else: the session is
+// started on the application's own store, every request afterwards is loaded
+// by its guards, and its SubjectResolver answers who the account is from the
+// database -- the roles included -- exactly as for somebody who typed a
+// password. A role taken away in the test is gone on the next request.
+//
+// The browser calls the application in process; Cookies on it is what a page
+// of tests.Open is handed to be signed in as the same account.
+func SignIn(t *testing.T, server *Server, user *models.User) *test.Client {
+	t.Helper()
+	return test.As(t, server.Server, auth.Subject{ID: user.ID, Tenant: user.TenantID})
+}
+
+// testEnvironment sets what every application a test serves is configured
+// with: its name, the dev environment, a key and the tenant.
+func testEnvironment(t *testing.T) {
+	t.Helper()
 	t.Setenv("APP_NAME", AppName)
 	t.Setenv("APP_ENV", "dev")
 	t.Setenv("APP_KEY", "0123456789abcdef0123456789abcdef")
-	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(t.TempDir(), "test.sqlite"))
 	t.Setenv("ARANDU_TENANT_ID", "11111111-1111-4111-8111-111111111111")
-
-	// The schema, through the same command a deploy runs. A test that creates
-	// tables another way is a test that keeps passing after a migration breaks.
-	if err := Dispatch("migrate", nil); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-
-	cfg, err := appconfig.Load()
-	if err != nil {
-		t.Fatalf("loading the configuration: %v", err)
-	}
-	db, closeDB, err := Open(cfg)
-	if err != nil {
-		t.Fatalf("opening the database: %v", err)
-	}
-	t.Cleanup(closeDB)
-	return compose(t, cfg, db)
 }
 
-// SignedIn returns a browser for app whose requests carry a real session for
-// the subject, started by the same store the route guards read.
-//
-// The session is started the way the sign-in screen starts one, through
-// SessionStore.Start, so RequireAuth loads it and puts the subject on the
-// request exactly as it does for somebody who typed a password. The address it
-// is started on exists only in front of this client's handler: the
-// application has no such route.
-//
-// It is the browser hesape answers with, which speaks every verb a resource
-// registers -- PUT and DELETE as well as GET and POST -- and takes a header for
-// what a browser would send that a test has to say.
-func SignedIn(t *testing.T, app Application, subject auth.Subject) *hesapetest.Client {
-	t.Helper()
-	const signInHere = "/_tests/sign-in"
-	handler := app.Kernel.Handler()
-	client := hesapetest.NewClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != signInHere {
-			handler.ServeHTTP(w, r)
-			return
-		}
-		if _, err := app.Sessions.Start(r.Context(), w, subject); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	client.Get(signInHere).AssertStatus(http.StatusNoContent)
-	return client
+// engine answers the option that puts a test on SQLite when the environment
+// names no test database and this is not CI, and nothing otherwise: the kit
+// then reads the engine from the environment, and fails a CI run that named
+// none.
+func engine() []test.Option {
+	if os.Getenv("ARANDU_TEST_DATABASE_URL") != "" || os.Getenv("DATABASE_URL") != "" {
+		return nil
+	}
+	if ci, _ := strconv.ParseBool(os.Getenv("CI")); ci {
+		return nil
+	}
+	return []test.Option{test.SQLite()}
+}
+
+// bootOver loads the configuration from the environment and composes and
+// boots the application over the test's database, which the kit opened and
+// closes.
+func bootOver(ctx context.Context, env test.Env) (Application, error) {
+	cfg, err := appconfig.Load()
+	if err != nil {
+		return Application{}, fmt.Errorf("loading the configuration: %w", err)
+	}
+	app, err := Build(cfg, env.DB)
+	if err != nil {
+		return Application{}, fmt.Errorf("composing the application: %w", err)
+	}
+	if err := app.Kernel.Boot(ctx); err != nil {
+		return Application{}, fmt.Errorf("Boot: %w", err)
+	}
+	return app, nil
+}
+
+// served is what the kit serves of an application: its handler, the session
+// store its guards read, its routes by name, and its shutdown.
+func served(app Application) test.Application {
+	return test.Application{
+		Handler:  app.Kernel.Handler(),
+		Sessions: app.Sessions,
+		Routes:   app.Kernel.Routes(),
+		Shutdown: app.Kernel.Shutdown,
+	}
 }
 
 // Register creates an account the way the sign-up form does, through the
@@ -394,7 +486,7 @@ func Register(t *testing.T, app Application, name, email, password string) *mode
 // an hx-post sends no form of the page's: the token travels in the
 // X-CSRF-Token header the layout's hx-headers names on <body>. A test of a
 // write a page makes over htmx loads that page first through this.
-func FromPage(t *testing.T, client *hesapetest.Client, address string) *hesapetest.Client {
+func FromPage(t *testing.T, client *test.Client, address string) *test.Client {
 	t.Helper()
 	page := client.Get(address).AssertOk()
 	return client.WithHeader("X-CSRF-Token", CSRFTokenFromPage(t, page.GetContent()))

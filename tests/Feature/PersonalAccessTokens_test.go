@@ -22,7 +22,7 @@ import (
 // answers them as the subjects their sessions would carry.
 func tokenAccounts(t *testing.T) (tests.Application, auth.Subject, auth.Subject) {
 	t.Helper()
-	app := tests.Booted(t)
+	app := tests.Serve(t).App
 	members, err := factories.Users(app.DB).Count(2).
 		Create(context.Background(), auth.SystemGrant(accounts.ActionUserCreate, appconfig.Tenant()))
 	if err != nil {
@@ -120,7 +120,7 @@ func TestATokenIsIssuedByAnAccountForItself(t *testing.T) {
 // acting as it. The close now revokes them in its own transaction, and a
 // token that reaches an account closed or refused anyway is not accepted.
 func TestAClosedAccountActsThroughNoToken(t *testing.T) {
-	app := tests.Booted(t)
+	app := tests.Serve(t).App
 	ctx := context.Background()
 	resolver := appmiddleware.NewPersonalAccessTokens(app.Tokens)
 
@@ -190,7 +190,7 @@ func TestAPasswordResetRevokesThePersonalAccessTokens(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			app := tests.Booted(t)
+			app := tests.Serve(t).App
 			ctx := context.Background()
 			resolver := appmiddleware.NewPersonalAccessTokens(app.Tokens)
 

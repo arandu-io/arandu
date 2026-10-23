@@ -6,9 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/arandu-io/hesape/auth"
-
-	appconfig "github.com/arandu-io/arandu/config"
+	"github.com/arandu-io/arandu/tests"
 )
 
 // TestEveryCookieTheApplicationWritesFollowsTheOneSecureDecision boots the
@@ -35,6 +33,11 @@ func TestEveryCookieTheApplicationWritesFollowsTheOneSecureDecision(t *testing.T
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			sqliteEnv(t)
+			// Migrated as dev: outside it `migrate` takes a lock every replica
+			// sees, and this run has no such store.
+			if err := tests.Dispatch("migrate", nil); err != nil {
+				t.Fatalf("migrate: %v", err)
+			}
 			t.Setenv("APP_ENV", c.appEnv)
 			t.Setenv("APP_DEBUG", "")
 			t.Setenv("APP_URL", "http://app.internal:8080")
@@ -57,8 +60,8 @@ func TestEveryCookieTheApplicationWritesFollowsTheOneSecureDecision(t *testing.T
 			}
 
 			signIn := httptest.NewRecorder()
-			subject := auth.Subject{ID: "33333333-3333-4333-8333-333333333333", Tenant: appconfig.Tenant()}
-			if _, err := app.Sessions.Start(context.Background(), signIn, subject); err != nil {
+			user := tests.Register(t, app, "Ana Lima", "ana@example.test", "a-long-enough-password")
+			if _, err := app.Sessions.Start(context.Background(), signIn, user.Subject()); err != nil {
 				t.Fatalf("starting a session: %v", err)
 			}
 			session := signIn.Result().Cookies()
