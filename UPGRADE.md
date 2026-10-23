@@ -10,6 +10,75 @@ comment or a test that is the skeleton's own is not.
 
 ---
 
+## v0.40.0 — the tests run on `framework/test`, on Postgres, with a journey in Chrome
+
+This skeleton requires framework v0.63.0 and hesape v0.84.0, and builds with
+aru v0.76.1 as before. Nothing the application serves changes except one
+clock: **a personal access token's expiry is read against `support.Now`**, so a
+test that pins the clock moves it. Everything else is the test tree, and a
+project that keeps its old tests keeps working; the doctor reports the old
+patterns as warnings until 2026-12-15 and as errors after it.
+
+### 1. Require the releases
+
+```sh
+go get github.com/arandu-io/framework@v0.63.0 github.com/arandu-io/hesape@v0.84.0
+go get github.com/arandu-io/hesape/database/connectors/pgx@v0.11.0
+go mod tidy
+```
+
+The pgx connector is for the tests alone: each suite that runs on Postgres
+links it with a blank import in a file of its own (`tests/Feature/postgres_test.go`
+here), and no package of the application imports it.
+
+### 2. Serve the feature tests and sign in for real
+
+Copy `Drivers`, `Server`, `Serve`, `Boot`, `Migrate`, `Open`, `SignIn` and
+`EmptyDatabase` from this release's `tests/TestCase.go`, and delete `App`,
+`Booted` and `SignedIn`. `Open(cfg)` is now `OpenDatabase(cfg)`: `Open` opens a
+browser page, and `aru make:e2e` looks for it by that name.
+
+| before | now |
+| --- | --- |
+| `app := tests.Booted(t)` | `server := tests.Serve(t)`, and `server.App` where `app` was |
+| `tests.SignedIn(t, app, auth.Subject{ID: id, Tenant: tenant})` | `tests.SignIn(t, server, user)`, with the `*models.User` |
+| `arandutest.NewClient(t, app.Kernel.Handler())` for a guest | `server.Client()` |
+| `*arandutest.Client`, `*arandutest.Response`, `arandutest.DrainOutbox` | the same names from `github.com/arandu-io/framework/test` |
+| `time.Sleep` until a token expires | `support.FreezeTime()`, `support.Travel(d)`, `t.Cleanup(support.TravelBack)` |
+
+A route a test mounted in front of the handler to start a session is gone with
+`SignedIn`: start it with `tests.SignIn` and hand its `Cookies()` to whatever
+needs them.
+
+### 3. Call the conformance kits
+
+Delete `tests/AuthContracts`, `tests/AuthSchema`, `tests/NativeAuth` and
+`tests/NativeAuthSession`, and copy `tests/Conformance` from this release. It
+calls `conformance.Boundaries`, `Schema`, `Account`, `ModelPersistence` and
+`Redaction` in one line each, and `SessionMatrix` behind the `authui` tag, over
+the fixtures in `tests/Conformance/fixtures_test.go`; change the `redacted`
+values to the types your application logs. An assertion of your own that no
+kit makes stays a feature test, as
+`tests/Feature/UserVerification_test.go` does here.
+
+### 4. Move the browser test to a journey
+
+Delete `tests/Browser` and its line in `.gitignore`, and write the screen's
+journey in `tests/E2E` behind `//go:build e2e`, as `tests/E2E/Notes_test.go`
+does. Copy `tests/test-layout-guard.sh`, which refuses `tests/Browser` and an
+untagged journey.
+
+### 5. Run it in CI
+
+Copy `.github/workflows/ci.yml`: the check job gains a Postgres service and
+`ARANDU_TEST_DATABASE_URL`, vet compiles the `e2e` tag, and two jobs join it
+-- `authui`, which publishes the sign-in screens and runs their matrix, and
+`e2e-smoke`, which runs the journeys in Chrome and uploads the traces when one
+fails. Locally, point `ARANDU_TEST_DATABASE_URL` at a Postgres you own; with
+nothing set, the tests fall back to SQLite outside CI.
+
+---
+
 ## v0.39.0 — a policy says which actions write, the layout draws the flash, and the application translates
 
 This skeleton requires hesape v0.78.0, with framework v0.62.1 as before, and
