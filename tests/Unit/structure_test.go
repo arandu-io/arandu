@@ -151,7 +151,8 @@ func TestTheApplicationTreeHasOneOwnerPerResponsibility(t *testing.T) {
 		"storage/app/public",
 		"storage/framework/cache",
 		"storage/framework/sessions",
-		"tests/Browser",
+		"tests/Conformance",
+		"tests/E2E",
 		"tests/Feature",
 		"tests/Unit",
 	}

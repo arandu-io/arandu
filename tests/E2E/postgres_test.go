@@ -1,0 +1,8 @@
+//go:build e2e
+
+package e2e_test
+
+// The Postgres connector, linked into this test binary and not into the
+// application's: a journey runs on the engine ARANDU_TEST_DATABASE_URL names,
+// and a URL naming an engine whose connector is not linked stops at sql.Open.
+import _ "github.com/arandu-io/hesape/database/connectors/pgx"

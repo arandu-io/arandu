@@ -5,10 +5,16 @@
 // opening a database, reading a file from the project root -- and nothing else.
 // A helper used by one test belongs beside it.
 //
-// The two suites:
+// The layers:
 //
-//	tests/Feature/  boots the application and makes a request
-//	tests/Unit/     checks one thing without booting anything
+//	tests/Unit/         one rule, with nothing running
+//	tests/Feature/      the HTTP answer in process, the policy and the JSON,
+//	                    over a server tests.Serve booted
+//	tests/Conformance/  the framework's kits, one call each
+//	tests/E2E/          the journey in a real browser, behind the e2e tag
+//
+// tests/Connectors is the one directory beside them: it links no connector,
+// so it can ask what a binary without one answers.
 package tests
 
 import (

@@ -75,6 +75,3 @@ Thumbs.db
 # um arquivo por repositorio ja divergiu, e o hook de commit-msg em .githooks/
 # e a camada que de fato reprova atribuicao de IA.
 .claude/
-
-# What the browser tests capture: screenshots and reports, per run.
-tests/Browser/screenshots/
