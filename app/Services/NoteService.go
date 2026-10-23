@@ -11,6 +11,7 @@ import (
 	"github.com/arandu-io/hesape/events"
 	"github.com/arandu-io/hesape/log"
 	"github.com/arandu-io/hesape/pagination"
+	"github.com/arandu-io/hesape/support"
 
 	clients "github.com/arandu-io/arandu/app/Clients"
 	appevents "github.com/arandu-io/arandu/app/Events"
@@ -36,7 +37,9 @@ type NoteService struct {
 	// outbox stores the events a write produces, in the write's transaction.
 	outbox *events.Outbox
 	// now is the clock the transitions are handed. The entity reads none of
-	// its own, so a test can pin the time here.
+	// its own, so a test can pin the time here. It answers UTC, the zone every
+	// instant is stored in: a time in the server's zone loses its offset on
+	// the way into a column that keeps none, and comes back as UTC hours off.
 	now func() time.Time
 	// newsletter is where the nightly digest goes, and nil when the project
 	// names no newsletter. The service depends on the interface, so a test
@@ -46,8 +49,12 @@ type NoteService struct {
 
 // NewNoteService wires the service.
 func NewNoteService(db *database.DB) *NoteService {
-	return &NoteService{db: db, outbox: events.NewOutbox(db), now: time.Now}
+	return &NoteService{db: db, outbox: events.NewOutbox(db), now: utcNow}
 }
+
+// utcNow is the framework's clock, which a test moves with support.Travel,
+// read in UTC.
+func utcNow() time.Time { return support.Now().UTC() }
 
 // Create walks the mandatory path: validate, Authorize, Grant, Model.
 // There is no other order that compiles.
