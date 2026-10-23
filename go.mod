@@ -7,7 +7,7 @@ retract v0.10.0 // Requires retracted Kyse v0.15.1 and lacks method override in 
 require github.com/arandu-io/framework v0.62.1
 
 require (
-	github.com/arandu-io/hesape v0.77.0
+	github.com/arandu-io/hesape v0.78.0
 	github.com/arandu-io/hesape/database/connectors/sqlite v0.11.0
 )
 
