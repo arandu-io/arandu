@@ -8,9 +8,9 @@ tasks:
   down:
     cmds: [docker compose down]
 
-  serve:
-    desc: Run the application
-    cmds: [go run . serve]
+  dev:
+    desc: Run the application, rebuilding the views and restarting on every change
+    cmds: [aru dev]
 
   migrate:
     desc: Apply the migrations collected from the registered modules

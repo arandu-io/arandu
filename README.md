@@ -23,8 +23,14 @@ You do not clone it by hand:
 
 ```sh
 aru new my-app
-cd my-app && aru dev
+cd my-app
+aru migrate
+aru dev
 ```
+
+`aru migrate` creates the tables once, and `aru dev` is how the application
+runs while you work on it: it builds the views and the stylesheet, serves, and
+rebuilds and restarts on every change.
 
 That gives you a Go framework for web applications, services and APIs, built
 around development speed, a single compiled binary instead of a JavaScript

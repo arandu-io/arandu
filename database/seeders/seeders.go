@@ -1,7 +1,10 @@
 // Package seeders holds the database seeders of this project.
 //
-// The shape is the conventional one: DatabaseSeeder is the entry point, it calls the
-// other seeders in order, and `aru db:seed --class=<name>` runs a single one.
+// The shape is the conventional one: DatabaseSeeder is the entry point and
+// calls the other seeders in order. `aru db:seed [<Name>]` runs it, or the one
+// seeder named -- by its name as the first argument, never --class=, which the
+// command refuses.
+//
 // The difference is that a seeder here is a type satisfying an interface rather
 // than a class discovered by reflection -- so a seeder that does not compile is
 // caught at build time, not when someone runs it against production.
