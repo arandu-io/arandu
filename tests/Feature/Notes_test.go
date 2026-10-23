@@ -752,3 +752,50 @@ func TestAGrantIssuedToViewANoteCannotSaveIt(t *testing.T) {
 		t.Fatalf("the note.update Grant left the title %q", stored.Title)
 	}
 }
+
+// toastSays reports whether the page draws sentence as the toast inside the
+// layout's #toaster tray, and not only somewhere on the page.
+func toastSays(page, sentence string) bool {
+	start := strings.Index(page, `id="toaster"`)
+	if start < 0 {
+		return false
+	}
+	tray := page[start:]
+	if end := strings.Index(tray, "</footer>"); end >= 0 {
+		tray = tray[:end]
+	}
+	return strings.Contains(tray, `class="toast`) && strings.Contains(tray, sentence)
+}
+
+// TestAWriteThatWorkedSaysSoOnThePageItLandsOn: Store, Update and Destroy
+// leave a sentence with ctx.With before redirecting, and the layout draws it
+// as a toast in #toaster on the page the browser lands on -- once: a reload
+// of that page draws no toast.
+func TestAWriteThatWorkedSaysSoOnThePageItLandsOn(t *testing.T) {
+	f := newNotesFixture(t)
+	// A browser navigating says it wants HTML, and the flash is drawn on that
+	// navigation rather than spent on an asset or a fragment.
+	browser := f.ana.WithHeader("Accept", "text/html")
+	defer f.ana.WithHeader("Accept", "")
+
+	lands := func(step string, answer *arandutest.Response, sentence string) {
+		t.Helper()
+		answer.AssertStatus(http.StatusSeeOther)
+		address := answer.Header("Location")
+		if page := browser.Get(address).AssertOk().GetContent(); !toastSays(page, sentence) {
+			t.Fatalf("%s: the page at %s draws no toast saying %q:\n%s", step, address, sentence, page)
+		}
+		if page := browser.Get(address).AssertOk().GetContent(); strings.Contains(page, sentence) {
+			t.Fatalf("%s: a reload of %s says %q again", step, address, sentence)
+		}
+	}
+
+	browser.Get("/notes/create").AssertOk()
+	created := browser.Post("/notes", map[string]string{"title": "Groceries", "body": "Bread."})
+	address := created.Header("Location")
+	lands("store", created, "Note created.")
+
+	lands("update", browser.Put(address, map[string]string{"title": "Groceries for Sunday"}), "Note saved.")
+
+	lands("destroy", fromPage(t, browser, address).Delete(address, nil), "Note deleted.")
+}

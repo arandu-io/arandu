@@ -111,11 +111,17 @@ import "github.com/arandu-io/kyse/components"
 			@yield('content')
 		</main>
 
-		<!-- The tray flash messages land in. An endpoint that saves something answers
-		     with a toast fragment and hx-swap="beforeend" on this element; the vendored
-		     script arms whatever appears inside it. Empty until then, and it costs one
-		     element to never write the "do I have a message" branch again. -->
-		<div id="toaster" class="toaster" aria-live="polite"></div>
+		<!-- The tray flash messages land in, by either road an action takes. An
+		     action that redirects says what it did with ctx.With(hhttp.StatusKey,
+		     ...), and the toast below draws that sentence on the page the browser
+		     lands on -- a direct visit and a boosted navigation alike, since both
+		     get this whole document. With nothing flashed it draws nothing. An
+		     endpoint that answers in place returns a toast fragment with
+		     hx-swap="beforeend" on this element; the vendored script arms whatever
+		     appears inside it. -->
+		<div id="toaster" class="toaster" aria-live="polite">
+			{!! components.Toast(components.ToastProps{Page: ., Dismissible: true}) !!}
+		</div>
 
 		<!-- One @yield, and it is 'content'. A section only one layout yields is a
 		     section that disappears without a word when the layout is replaced. -->

@@ -150,7 +150,8 @@ func (c *NoteController) Create(ctx *hhttp.Context) error {
 // A client that asked for JSON is answered 201 with the note through its
 // Resource and its address in Location, rather than redirected: the same
 // action answers POST /notes from a browser and POST /api/notes from a
-// program holding a token.
+// program holding a token. A browser is redirected to the note, with the
+// sentence ctx.With leaves under hhttp.StatusKey for the layout's toast.
 func (c *NoteController) Store(ctx *hhttp.Context) error {
 	var in requests.NoteRequest
 	if err := ctx.Bind(&in); err != nil {
@@ -165,7 +166,7 @@ func (c *NoteController) Store(ctx *hhttp.Context) error {
 		ctx.Response.Header().Set("Location", ctx.URL("notes.show", created.ID))
 		return ctx.JSON(http.StatusCreated, resources.NewNoteResource(created))
 	}
-	return ctx.RedirectRoute("notes.show", created.ID)
+	return ctx.With(hhttp.StatusKey, "Note created.").RedirectRoute("notes.show", created.ID)
 }
 
 // Edit renders the form filled in with the stored record.
@@ -184,7 +185,8 @@ func (c *NoteController) Edit(ctx *hhttp.Context) error {
 	})
 }
 
-// Update writes the submitted form onto the stored record.
+// Update writes the submitted form onto the stored record, and redirects to it
+// with the sentence the layout's toast draws on the next page.
 func (c *NoteController) Update(ctx *hhttp.Context) error {
 	var in requests.NoteRequest
 	if err := ctx.Bind(&in); err != nil {
@@ -195,16 +197,17 @@ func (c *NoteController) Update(ctx *hhttp.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.RedirectRoute("notes.show", updated.ID)
+	return ctx.With(hhttp.StatusKey, "Note saved.").RedirectRoute("notes.show", updated.ID)
 }
 
-// Destroy removes the record.
+// Destroy removes the record, and redirects to the listing with the sentence
+// the layout's toast draws there.
 func (c *NoteController) Destroy(ctx *hhttp.Context) error {
 	who, _ := ctx.User()
 	if err := c.svc.Delete(ctx.Ctx(), who, ctx.Param("id")); err != nil {
 		return err
 	}
-	return ctx.RedirectRoute("notes.index")
+	return ctx.With(hhttp.StatusKey, "Note deleted.").RedirectRoute("notes.index")
 }
 
 // row turns the entity into what the markup renders: the text a cell shows and
@@ -266,7 +269,7 @@ func (c *NoteController) Publish(ctx *hhttp.Context) error {
 	if ctx.WantsJSON() {
 		return ctx.JSON(http.StatusOK, resources.NewNoteResource(published))
 	}
-	return ctx.RedirectRoute("notes.show", published.ID)
+	return ctx.With(hhttp.StatusKey, "Note published.").RedirectRoute("notes.show", published.ID)
 }
 
 // arandu:end custom
