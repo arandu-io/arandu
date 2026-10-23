@@ -77,10 +77,10 @@ func (c *CommentController) Index(ctx *hhttp.Context) error {
 		rows = append(rows, c.row(ctx, co))
 	}
 	return ctx.View("comments.index", views.CommentsIndexData{
-		Page:     view.New(ctx, "Comments"),
-		Comments: rows,
-		NewURL:   ctx.URL("notes.comments.create", parent),
-		NextURL:  page.SetPath(ctx.URL("notes.comments.index", parent)).NextPageURL(),
+		Page:      view.New(ctx, "Comments"),
+		Comments:  rows,
+		NewURL:    ctx.URL("notes.comments.create", parent),
+		Paginator: page.SetPath(ctx.URL("notes.comments.index", parent)),
 	})
 }
 

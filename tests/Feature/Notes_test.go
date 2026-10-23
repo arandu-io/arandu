@@ -829,3 +829,36 @@ func TestTheNotePagesSayTheirLinesThroughTheCatalogue(t *testing.T) {
 		}
 	}
 }
+
+// TestTheListingIsPagedByThePager: a listing longer than one page draws the
+// pager from the page the query returned -- a real address for the next page,
+// which htmx fetches into the table's element -- and the second page steps
+// back to the first. A listing of one page draws no pager.
+func TestTheListingIsPagedByThePager(t *testing.T) {
+	f := newNotesFixture(t)
+	if body := f.ana.Get("/notes").AssertOk().GetContent(); strings.Contains(body, `rel="next"`) {
+		t.Fatalf("an empty listing draws a pager:\n%s", body)
+	}
+
+	if _, err := factories.Notes(f.app.DB).Count(26).State(func(n *models.Note) { n.UserID = f.anaID }).
+		Create(context.Background(), auth.SystemGrant(policies.NoteCreate, appconfig.Tenant())); err != nil {
+		t.Fatalf("creating the notes: %v", err)
+	}
+
+	first := f.ana.Get("/notes").AssertOk().GetContent()
+	for _, want := range []string{`rel="next"`, `href="/notes?page=2"`, `hx-get="/notes?page=2"`, `hx-target="#notes-table"`} {
+		if !strings.Contains(first, want) {
+			t.Errorf("the first page of 26 notes has no %s in its pager", want)
+		}
+	}
+	if strings.Contains(first, `rel="prev"`) {
+		t.Error("the first page steps back to a page before it")
+	}
+
+	second := f.ana.WithHeader("HX-Request", "true").WithHeader("HX-Target", "notes-table").Get("/notes?page=2")
+	f.ana.WithHeader("HX-Request", "").WithHeader("HX-Target", "")
+	table := second.AssertOk().GetContent()
+	if strings.Contains(table, "<html") || !strings.Contains(table, `rel="prev"`) || strings.Contains(table, `rel="next"`) {
+		t.Errorf("the second page, asked for by the pager, is not the table alone stepping back only:\n%s", table)
+	}
+}

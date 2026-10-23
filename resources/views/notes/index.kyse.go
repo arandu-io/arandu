@@ -25,16 +25,19 @@ type NotesIndexData struct {
 	// has no route table, so a link written here could only be a literal -- and
 	// a literal keeps rendering after the route moves.
 	NewURL string
-	// NextURL is the following page of the listing. It is empty on the last
-	// page, and the link is not rendered then.
-	NextURL string
+	// Paginator is the page of the listing the query returned, its addresses
+	// already set to the listing's route by the controller.
+	// components.Pagination draws the trail from it -- the two steps, each only
+	// when there is somewhere to step to -- and nothing on a listing of one
+	// page.
+	Paginator components.Paginator
 }
 
 // Compile-time proof that this page fits the layout it extends.
 var _ view.Layout = NotesIndexData{}
 
 // NotesTableID is the id of the element partials/notes_table draws: the target
-// its next-page link names, and what NoteController.Index reads from HX-Target
+// its pager names, and what NoteController.Index reads from HX-Target
 // to tell a request for the table from a request for the page.
 const NotesTableID = "notes-table"
 

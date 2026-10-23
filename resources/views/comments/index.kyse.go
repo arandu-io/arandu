@@ -25,9 +25,10 @@ type CommentsIndexData struct {
 	// has no route table, so a link written here could only be a literal -- and
 	// a literal keeps rendering after the route moves.
 	NewURL string
-	// NextURL is the following page of the listing. It is empty on the last
-	// page, and the link is not rendered then.
-	NextURL string
+	// Paginator is the page of the listing the query returned, its addresses
+	// set to the listing's route by the controller. components.Pagination
+	// draws the trail from it, and nothing on a listing of one page.
+	Paginator components.Paginator
 }
 
 // Compile-time proof that this page fits the layout it extends.
@@ -100,7 +101,9 @@ func CommentIndexTable(data CommentsIndexData) components.DataTableProps {
 		{!! components.DataTable(CommentIndexTable(.)) !!}
 	</div>
 
-	@if(d.NextURL != "")
-		<a class="mt-6 inline-block text-sm underline underline-offset-2" href="{{ .NextURL }}">Next page</a>
-	@endif
+	{!! components.Pagination(components.PaginationProps{
+		Paginator:      .Paginator,
+		PageData:       .,
+		ComponentProps: components.ComponentProps{Class: "mt-6"},
+	}) !!}
 @endsection

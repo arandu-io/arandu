@@ -20,20 +20,25 @@ import (
 type NotesTableData = notes.NotesIndexData
 @endgo
 
-{{-- One element, and it is the hole the next page is swapped into: the link
-     below asks for the following page with hx-get, names this element as its
-     hx-target, and replaces it whole. The controller answers that request with
-     this file and nothing around it, and every other request to the same
-     address -- a direct visit, a boosted link, a history restore -- with the
-     whole page. hx-push-url keeps the address in step, so a reload asks for
-     the page the person is looking at.
+{{-- One element, and it is the hole the next page is swapped into: the
+     pager below asks for the following or the previous page with hx-get,
+     names this element as its hx-target, and replaces it whole. The
+     controller answers that request with this file and nothing around it,
+     and every other request to the same address -- a direct visit, a boosted
+     link, a history restore -- with the whole page. hx-push-url on this
+     element is inherited by the pager's links and keeps the address in step,
+     so a reload asks for the page the person is looking at.
 
-     href stays beside hx-get: with scripts off, the link is an ordinary
-     navigation to the same page. --}}
-<div id="{{ notes.NotesTableID }}">
+     Every entry of the pager is a real address beside its hx-get: with
+     scripts off, it is an ordinary navigation to the same page. --}}
+<div id="{{ notes.NotesTableID }}" hx-push-url="true">
 	{!! components.DataTable(notes.NoteIndexTable(.)) !!}
 
-	@if(.NextURL != "")
-		<a class="mt-6 inline-block text-sm underline underline-offset-2" href="{{ .NextURL }}" hx-get="{{ .NextURL }}" hx-target="#{{ notes.NotesTableID }}" hx-swap="outerHTML" hx-push-url="true">Next page</a>
-	@endif
+	{!! components.Pagination(components.PaginationProps{
+		Paginator:      .Paginator,
+		PageData:       .,
+		HxTarget:       "#" + notes.NotesTableID,
+		HxSwap:         "outerHTML",
+		ComponentProps: components.ComponentProps{Class: "mt-6"},
+	}) !!}
 </div>

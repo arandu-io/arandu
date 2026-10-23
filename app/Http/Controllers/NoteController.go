@@ -62,7 +62,7 @@ var (
 
 // Index renders the listing, one page at a time.
 //
-// It answers the whole page, except to the request the table's next-page link
+// It answers the whole page, except to the request the table's pager
 // makes: htmx names the element it will replace in HX-Target, and that request
 // gets the table alone, drawn from the same partial the page includes. A direct
 // visit, a boosted link and a history restore name no such target, so each of
@@ -83,11 +83,13 @@ func (c *NoteController) Index(ctx *hhttp.Context) error {
 		return err
 	}
 
-	next := page.SetPath(ctx.URL("notes.index")).NextPageURL()
+	// The page's addresses are the listing's route, for the pager the table
+	// draws and for the next page the JSON answer names.
+	page = page.SetPath(ctx.URL("notes.index"))
 
 	ctx.Response.Header().Add("Vary", "Accept, HX-Request, HX-Target")
 	if ctx.WantsJSON() {
-		return ctx.JSON(http.StatusOK, resources.NewNoteCollection(found).Next(next))
+		return ctx.JSON(http.StatusOK, resources.NewNoteCollection(found).Next(page.NextPageURL()))
 	}
 
 	rows := make([]views.NoteRow, 0, len(found))
@@ -95,10 +97,10 @@ func (c *NoteController) Index(ctx *hhttp.Context) error {
 		rows = append(rows, c.row(ctx, n))
 	}
 	data := views.NotesIndexData{
-		Page:    view.New(ctx, "Notes"),
-		Notes:   rows,
-		NewURL:  ctx.URL("notes.create"),
-		NextURL: next,
+		Page:      view.New(ctx, "Notes"),
+		Notes:     rows,
+		NewURL:    ctx.URL("notes.create"),
+		Paginator: page,
 	}
 
 	if ctx.IsHTMX() && ctx.Header("HX-Target") == views.NotesTableID {
