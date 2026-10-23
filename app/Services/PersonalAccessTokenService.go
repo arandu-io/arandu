@@ -12,6 +12,7 @@ import (
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/database"
+	"github.com/arandu-io/hesape/support"
 	"github.com/arandu-io/hesape/validation"
 
 	models "github.com/arandu-io/arandu/app/Models"
@@ -48,14 +49,15 @@ type PersonalAccessTokenService struct {
 	users  *account.Users
 	tenant string
 	policy policies.PersonalAccessTokenPolicy
-	// now is the clock expiry is read against, so a test can move it.
+	// now is the clock expiry is read against: support.Now, the framework's
+	// clock, which a test moves with support.Travel instead of waiting.
 	now func() time.Time
 }
 
 // NewPersonalAccessTokenService wires the service over the accounts tokens act
 // as, for the tenant they belong to.
 func NewPersonalAccessTokenService(db *database.DB, users *account.Users, tenant string) *PersonalAccessTokenService {
-	return &PersonalAccessTokenService{db: db, users: users, tenant: tenant, now: time.Now}
+	return &PersonalAccessTokenService{db: db, users: users, tenant: tenant, now: support.Now}
 }
 
 // Issue creates a token that acts as actor, named so the account can tell its

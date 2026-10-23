@@ -9,6 +9,7 @@ import (
 	"github.com/arandu-io/hesape/auth"
 	accounts "github.com/arandu-io/hesape/auth/account"
 	"github.com/arandu-io/hesape/http/middleware"
+	"github.com/arandu-io/hesape/support"
 
 	appmiddleware "github.com/arandu-io/arandu/app/Http/Middleware"
 	models "github.com/arandu-io/arandu/app/Models"
@@ -83,6 +84,11 @@ func TestAnExpiredTokenIsNotAccepted(t *testing.T) {
 	ctx := context.Background()
 	resolver := appmiddleware.NewPersonalAccessTokens(app.Tokens)
 
+	// The clock is frozen and moved, never waited on: the expiry is read
+	// against support.Now.
+	support.FreezeTime()
+	t.Cleanup(support.TravelBack)
+
 	token, _, err := app.Tokens.Issue(ctx, ana, "a minute", time.Minute)
 	if err != nil {
 		t.Fatalf("issuing a token: %v", err)
@@ -91,12 +97,13 @@ func TestAnExpiredTokenIsNotAccepted(t *testing.T) {
 		t.Fatalf("a token inside its lifetime was refused: %v", err)
 	}
 
-	short, _, err := app.Tokens.Issue(ctx, ana, "already over", time.Nanosecond)
-	if err != nil {
-		t.Fatalf("issuing a token: %v", err)
+	support.Travel(59 * time.Second)
+	if _, err := resolver.ResolveToken(ctx, middleware.DigestToken(token)); err != nil {
+		t.Fatalf("a token a second before the end of its lifetime was refused: %v", err)
 	}
-	time.Sleep(2 * time.Millisecond)
-	if _, err := resolver.ResolveToken(ctx, middleware.DigestToken(short)); !errors.Is(err, middleware.ErrUnknownToken) {
+
+	support.Travel(2 * time.Second)
+	if _, err := resolver.ResolveToken(ctx, middleware.DigestToken(token)); !errors.Is(err, middleware.ErrUnknownToken) {
 		t.Errorf("an expired token resolved with %v, want ErrUnknownToken", err)
 	}
 }
