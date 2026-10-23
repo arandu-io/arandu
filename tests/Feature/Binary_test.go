@@ -107,18 +107,19 @@ func (a artisan) interrupted(t *testing.T, ready func() bool, args ...string) in
 	exited := make(chan error, 1)
 	go func() { exited <- cmd.Wait() }()
 
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.NewTimer(30 * time.Second)
+	defer deadline.Stop()
+	poll := time.NewTicker(50 * time.Millisecond)
+	defer poll.Stop()
 	for !ready() {
 		select {
 		case err := <-exited:
 			t.Fatalf("%s exited before it was ready (%v):\n%s%s", strings.Join(args, " "), err, out, errOut)
-		default:
-		}
-		if time.Now().After(deadline) {
+		case <-deadline.C:
 			_ = cmd.Process.Kill()
 			t.Fatalf("%s was not ready in 30s:\n%s%s", strings.Join(args, " "), out, errOut)
+		case <-poll.C:
 		}
-		time.Sleep(50 * time.Millisecond)
 	}
 
 	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {

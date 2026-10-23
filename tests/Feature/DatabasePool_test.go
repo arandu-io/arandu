@@ -145,9 +145,17 @@ func TestThePoolSettingsReachTheDriver(t *testing.T) {
 	// Polled rather than slept through once: the connection opened by Open's own
 	// ping is retired either by the cleaner or by the next request for it, and
 	// which of the two gets there first is not something to assert.
-	deadline := time.Now().Add(10 * time.Second)
-	for pool.Stats().MaxLifetimeClosed == 0 && time.Now().Before(deadline) {
-		time.Sleep(50 * time.Millisecond)
+	deadline := time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+	poll := time.NewTicker(50 * time.Millisecond)
+	defer poll.Stop()
+waiting:
+	for pool.Stats().MaxLifetimeClosed == 0 {
+		select {
+		case <-deadline.C:
+			break waiting
+		case <-poll.C:
+		}
 		if err := pool.PingContext(context.Background()); err != nil {
 			t.Fatalf("ping: %v", err)
 		}
