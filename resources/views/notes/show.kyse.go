@@ -19,7 +19,8 @@ type NotesShowData struct {
 	// IndexURL, EditURL and DeleteURL are the three addresses this screen
 	// offers, built from the route names by the controller. A view has no route
 	// table, so a path written here could only be a literal -- and a literal
-	// keeps rendering after the route moves.
+	// keeps rendering after the route moves. EditURL and DeleteURL are empty
+	// when the policy would refuse the action, and the button is not drawn.
 	IndexURL  string
 	EditURL   string
 	DeleteURL string
@@ -27,8 +28,8 @@ type NotesShowData struct {
 	// under it.
 	CommentsURL string
 	// PublishURL is where the publish button posts, the named action of the
-	// resource. It is empty once the note is published, and the button is not
-	// drawn then.
+	// resource. It is empty once the note is published, or when the policy
+	// would refuse the publication, and the button is not drawn then.
 	PublishURL string
 }
 
@@ -56,8 +57,12 @@ var _ view.Layout = NotesShowData{}
 					<button class="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300" type="submit">{{ .Trans("notes.publish") }}</button>
 				</form>
 			@endif
-			<a class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900" href="{{ .EditURL }}">{{ .Trans("notes.edit") }}</a>
-			<button class="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950" type="button" hx-delete="{{ .DeleteURL }}" hx-confirm="{{ .Trans("notes.delete.confirm") }}">{{ .Trans("notes.delete") }}</button>
+			@if(d.EditURL != "")
+				<a class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900" href="{{ .EditURL }}">{{ .Trans("notes.edit") }}</a>
+			@endif
+			@if(d.DeleteURL != "")
+				<button class="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950" type="button" hx-delete="{{ .DeleteURL }}" hx-confirm="{{ .Trans("notes.delete.confirm") }}">{{ .Trans("notes.delete") }}</button>
+			@endif
 		</div>
 	</div>
 

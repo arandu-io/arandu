@@ -173,6 +173,44 @@ func (s *NoteService) fill(n *models.Note, in requests.NoteRequest) {
 // arandu:begin custom
 // Business rules beyond CRUD go here, and survive regeneration.
 
+// GetForUpdate returns the note the subject may change: read and authorized
+// as Get reads it, then authorized for note.update against the stored row.
+// The edit form asks it, so the form is drawn only for whoever may submit it
+// and anybody else is refused with 403 before typing anything.
+func (s *NoteService) GetForUpdate(ctx context.Context, actor auth.Subject, id string) (*models.Note, error) {
+	stored, err := s.Get(ctx, actor, id)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := auth.Authorize(ctx, s.policy, actor, policies.NoteUpdate, *stored); err != nil {
+		return nil, err
+	}
+	return stored, nil
+}
+
+// NoteAbilities is what one subject may do with one note, as the policy
+// answers it: what a page offers, so it draws no button that would be
+// refused.
+type NoteAbilities struct {
+	// Update is whether the note may be changed.
+	Update bool
+	// Delete is whether the note may be removed.
+	Delete bool
+	// Publish is whether the note may be published.
+	Publish bool
+}
+
+// Abilities asks the policy, through auth.Allows, what actor may do with n,
+// a note it read through Get. It authorizes nothing: each action still asks
+// for its own Grant when the button is pressed, and that is the decision.
+func (s *NoteService) Abilities(ctx context.Context, actor auth.Subject, n *models.Note) NoteAbilities {
+	return NoteAbilities{
+		Update:  auth.Allows(ctx, s.policy, actor, policies.NoteUpdate, *n),
+		Delete:  auth.Allows(ctx, s.policy, actor, policies.NoteDelete, *n),
+		Publish: auth.Allows(ctx, s.policy, actor, policies.NotePublish, *n),
+	}
+}
+
 // Publish makes a note public: the named action of the resource.
 //
 // The service orders it and the entity decides it. The row is read through

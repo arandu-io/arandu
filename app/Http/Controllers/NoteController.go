@@ -124,17 +124,28 @@ func (c *NoteController) Show(ctx *hhttp.Context) error {
 		return ctx.JSON(http.StatusOK, resources.NewNoteResource(found))
 	}
 
-	return ctx.View("notes.show", views.NotesShowData{
-		Page:      view.New(ctx, "Note"),
-		Note:      c.row(ctx, found),
-		IndexURL:  ctx.URL("notes.index"),
-		EditURL:   ctx.URL("notes.edit", found.ID),
-		DeleteURL: ctx.URL("notes.destroy", found.ID),
+	// What this person may do with the note, so the page offers only the
+	// buttons that would work. Each action still authorizes when pressed.
+	can := c.svc.Abilities(ctx.Ctx(), who, found)
+
+	data := views.NotesShowData{
+		Page:     view.New(ctx, "Note"),
+		Note:     c.row(ctx, found),
+		IndexURL: ctx.URL("notes.index"),
 		// The resource nested under this one, by its route name and the note.
 		CommentsURL: ctx.URL("notes.comments.index", found.ID),
-		// The named action, offered while there is something to publish.
-		PublishURL: c.publishURL(ctx, found),
-	})
+	}
+	if can.Update {
+		data.EditURL = ctx.URL("notes.edit", found.ID)
+	}
+	if can.Delete {
+		data.DeleteURL = ctx.URL("notes.destroy", found.ID)
+	}
+	// The named action, offered while there is something to publish.
+	if can.Publish {
+		data.PublishURL = c.publishURL(ctx, found)
+	}
+	return ctx.View("notes.show", data)
 }
 
 // Create renders the empty form, or the rejected one: the page carries what
@@ -171,10 +182,12 @@ func (c *NoteController) Store(ctx *hhttp.Context) error {
 	return ctx.With(hhttp.StatusKey, "Note created.").RedirectRoute("notes.show", created.ID)
 }
 
-// Edit renders the form filled in with the stored record.
+// Edit renders the form filled in with the stored record, for whoever may
+// update it: the service authorizes note.update, so anybody else is refused
+// with 403 instead of being shown a form whose submission would be.
 func (c *NoteController) Edit(ctx *hhttp.Context) error {
 	who, _ := ctx.User()
-	found, err := c.svc.Get(ctx.Ctx(), who, ctx.Param("id"))
+	found, err := c.svc.GetForUpdate(ctx.Ctx(), who, ctx.Param("id"))
 	if err != nil {
 		return err
 	}
@@ -239,8 +252,8 @@ func (c *NoteController) row(ctx *hhttp.Context, n *models.Note) views.NoteRow {
 
 // publishURL is where the publish button posts, and empty once the note is
 // published, so the page offers the action only while it means something.
-// Whether this person may publish it is the policy's answer, given when the
-// button is pressed.
+// Show asks it only when the policy allows the publication, and the policy
+// answers again when the button is pressed.
 func (c *NoteController) publishURL(ctx *hhttp.Context, n *models.Note) string {
 	if n.Published() {
 		return ""

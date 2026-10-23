@@ -288,8 +288,15 @@ func TestAnotherMembersNoteIsReadButNotChanged(t *testing.T) {
 	address := f.write(t, f.bea, "Bea's plan")
 
 	f.ana.Get("/notes").AssertOk().AssertSee("Bea&#39;s plan")
-	f.ana.Get(address).AssertOk().AssertSee("Bea&#39;s plan")
-	f.ana.Get(address + "/edit").AssertOk()
+	// The page offers none of the three changes the policy would refuse, and
+	// the edit form is refused rather than drawn for a submission that would
+	// be.
+	f.ana.Get(address).AssertOk().AssertSee("Bea&#39;s plan").
+		AssertDontSee(address + "/edit").AssertDontSee(`hx-delete="` + address).AssertDontSee(address + "/publish")
+	f.ana.Get(address + "/edit").AssertStatus(http.StatusForbidden)
+	f.bea.Get(address).AssertOk().
+		AssertSee(address + "/edit").AssertSee(`hx-delete="` + address).AssertSee(address + "/publish")
+	f.bea.Get(address + "/edit").AssertOk()
 	ana := fromPage(t, f.ana, address)
 	ana.Put(address, map[string]string{"title": "Ana's now"}).AssertStatus(http.StatusForbidden)
 	ana.Delete(address, nil).AssertStatus(http.StatusForbidden)
