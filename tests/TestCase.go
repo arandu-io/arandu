@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -405,6 +406,20 @@ func SignIn(t *testing.T, server *Server, user *models.User) *test.Client {
 	t.Helper()
 	return test.As(t, server.Server, auth.Subject{ID: user.ID, Tenant: user.TenantID})
 }
+
+// EmptyDatabase answers a database of the test's own with no schema at all, on
+// the engine Serve would put the test on, and drops it when the test ends. It
+// is for a test of the migrations themselves, which has to start from nothing.
+func EmptyDatabase(t *testing.T) *database.DB {
+	t.Helper()
+	nothing := func(context.Context, test.Env) (test.Application, error) {
+		return test.Application{Handler: http.NotFoundHandler()}, nil
+	}
+	return test.Serve(t, nothing, append([]test.Option{test.Migrate(noSchema)}, engine()...)...).DB()
+}
+
+// noSchema is the migration of EmptyDatabase: none.
+func noSchema(context.Context, test.Env) error { return nil }
 
 // testEnvironment sets what every application a test serves is configured
 // with: its name, the dev environment, a key and the tenant.
