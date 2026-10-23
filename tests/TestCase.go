@@ -385,3 +385,38 @@ func Register(t *testing.T, app Application, name, email, password string) *mode
 	}
 	return user
 }
+
+// FromPage loads the page at address and makes every later request of the
+// client carry the CSRF token the page holds, as the browser does, and
+// returns the client.
+//
+// A form posts the token as its _token field, but an hx-delete, an hx-put or
+// an hx-post sends no form of the page's: the token travels in the
+// X-CSRF-Token header the layout's hx-headers names on <body>. A test of a
+// write a page makes over htmx loads that page first through this.
+func FromPage(t *testing.T, client *hesapetest.Client, address string) *hesapetest.Client {
+	t.Helper()
+	page := client.Get(address).AssertOk()
+	return client.WithHeader("X-CSRF-Token", CSRFTokenFromPage(t, page.GetContent()))
+}
+
+// CSRFTokenFromPage is the CSRF token a page carries: the value of its
+// _token field, or else of the X-CSRF-Token entry of its hx-headers. It
+// fails the test when the page carries neither.
+func CSRFTokenFromPage(t *testing.T, html string) string {
+	t.Helper()
+	for _, marker := range []string{`name="_token" value="`, `"X-CSRF-Token": "`} {
+		start := strings.Index(html, marker)
+		if start < 0 {
+			continue
+		}
+		value := html[start+len(marker):]
+		end := strings.IndexByte(value, '"')
+		if end < 0 {
+			t.Fatal("the CSRF token is not terminated")
+		}
+		return value[:end]
+	}
+	t.Fatal("the page carries no CSRF token")
+	return ""
+}

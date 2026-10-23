@@ -82,7 +82,7 @@ func TestABodyThatDeclaresNoLengthIsCutOffAtTheLimit(t *testing.T) {
 
 	page := httptest.NewRecorder()
 	k.Handler().ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/", nil))
-	token := csrfTokenFromPage(t, page.Body.String())
+	token := tests.CSRFTokenFromPage(t, page.Body.String())
 
 	// io.MultiReader hides the length, so httptest leaves ContentLength at -1,
 	// which is what a chunked request looks like to a handler.
@@ -120,7 +120,7 @@ func TestTheDefaultBodyLimitAdmitsAnOrdinaryForm(t *testing.T) {
 
 	page := httptest.NewRecorder()
 	k.Handler().ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/", nil))
-	token := csrfTokenFromPage(t, page.Body.String())
+	token := tests.CSRFTokenFromPage(t, page.Body.String())
 
 	request := httptest.NewRequest(http.MethodPost, "/body-probe", bytes.NewReader(bytes.Repeat([]byte("a"), 1<<20)))
 	request.Header.Set("X-CSRF-Token", token)

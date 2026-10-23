@@ -149,7 +149,7 @@ func TestTheLandingPageOffersOnlyAddressesThatAnswer(t *testing.T) {
 
 		// The forms last: with the authentication UI published, the sign-out
 		// form ends the session it is posted from.
-		token := csrfTokenFromPage(t, body)
+		token := tests.CSRFTokenFromPage(t, body)
 		for _, m := range formAddress.FindAllStringSubmatch(body, -1) {
 			code := b.do(http.MethodPost, m[1], url.Values{"_token": {token}}).Code
 			if code == http.StatusNotFound || code == http.StatusMethodNotAllowed {
@@ -317,7 +317,7 @@ func TestSpoofedMethodReachesTheRouterAfterCSRF(t *testing.T) {
 		t.Fatalf("token page status = %d, want 200", form.Code)
 	}
 	body := url.Values{
-		"_token":  {csrfTokenFromPage(t, form.Body.String())},
+		"_token":  {tests.CSRFTokenFromPage(t, form.Body.String())},
 		"_method": {http.MethodDelete},
 	}
 	request := httptest.NewRequest(http.MethodPost, "/method-probe", strings.NewReader(body.Encode()))
@@ -347,7 +347,7 @@ func TestAGuestTokenIsBoundToThatGuest(t *testing.T) {
 		if page.Code != http.StatusOK {
 			t.Fatalf("anonymous GET / = %d, want 200. Body:\n%s", page.Code, page.Body.String())
 		}
-		return csrfTokenFromPage(t, page.Body.String()), page.Result().Cookies()
+		return tests.CSRFTokenFromPage(t, page.Body.String()), page.Result().Cookies()
 	}
 	post := func(token string, cookies []*http.Cookie) int {
 		t.Helper()
@@ -469,24 +469,6 @@ func publishedAuthLogin(t *testing.T, handler http.Handler) *httptest.ResponseRe
 		t.Fatalf("GET /auth/login = %d, want 200", recorder.Code)
 	}
 	return recorder
-}
-
-func csrfTokenFromPage(t *testing.T, html string) string {
-	t.Helper()
-	for _, marker := range []string{`name="_token" value="`, `"X-CSRF-Token": "`} {
-		start := strings.Index(html, marker)
-		if start < 0 {
-			continue
-		}
-		value := html[start+len(marker):]
-		end := strings.IndexByte(value, '"')
-		if end < 0 {
-			t.Fatal("the CSRF token is not terminated")
-		}
-		return value[:end]
-	}
-	t.Fatal("the page carries no CSRF token")
-	return ""
 }
 
 // TestUnknownCommandIsRejected names its environment, as every command test

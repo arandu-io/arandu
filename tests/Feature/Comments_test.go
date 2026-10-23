@@ -60,7 +60,7 @@ func TestACommentIsWrittenUnderTheNoteAndChangedByItsAuthor(t *testing.T) {
 	f.ana.Get(address).AssertOk().AssertSee("Add coffee.")
 
 	// Another member reads it and may not change it; its author may.
-	ana := fromPage(t, f.ana, address)
+	ana := tests.FromPage(t, f.ana, address)
 	ana.Put(address, map[string]string{"body": "Ana's now"}).AssertStatus(http.StatusForbidden)
 	ana.Delete(address, nil).AssertStatus(http.StatusForbidden)
 
@@ -69,7 +69,7 @@ func TestACommentIsWrittenUnderTheNoteAndChangedByItsAuthor(t *testing.T) {
 		AssertStatus(http.StatusSeeOther).AssertRedirect(address)
 	f.ana.Get(address).AssertOk().AssertSee("Add coffee and milk.")
 
-	fromPage(t, f.bea, address).Delete(address, nil).
+	tests.FromPage(t, f.bea, address).Delete(address, nil).
 		AssertStatus(http.StatusSeeOther).AssertRedirect(note + "/comments")
 	f.bea.Get(address).AssertStatus(http.StatusNotFound)
 }
@@ -114,7 +114,7 @@ func TestTheCommentsOfANoteOfAnotherTenantAreNotFound(t *testing.T) {
 
 	f.ana.Get(listing).AssertStatus(http.StatusNotFound)
 	f.ana.Get(listing + "/create").AssertOk() // the empty form reads nothing
-	ana := fromPage(t, f.ana, "/notes")
+	ana := tests.FromPage(t, f.ana, "/notes")
 	ana.Post(listing, map[string]string{"body": "Slipped in."}).AssertStatus(http.StatusNotFound)
 	f.ana.Get("/comments/" + theirComment.ID).AssertStatus(http.StatusNotFound)
 	ana.Put("/comments/"+theirComment.ID, map[string]string{"body": "Moved"}).AssertStatus(http.StatusNotFound)

@@ -87,16 +87,6 @@ func (f notesFixture) stored(t *testing.T, address string) *models.Note {
 	return note
 }
 
-// fromPage loads a page and makes every later request of the client carry the
-// token the page holds for its htmx requests, as the browser does. The show
-// page deletes with hx-delete, which sends no form: the token travels in the
-// header the layout's hx-headers names.
-func fromPage(t *testing.T, client *arandutest.Client, address string) *arandutest.Client {
-	t.Helper()
-	page := client.Get(address).AssertOk()
-	return client.WithHeader("X-CSRF-Token", csrfTokenFromPage(t, page.GetContent()))
-}
-
 func TestNotesAreWrittenReadChangedAndDeletedByTheirAuthor(t *testing.T) {
 	f := newNotesFixture(t)
 
@@ -115,7 +105,7 @@ func TestNotesAreWrittenReadChangedAndDeletedByTheirAuthor(t *testing.T) {
 		t.Fatal("an unchecked box left the note pinned")
 	}
 
-	fromPage(t, f.ana, address).Delete(address, nil).AssertStatus(http.StatusSeeOther).AssertRedirect("/notes")
+	tests.FromPage(t, f.ana, address).Delete(address, nil).AssertStatus(http.StatusSeeOther).AssertRedirect("/notes")
 	f.ana.Get(address).AssertStatus(http.StatusNotFound)
 }
 
@@ -297,7 +287,7 @@ func TestAnotherMembersNoteIsReadButNotChanged(t *testing.T) {
 	f.bea.Get(address).AssertOk().
 		AssertSee(address + "/edit").AssertSee(`hx-delete="` + address).AssertSee(address + "/publish")
 	f.bea.Get(address + "/edit").AssertOk()
-	ana := fromPage(t, f.ana, address)
+	ana := tests.FromPage(t, f.ana, address)
 	ana.Put(address, map[string]string{"title": "Ana's now"}).AssertStatus(http.StatusForbidden)
 	ana.Delete(address, nil).AssertStatus(http.StatusForbidden)
 
@@ -324,7 +314,7 @@ func TestANoteOfAnotherTenantIsNotFound(t *testing.T) {
 	f.ana.Get("/notes").AssertOk().AssertDontSee("Another tenant")
 	f.ana.Get(address).AssertStatus(http.StatusNotFound)
 	f.ana.Get(address + "/edit").AssertStatus(http.StatusNotFound)
-	ana := fromPage(t, f.ana, "/notes")
+	ana := tests.FromPage(t, f.ana, "/notes")
 	ana.Put(address, map[string]string{"title": "Moved"}).AssertStatus(http.StatusNotFound)
 	ana.Delete(address, nil).AssertStatus(http.StatusNotFound)
 
@@ -425,7 +415,7 @@ func TestTheAuthorPublishesANoteOnceWithItsEvent(t *testing.T) {
 	// The page offers the action while the note is a draft.
 	f.ana.Get(address).AssertOk().AssertSee("Draft").AssertSee(address + "/publish")
 
-	fromPage(t, f.ana, address).Post(address+"/publish", nil).
+	tests.FromPage(t, f.ana, address).Post(address+"/publish", nil).
 		AssertStatus(http.StatusSeeOther).AssertRedirect(address)
 
 	note := f.stored(t, address)
@@ -451,7 +441,7 @@ func TestTheAuthorPublishesANoteOnceWithItsEvent(t *testing.T) {
 
 	// A second publication is a conflict with the row's state, and stores
 	// nothing more.
-	fromPage(t, f.ana, address).Post(address+"/publish", nil).AssertStatus(http.StatusConflict)
+	tests.FromPage(t, f.ana, address).Post(address+"/publish", nil).AssertStatus(http.StatusConflict)
 	if got := len(f.published(t)); got != 1 {
 		t.Fatalf("publishing twice left %d events, want 1", got)
 	}
@@ -461,7 +451,7 @@ func TestAnotherMembersNoteIsNotPublished(t *testing.T) {
 	f := newNotesFixture(t)
 	address := f.write(t, f.bea, "Bea's plan")
 
-	fromPage(t, f.ana, address).Post(address+"/publish", nil).AssertStatus(http.StatusForbidden)
+	tests.FromPage(t, f.ana, address).Post(address+"/publish", nil).AssertStatus(http.StatusForbidden)
 
 	if note := f.stored(t, address); note.Published() {
 		t.Fatal("a refused publication published the note")
@@ -480,7 +470,7 @@ func TestANoteOfAnotherTenantIsNotPublished(t *testing.T) {
 		t.Fatalf("creating a note in another tenant: %v", err)
 	}
 
-	fromPage(t, f.ana, "/notes").Post("/notes/"+theirs.ID+"/publish", nil).AssertStatus(http.StatusNotFound)
+	tests.FromPage(t, f.ana, "/notes").Post("/notes/"+theirs.ID+"/publish", nil).AssertStatus(http.StatusNotFound)
 
 	still, err := models.Notes(f.app.DB).Find(context.Background(), auth.SystemGrant(policies.NoteView, elsewhere), theirs.ID)
 	if err != nil || still.Published() {
@@ -555,7 +545,7 @@ func TestAJSONClientIsAnsweredThroughTheNoteResource(t *testing.T) {
 		t.Errorf("notes = %v, want the one note", page.Data.Notes)
 	}
 
-	browser := fromPage(t, f.ana, address)
+	browser := tests.FromPage(t, f.ana, address)
 	publishedNow := asJSON(browser, func(c *arandutest.Client) *arandutest.Response {
 		return c.Post(address+"/publish", nil)
 	}).AssertOk()
@@ -579,7 +569,7 @@ func TestAJSONClientIsRefusedWithProblemDocuments(t *testing.T) {
 		t.Fatalf("creating a note in another tenant: %v", err)
 	}
 
-	browser := fromPage(t, f.ana, anas)
+	browser := tests.FromPage(t, f.ana, anas)
 	browser.Post(anas+"/publish", nil).AssertStatus(http.StatusSeeOther)
 
 	for _, refused := range []struct {
@@ -625,7 +615,7 @@ func (account) RouteFor(hnotifications.ChannelName) string { return "" }
 func TestTheAuthorOfAPublishedNoteIsToldThroughTheOutbox(t *testing.T) {
 	f := newNotesFixture(t)
 	address := f.write(t, f.ana, "Groceries")
-	fromPage(t, f.ana, address).Post(address+"/publish", nil).AssertStatus(http.StatusSeeOther)
+	tests.FromPage(t, f.ana, address).Post(address+"/publish", nil).AssertStatus(http.StatusSeeOther)
 
 	ctx := context.Background()
 	store := hnotifications.NewTableStore(f.app.DB)
@@ -683,7 +673,7 @@ func TestTheNightlyDigestIsScheduledQueuedAndSentWithoutTheNetwork(t *testing.T)
 	}
 
 	published := f.write(t, f.ana, "Groceries")
-	fromPage(t, f.ana, published).Post(published+"/publish", nil).AssertStatus(http.StatusSeeOther)
+	tests.FromPage(t, f.ana, published).Post(published+"/publish", nil).AssertStatus(http.StatusSeeOther)
 	f.write(t, f.ana, "A draft")
 
 	if err := tests.Dispatch("schedule:run", []string{appjobs.SendNotesDigestName, "--tenant=" + appconfig.Tenant()}); err != nil {
@@ -805,7 +795,7 @@ func TestAWriteThatWorkedSaysSoOnThePageItLandsOn(t *testing.T) {
 
 	lands("update", browser.Put(address, map[string]string{"title": "Groceries for Sunday"}), "Note saved.")
 
-	lands("destroy", fromPage(t, browser, address).Delete(address, nil), "Note deleted.")
+	lands("destroy", tests.FromPage(t, browser, address).Delete(address, nil), "Note deleted.")
 }
 
 // TestTheNotePagesSayTheirLinesThroughTheCatalogue: the pages say their words
