@@ -187,8 +187,12 @@ database/seeders/DatabaseSeeder.go   return NoteSeeder{}.Run(ctx, d)   (becomes:
 tests/Feature/TenantScope_test.go    "notes": "...", "comments": "..." and "newsletter_deliveries": "...",
 ```
 
-then the imports the deletions leave unused, which `go build` names. What
-stays is the application's own: the notifier and its table, the listener list,
+and, in `lang/en.json`, every line whose key starts with `notes.` -- JSON has
+no comment to mark them, and the file stays, as `{}` if nothing else is left,
+because it is where the application's own lines go.
+
+Then remove the imports the deletions leave unused, which `go build` names.
+What stays is the application's own: the notifier and its table, the listener list,
 the scheduler's tenants, the queue the provider schedules on, the personal
 access tokens with their resolver and the idempotency store the routes are
 given, and the `ValidateCSRFTokensExcept("/webhooks/")` a webhook of the
