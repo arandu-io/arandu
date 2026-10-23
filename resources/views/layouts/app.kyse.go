@@ -86,7 +86,10 @@ import "github.com/arandu-io/kyse/components"
 				<span class="text-sm font-semibold tracking-tight">{{ .BrandName() }}</span>
 			@endif
 			<nav class="flex items-center gap-3 text-sm">
-				{!! components.ThemeToggle(components.ThemeToggleProps{}) !!}
+				{{-- Handed the page, the toggle reads its five words from the
+				     catalogue in the reader's language, under kyse.theme_toggle,
+				     and draws its English where the catalogue has none. --}}
+				{!! components.ThemeToggle(components.ThemeToggleProps{Page: .}) !!}
 				@if(!.SignedIn())
 					@if(.LoginLink() != "")
 						<a class="btn" data-variant="ghost" data-size="sm" href="{{ .LoginLink() }}">Sign in</a>
