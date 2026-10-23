@@ -65,7 +65,8 @@ refused (403); a note published twice is a conflict (409).
   403, the 404 and the 409.
 - **A journey**: `tests/E2E/Notes_test.go` does the same in Chrome -- write,
   edit and publish with the toast each write leaves, the pager swapping the
-  table through htmx, and another member answered Forbidden.
+  table through htmx, another member answered Forbidden, and the note and
+  the listing no wider than the screen at any width in either scheme.
 - **A fragment**: the listing's table answered alone only to the request that
   names it, and the whole page to every navigation.
 - **A JSON client**: the same routes through `NoteResource`, and problem
