@@ -77,7 +77,7 @@ Beyond the eleven steps, each in the example:
 | validating the request | `Validate()` on the request, in `app/Http/Requests` | the service | be called by the controller |
 | an invariant or a transition of the entity | the custom block of `app/Models/<Entity>.go` | the service | reach the database, the network, an implicit clock or a Grant |
 | a query scope | a method on `*<Entity>Query`, in the custom block of `app/Models/<Entity>.go` | the service, a repository | skip the Grant; `<Entity>Query.go` is generated and never edited |
-| authorization | `app/Policies`, asked through `auth.Authorize` | the service | be skipped on a read |
+| authorization | `app/Policies`, asked through `auth.Authorize`; each policy lists its write actions in `Writes`, so the Grant of any other action cannot write | the service | be skipped on a read, or write with the Grant of an action that reads |
 | a role an account holds | `users.roles`, `RoleAdmin` and `RoleMember` in `app/Models/User.go`, for the fixed roles of the deployment's one tenant; `github.com/hyz-is/arandu-permission` once people grant roles to others, in groups or per organization, which fills the subject's roles through `User.Subject` | a policy, through `Subject.HasRole` | gain a second role column, an `is_admin` flag or an ACL table, or keep writing `users.roles` after arandu-permission owns the roles |
 | a use case | `app/Services`, one service per aggregate | a controller, a job, a listener, a command | take an HTTP type, live in a subpackage, run a worker of its own |
 | a complex query, a report, a read model | `app/Repositories` | the service | exist for plain CRUD |

@@ -48,17 +48,36 @@ All from `github.com/arandu-io/hesape/auth`:
    caller look at *this* row". A write asks about the row it read, never about
    what the request says the row is, so `NoteService.Publish` authorizes
    `NotePublish` against the stored note and its stored author.
+
+   A service that read with the `NoteView` Grant and then saves fails: the
+   write needs the Grant of the action that writes.
 4. **Read and write with the Grant that came back.** Reads are not exempt: a
    list, a report, an export and a projection all take a Grant and filter by
    its tenant.
-5. **For work with nobody asking**, use `auth.SystemGrant` in a seeder, a job, a
+5. **List the actions that write** in the policy's `Writes(a auth.Action)
+   bool`, beside `Can`, and assert `var _ auth.Writes = NotePolicy{}`.
+   `auth.Authorize` marks the Grant of every other action as one that reads,
+   and a save, a delete, an event, a file, a cache entry or a job made with it
+   is refused with `auth.ErrReadGrant`. List the writes, not the reads, so a
+   new action reads until it is listed. A named action that changes the row,
+   such as `NotePublish`, is a write.
+6. **Offer only what is allowed.** A page that draws a button for an action
+   asks the service, which asks `auth.Allows` -- `NoteService.Abilities` -- and
+   the controller passes the address only when it is allowed. It authorizes
+   nothing: the action still asks for its Grant when the button is pressed. A
+   form for a change, such as the edit page, is read under the Grant of that
+   change (`NoteService.GetForUpdate`), so it is refused before it is drawn.
+7. **For work with nobody asking**, use `auth.SystemGrant` in a seeder, a job, a
    command or `main.go`. Anywhere else it carries its reason on the line
    before: `//arandu:system-grant <reason>`, as the example's listener does.
+   A system Grant writes whatever action it names.
 
 ## Commands
 
 - `aru make:policy <module>` writes a policy that denies every action
 - `aru make:module` writes one with the module
+- Neither writes `Writes` in v0.76.1: add it by hand after generating, and
+  `aru doctor` does not ask for it yet
 - `aru action:list` lists the actions the source declares, with the constant and the line of each
 
 ## Example
@@ -159,6 +178,8 @@ changes.
   before the database is touched -- the service runs with a nil database.
 - Feature tests: another member's change answered 403, another tenant's row
   404, for every action that takes an id.
+- A test that a write under the Grant of a reading action is refused with
+  `auth.ErrReadGrant`, as `TestAGrantIssuedToViewANoteCannotSaveIt` does.
 
 ## Limits
 

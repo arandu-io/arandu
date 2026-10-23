@@ -31,6 +31,10 @@ answer is `arandu-api`.
 | page | `resources/views/<area>/<action>.kyse.go`: `//go:build kyse`, `@extends('layouts.app')`, and a data struct that embeds `view.Page` (`github.com/arandu-io/hesape/view`), asserted with `var _ view.Layout = XData{}` |
 | fragment | `resources/views/partials/<name>.kyse.go`, no `@extends`; its page draws it with `@include('partials.<name>')`, handing the page's data over |
 | chrome | `view.New(ctx, title)` in the controller: the title, the flash a rejected form left, the CSRF token the middleware issued |
+| what a write did | the action says it with `ctx.With(hhttp.StatusKey, "Note saved.")` before redirecting, and the layout's `components.Toast` in `#toaster` draws it on the page the browser lands on, once |
+| words | `.Trans("notes.new")` in a page, a key of `lang/en.json`; the provider builds the translator from `lang/` and `bootstrap/app.go` hands it to `WithTranslator`. A locale is `lang/<locale>.json` with the same keys |
+| a listing's pages | `components.Pagination(components.PaginationProps{Paginator: .Paginator, PageData: .})` over the page the query returned, never a link written by hand |
+| a button for an action | drawn only when the controller passed its address, which it does when the policy allows the action (`NoteService.Abilities`, over `auth.Allows`) |
 | answering | `ctx.View("notes.index", data)` for the page, `ctx.Fragment(http.StatusOK, "partials.notes_table", data)` for the fragment |
 | component | `github.com/arandu-io/kyse/components`, imported, never copied: an exported function taking its props struct |
 | behaviour | `ui.js`, bound once on `document`, dispatching on `data-*` attributes; this project registers its own in `resources/js/custom.js` with `arandu.ui.define` and `arandu.ui.action` |
