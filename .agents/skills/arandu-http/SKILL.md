@@ -188,7 +188,8 @@ the custom block of `Validate`.
 
 ## Acceptance test
 
-A feature test through the router, signed in with `tests.SignedIn`:
+A feature test through the router, over the server `tests.Serve` boots and
+signed in with `tests.SignIn`, which is the kit's `test.As`:
 
 - the success, with the status and the `Location` it redirects to;
 - another member's record (403) and another tenant's (404), for every action

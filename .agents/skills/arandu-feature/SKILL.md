@@ -177,8 +177,9 @@ All of it is by hand, from what the generators print:
 
 The feature is done when:
 
-1. a feature test drives it as its caller does -- a browser through
-   `tests.SignedIn`, a JSON client with `Accept: application/json`, the
+1. a feature test drives it as its caller does -- a browser signed in with
+   `tests.SignIn` over `tests.Serve`, a journey in `tests/E2E` when the
+   screen's behaviour is htmx or JavaScript, a JSON client with `Accept: application/json`, the
    scheduler through `RunNow`, the relay through `Drain`;
 2. every new table with `tenant_id` is claimed in
    `tests/Feature/TenantScope_test.go` and has a cross-tenant test that reads

@@ -45,7 +45,7 @@ and `routes/web.go`, where the wiring now goes in the provider.
 | 8 | controller | `app/Http/Controllers/<Entity>Controller.go` | `aru make:controller` with `--resource`, `--singleton`, `--invokable`, `--parent`, `--action` | `app/Http/Controllers/NoteController.go` (`Publish` is `--action=publish`), `app/Http/Controllers/CommentController.go` (`--parent=notes`) |
 | 9 | routes and their guard | `routes/web.go` | printed by the generators, pasted by you | the notes group in the custom block of `routes/web.go` |
 | 10 | page, fragment, component or JSON Resource | `resources/views/**/*.kyse.go`, `app/Http/Resources/` | `aru make:module` writes the pages; `aru make:resource` | `resources/views/notes/`, `resources/views/partials/notes_table.kyse.go`, `app/Http/Resources/NoteResource.go` |
-| 11 | tests and wiring | `tests/Feature`, `tests/Unit`, `tests/Browser`, `app/Providers/AppServiceProvider.go` | `aru make:test`; `aru make:module --tenant` writes the tenant test | `tests/Feature/Notes_test.go`, `tests/Feature/CommentTenantScope_test.go`, `tests/Feature/TenantScope_test.go` |
+| 11 | tests and wiring | `tests/Unit`, `tests/Feature`, `tests/Conformance`, `tests/E2E`, `app/Providers/AppServiceProvider.go` | `aru make:test`; `aru make:module --tenant` writes the tenant test | `tests/Feature/Notes_test.go`, `tests/Feature/CommentTenantScope_test.go`, `tests/Feature/TenantScope_test.go` |
 
 `aru make:module <name> --fields "..." --tenant` writes the migration, the
 model and its query, the factory, the seeder, the policy, the request, the
@@ -67,7 +67,7 @@ Beyond the eleven steps, each in the example:
 | a write a program makes with a bearer token | none: a route in the `/api` group | `POST /api/notes` in `routes/web.go`, behind `RequireToken` and `Idempotent`; the tokens are `app/Services/PersonalAccessTokenService.go` |
 | a tool, resource or prompt of an MCP server | `aru make:mcp-tool`, `aru make:mcp-resource`, `aru make:mcp-prompt` | none: this project does not require the mcp module |
 | a console command | `aru make:command` | `app/Console/Commands/NotesDigest.go`, listed in `Commands` in `routes/console.go`: `notes:digest` queues the digest now |
-| a test that drives the browser | none: a Go test behind the `browser` build tag | `tests/Browser/Home_test.go`, run by `aru test --browser`; it skips without Chrome |
+| a journey in a real browser | none: a Go test behind the `e2e` build tag, on `framework/test/browser` | `tests/E2E/Notes_test.go`, run by `go test -tags e2e ./tests/E2E/...`; it skips without Chrome, and fails without one in CI |
 
 ## Where each kind of code lives
 
@@ -91,7 +91,7 @@ Beyond the eleven steps, each in the example:
 | a scheduled task | `Schedule` in `routes/console.go` | the framework's scheduler, in the process that serves | start a goroutine of its own |
 | building a service over the drivers | a provider in `app/Providers`, listed in `WithProviders` in `bootstrap/app.go` | `bootstrap/app.go` | build a cache, session, queue, mail transport or disk by hand: the framework builds them from the configuration |
 | a setting of this application | a section of its own in `config/`, beside the framework's `bootstrap.Settings` that `config.Config` embeds | the provider | copy a section the framework reads (`app`, `cache`, `database`, `filesystems`, `http`, `logging`, `mail`, `queue`, `session`) |
-| a test that drives a browser | `tests/Browser`, behind the `browser` build tag | `aru test --browser` | be a program under `scripts/` |
+| a test that drives a browser | `tests/E2E`, behind the `e2e` build tag | `go test -tags e2e ./tests/E2E/...` | be a program under `scripts/`, call one driver's API |
 | a JSON answer about the domain | a `JsonResource`, in `app/Http/Resources` | a controller, with `ctx.JSON` | `json.NewEncoder` on the ResponseWriter |
 | an API error | a problem document, written by the router | the router | a format of its own |
 | a rejected form | the `validation.Errors` the service returns; the router answers it | the router | a 422 written by a controller |
@@ -144,13 +144,86 @@ compiler by a build tag, and `gofmt` is the only tool in the chain that ignores
 build tags — without the filter it reports a syntax error on every view.
 `testdata/` holds fixtures that are invalid on purpose.
 
-The browser suite is not one of the eight: `aru test --browser` runs
-`tests/Browser` where Chrome is installed, and each test there skips without
-one.
+The journeys are not one of the eight, because they need Chrome:
+`go vet -tags e2e ./...` compiles them and `go test -tags e2e ./tests/E2E/...`
+runs them. A change to a screen is not finished until both pass where Chrome
+is installed.
 
 CI runs these too, except `aru model:build --check`, whose question
-`aru doctor` also asks as `model-query-stale`. It then builds the container
+`aru doctor` also asks as `model-query-stale`, with the feature and
+conformance tests on Postgres. It also runs the journeys in Chrome and the
+sign-in screens' matrix behind the `authui` tag, then builds the container
 image and runs `govulncheck`, which need Docker and the network.
+
+## Testing
+
+The kit is `github.com/arandu-io/framework/test`. `framework/arandutest` and
+`hesape/arandutest` are deprecated: nothing here imports them.
+
+| layer | proves | how it runs |
+| --- | --- | --- |
+| `tests/Unit` | one rule, with nothing running | `go test ./tests/Unit/` |
+| `tests/Feature` | the HTTP answer in process, the policy, the JSON, the outbox, the commands | `go test ./tests/Feature/`, over `tests.Serve` |
+| `tests/Contract` | the answers against the exported OpenAPI document, with `framework/test/openapi` | none yet: this project exports no document |
+| `tests/E2E` | the journey: server, database, Chrome, JavaScript and htmx | `go test -tags e2e ./tests/E2E/...` |
+| `tests/Conformance` | the framework's kits, one line each | `go test ./tests/Conformance/`; the session matrix with `-tags authui` once `ui auth` published the screens |
+
+`tests/Connectors` is the one directory beside them: it links no connector, to
+ask what a binary without one answers. `bash tests/test-layout-guard.sh`
+refuses any other directory, `tests/Browser` by name, and a file in
+`tests/E2E` without `//go:build e2e` on its first line.
+
+- **Serve.** `tests.Serve(t, opts...)` boots the application the way the
+  binary boots, on a free port, over a database of the test's own migrated by
+  `migrate`. `server.App` holds the services, `server.DB()` the database,
+  `server.Route(name, params...)` an address by route name, `server.Client()`
+  a browser over the socket.
+- **The engine.** `ARANDU_TEST_DATABASE_URL`, or `DATABASE_URL` when it is
+  empty, names it. Postgres gives each test a copy of a template migrated once
+  per package, named `arandutest_` and dropped when the test ends. With
+  neither set, outside CI, the test runs on a temporary SQLite file; in CI a
+  missing database fails the test. Pass `test.SQLite()` only for a test whose
+  assertion no engine decides. The configuration is read from the
+  environment, so a test that serves cannot call `t.Parallel`.
+- **Sign-in.** `tests.SignIn(t, server, user)` is `test.As` with the account's
+  ID and tenant: a real session on the application's store, the roles answered
+  by the resolver on every request. Give the account its role where the
+  resolver reads it. Only a unit test of a Policy builds an `auth.Subject`, to
+  ask `Can`.
+- **Time.** Expiry and TTLs move `support.FreezeTime`, `support.Travel` and
+  `support.TravelBack`; a service reads `support.Now`, never `time.Now`, where
+  a test has to move the clock.
+- **A journey.** `page := tests.Open(t, server)` opens a page on a driver of
+  `tests.Drivers`; `page.SetCookies(tests.SignIn(t, server, user).Cookies()...)`
+  signs it in. Find elements the way the person does: `page.ClickRole("button",
+  "Save")`, `page.Fill("Title", ...)`, `browser.Text`, `browser.TestID`;
+  `browser.CSS` only with the reason no other locator can say it. Visit by route
+  name: `page.Visit("notes.create")`.
+- **Waits.** There are none to write. Each action waits for its element to be
+  visible, enabled and still, then for htmx to settle and the network to go
+  idle; each expectation retries until it holds. The page fails by itself on
+  an uncaught exception, a `console.error`, a 5xx and a CSP violation, and
+  `page.Responsive()` on overflow at 1440, 768, 390 and 320 in both schemes.
+- **Trace and debug.** A failing journey writes its trace -- every step with a
+  PNG and the DOM, the network, the console and the failures -- under
+  `ARANDU_E2E_TRACE_DIR`, or `arandu-e2e` in the temporary directory;
+  `ARANDU_E2E_TRACE=1` writes it for a passing one too. `ARANDU_E2E_HEADED=1`
+  shows the window, `ARANDU_E2E_SLOWMO=250ms` slows each action, and
+  `page.Pause()` holds the window open until `window.__arandu.resume()`.
+- **Recording.** `aru e2e:record`, from aru v0.78.0, records a navigation as a
+  journey in the kit's API; `aru make:e2e` writes an empty one. Both call
+  `tests.Serve`, `tests.Open` and `tests.Drivers`, so keep those three names.
+- **Drivers.** `tests.Drivers` registers the native `cdp` driver, Chrome over
+  its debugging pipe with the standard library alone, and
+  `ARANDU_E2E_DRIVER` picks one. Install `github.com/hyz-is/arandu-playwright`
+  and add its `Launch` to `tests.Drivers` only to run the same journeys on
+  Firefox or WebKit; no journey changes, and Node stays in that module's cache.
+
+Never in a test: `time.Sleep`; an `auth.Subject` written into a Feature,
+Conformance or E2E test or handed to a session; `ActingAs`; a copy of a
+framework suite where a kit exists; a CSS locator without its reason; an import
+of one browser driver outside `tests/TestCase.go`; a `t.Skip` that does not say
+why; a program under `scripts/` that drives a browser.
 
 ## What does not exist here
 

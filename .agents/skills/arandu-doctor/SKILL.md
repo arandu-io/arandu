@@ -109,7 +109,7 @@ Dockerfile pins, when that list differs from what `aru doctor --list` prints.
 | `bootstrap-file-beside-app` | warning | a file in `bootstrap/` other than `app.go`, with where its code belongs |
 | `program-under-cmd` | warning | a Go program under `cmd/` other than `cmd/native`, which is a command of this binary in `app/Console/Commands` |
 | `command-outside-commands` | warning | a command whose `Run` is a function declared outside `app/Console/Commands` |
-| `program-under-scripts` | warning | a Go program under `scripts/` that runs the application's code, or drives a browser (whose place is `tests/Browser`) |
+| `program-under-scripts` | warning | a Go program under `scripts/` that runs the application's code, or drives a browser (whose place is `tests/E2E`, behind the `e2e` tag) |
 
 ## Procedure
 
@@ -262,7 +262,7 @@ code that assembles or runs the application from a second place. This
 application is one binary: `bootstrap/app.go` configures it, `main.go` hands
 the command line to the framework's console kernel, `routes/console.go` lists
 the application's commands and `app/Console/Commands` holds their code, and a
-test that drives the browser is a test in `tests/Browser`. Each finding names
+test that drives the browser is a journey in `tests/E2E`. Each finding names
 where its code belongs: a built-in command file in `bootstrap/` is deleted
 because the kernel answers it, a one-off step moves to `app/Console/Commands`,
 wiring that grew moves to a provider in `app/Providers`, and a value to

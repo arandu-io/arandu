@@ -73,8 +73,8 @@ running it.
 The directories are capitalised and the `package` clause is not: a directory
 name is a label, an identifier is code. What the suites share sits in
 `tests/TestCase.go`, which is `package tests` for that reason -- and ordinary Go
-rather than a `_test.go`, which is what makes `tests.App` and `tests.Root`
-callable from both.
+rather than a `_test.go`, which is what makes `tests.Serve` and `tests.Root`
+callable from every layer.
 
 That `go test` attributes coverage per directory is true, and what follows from
 it here is a flag rather than an argument: a suite in a directory of its own is
