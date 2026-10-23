@@ -60,7 +60,7 @@ Beyond the eleven steps, each in the example:
 | a write a program makes with a bearer token | none: a route in the `/api` group | `POST /api/notes` in `routes/web.go`, behind `RequireToken` and `Idempotent`; the tokens are `app/Services/PersonalAccessTokenService.go` |
 | a tool, resource or prompt of an MCP server | `aru make:mcp-tool`, `aru make:mcp-resource`, `aru make:mcp-prompt` | none: this project does not require the mcp module |
 | a console command | `aru make:command` | `app/Console/Commands/NotesDigest.go`, listed in `Commands` in `routes/console.go`: `notes:digest` queues the digest now |
-| a journey in a real browser | none: a Go test behind the `e2e` build tag, on `framework/test/browser` | `tests/E2E/Notes_test.go`, run by `go test -tags e2e ./tests/E2E/...`; it skips without Chrome, and fails without one in CI |
+| a journey in a real browser | none: a Go test behind the `e2e` build tag, on `framework/test/browser` | `tests/E2E/Notes_test.go`, run by `aru test --e2e`, which is `go test -tags e2e ./tests/E2E/...`; it skips without Chrome, and fails without one in CI |
 
 ## Where each kind of code lives
 
@@ -84,7 +84,7 @@ Beyond the eleven steps, each in the example:
 | a scheduled task | `Schedule` in `routes/console.go` | the framework's scheduler, in the process that serves | start a goroutine of its own |
 | building a service over the drivers | a provider in `app/Providers`, listed in `WithProviders` in `bootstrap/app.go` | `bootstrap/app.go` | build a cache, session, queue, mail transport or disk by hand: the framework builds them from the configuration |
 | a setting of this application | a section of its own in `config/`, beside the framework's `bootstrap.Settings` that `config.Config` embeds | the provider | copy a section the framework reads (`app`, `cache`, `database`, `filesystems`, `http`, `logging`, `mail`, `queue`, `session`) |
-| a test that drives a browser | `tests/E2E`, behind the `e2e` build tag | `go test -tags e2e ./tests/E2E/...` | be a program under `scripts/`, call one driver's API |
+| a test that drives a browser | `tests/E2E`, behind the `e2e` build tag | `aru test --e2e` | be a program under `scripts/`, call one driver's API |
 | a JSON answer about the domain | a `JsonResource`, in `app/Http/Resources` | a controller, with `ctx.JSON` | `json.NewEncoder` on the ResponseWriter |
 | an API error | a problem document, written by the router | the router | a format of its own |
 | a rejected form | the `validation.Errors` the service returns; the router answers it | the router | a 422 written by a controller |
@@ -138,8 +138,9 @@ build tags — without the filter it reports a syntax error on every view.
 `testdata/` holds fixtures that are invalid on purpose.
 
 The journeys are not one of the eight, because they need Chrome:
-`go vet -tags e2e ./...` compiles them and `go test -tags e2e ./tests/E2E/...`
-runs them. A change to a screen is not finished until both pass where Chrome
+`go vet -tags e2e ./...` compiles them and `aru test --e2e` runs them -- it is
+`go test -tags e2e ./tests/E2E/...`, and takes `-run`, `-v` and `-count` the
+same way. A change to a screen is not finished until both pass where Chrome
 is installed.
 
 CI runs these too, except `aru model:build --check`, whose question
@@ -158,7 +159,7 @@ The kit is `github.com/arandu-io/framework/test`. `framework/arandutest` and
 | `tests/Unit` | one rule, with nothing running | `go test ./tests/Unit/` |
 | `tests/Feature` | the HTTP answer in process, the policy, the JSON, the outbox, the commands | `go test ./tests/Feature/`, over `tests.Serve` |
 | `tests/Contract` | the answers against the exported OpenAPI document, with `framework/test/openapi` | none yet: this project exports no document |
-| `tests/E2E` | the journey: server, database, Chrome, JavaScript and htmx | `go test -tags e2e ./tests/E2E/...` |
+| `tests/E2E` | the journey: server, database, Chrome, JavaScript and htmx | `aru test --e2e` |
 | `tests/Conformance` | the framework's kits, one line each | `go test ./tests/Conformance/`; the session matrix with `-tags authui` once `ui auth` published the screens |
 
 `tests/Connectors` is the one directory beside them: it links no connector, to

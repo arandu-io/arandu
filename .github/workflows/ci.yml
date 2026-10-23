@@ -298,12 +298,15 @@ jobs:
         run: |
           "$(go env GOPATH)/bin/aru" view:build
 
+      # aru test --e2e is go test -tags e2e ./tests/E2E/..., run by the aru
+      # installed above, the way a person runs the journeys.
+      #
       # runner.temp is read in a step: the job-level env is evaluated before
       # the runner exists, and a workflow that names it there does not start.
       - name: journeys
         env:
           ARANDU_E2E_TRACE_DIR: ${{ runner.temp }}/e2e-traces
-        run: go test -count=1 -tags e2e ./tests/E2E/...
+        run: aru test --e2e -count=1
 
       - name: upload the traces
         if: failure()
