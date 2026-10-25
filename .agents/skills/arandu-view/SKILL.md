@@ -15,11 +15,13 @@ answer is `arandu-api`.
 ## Before you start
 
 - `resources/views/notes/` holds the example's four screens -- a listing
-  through the `DataTable` component, a record with a named action's form, and
-  the create and edit forms built from `Field`, `Textarea` and `Checkbox` --
-  and `resources/views/partials/notes_table.kyse.go` is the listing's table,
-  the one fragment the project ships. `resources/views/comments/` is what
-  `aru make:module` writes for a nested resource, untouched.
+  through the `DataTable` component, drawn from the result of a typed listing,
+  a record with a named action's form, and the create and edit forms built from
+  `Field`, `Textarea` and `Checkbox` -- and
+  `resources/views/partials/notes_table.kyse.go` is the listing's table, the
+  fragment its page includes and the controller answers alone.
+  `resources/views/comments/` is the same table over a nested resource, with
+  `partials/comments_table.kyse.go` for its fragment.
 - A view is Go: `resources/views/home.kyse.go` compiles, through
   `aru view:build`, to `storage/framework/views/home.go`, which is build output
   and is gitignored. An error points at the line you wrote.
@@ -34,7 +36,10 @@ answer is `arandu-api`.
 | what a write did | the action says it with `ctx.With(hhttp.StatusKey, "Note saved.")` before redirecting, and the layout's `components.Toast` in `#toaster` draws it on the page the browser lands on, once |
 | words | `.Trans("notes.new")` in a page, a key of `lang/en.json`; the provider builds the translator from `lang/` and `bootstrap/app.go` hands it to `WithTranslator`. A locale is `lang/<locale>.json` with the same keys |
 | a date | formatted by the controller in `APP_TIMEZONE`, the zone the provider hands it from `cfg.Framework.App.Timezone`: `shownAt` in `app/Http/Controllers/Controller.go`. Never formatted as the driver handed it back, which may be UTC or the server's zone; the database stores UTC, so a service stamps `support.Now().UTC()` |
-| a listing's pages | `components.Pagination(components.PaginationProps{Paginator: .Paginator, PageData: .})` over the page the query returned, never a link written by hand |
+| a table of records | `components.DataTable(components.DataTableProps{ID: ..., URL: .URL, Result: .Result, PageData: .Page, Searchable: true, FullPager: true, Columns: ..., Rows: ...})`, handed the `*pagination.ListingResult` the service returned. The state, the page with its total, the count beside every facet value and the page sizes come out of `Result`; every control is an address the state builds. The table draws its own pager, so no `components.Pagination` and no link written by hand sits beside it |
+| a table's columns | `components.TableColumn{Key: "title", Sortable: true, Hideable: true}`: the key is the listing's public key, and a column the listing did not declare sortable or hideable is not one |
+| a table's rows | `components.TableRow{Key: id, Label: "Select note ...", Cells: ..., Actions: []components.MenuItem{{Label: "View", URL: ...}}}`; an entry that edits is drawn only for a row whose address the controller set, which it does when the policy allows it |
+| a bulk action | `BulkAction` with the address of an endpoint that exists and `BulkActions` buttons with a `Name` and `Value` each; without `BulkAction` the bar is not drawn |
 | a button for an action | drawn only when the controller passed its address, which it does when the policy allows the action (`NoteService.Abilities`, over `auth.Allows`) |
 | answering | `ctx.View("notes.index", data)` for the page, `ctx.Fragment(http.StatusOK, "partials.notes_table", data)` for the fragment |
 | component | `github.com/arandu-io/kyse/components`, imported, never copied: an exported function taking its props struct |
@@ -119,18 +124,22 @@ import (
 	"net/http"
 
 	hhttp "github.com/arandu-io/hesape/http"
+	"github.com/arandu-io/hesape/pagination"
 	"github.com/arandu-io/hesape/view"
 
 	views "<module>/storage/framework/views/notes"
 )
 
 // Listing answers the page to every navigation, and the table alone to the
-// one request that names the table as the element it replaces.
-func Listing(ctx *hhttp.Context, rows []views.NoteRow) error {
+// one request that names the table's root as the element it replaces. The
+// result is what the service's listing returned; the table is drawn from it.
+func Listing(ctx *hhttp.Context, rows []views.NoteRow, result *pagination.ListingResult) error {
 	data := views.NotesIndexData{
 		Page:   view.New(ctx, "Notes"),
 		Notes:  rows,
 		NewURL: ctx.URL("notes.create"),
+		URL:    ctx.URL("notes.index"),
+		Result: result,
 	}
 	ctx.Response.Header().Add("Vary", "HX-Request, HX-Target")
 	if ctx.IsHTMX() && ctx.Header("HX-Target") == views.NotesTableID {
@@ -144,6 +153,10 @@ func Listing(ctx *hhttp.Context, rows []views.NoteRow) error {
 
 - Hand a view a map: a typo in a key is a blank space on a page that answered
   200. `aru doctor` fails it as `view-data-is-a-map`.
+- Draw `components.Pagination` beside a `DataTable`, build a table's address
+  from `q`, `sort` or `page` written in the view, or order and filter the rows
+  in hand: the table draws the one pager and takes every address from the
+  listing's state, and the work happens in the query.
 - Convert a string to `template.HTML` to get it through `{!! !!}`: a value
   somebody typed has been through nothing, and that is stored cross-site
   scripting. `{!! !!}` takes a component call; `raw-output-is-not-a-component`.

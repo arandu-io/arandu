@@ -64,6 +64,13 @@ specification, migration, model and its rules, factory and seeder, policy,
 request, service, controller, routes, view or resource, tests and wiring. The
 order is the order of dependence: each step compiles against the one before.
 
+A list of records is a step of its own: declare what it may be searched,
+sorted, filtered, paged and hidden by once, with `pagination.NewListing`
+beside the service; let the controller read it with `ParseURL`; let the
+service run it through the model builder's `Listing` after `Authorize`; and
+draw the result with `components.DataTable`, whose pager is the only one. A
+service that reads `q`, `sort` and `page` by hand is the shape this replaces.
+
 **3. Put each piece where the table says.** A rule of the entity in the
 model's custom block, the order of a use case in the service, input conversion
 in the controller, the answer in a view or a JSON Resource. A piece that seems
@@ -78,7 +85,9 @@ the code.
 
 **5. Test the path.** A feature test that drives the feature the way its
 caller does, the tenant isolation of every new table, and the answers the
-family skill lists under "Acceptance test".
+family skill lists under "Acceptance test". For a list, the search, the order,
+a facet, the page and its size with hostile values falling back to the
+defaults, and one journey in a browser that walks the table by its address.
 
 **6. Report what is missing.** A capability the framework or the generators do
 not have is a gap to name in the report, with the file that would have used

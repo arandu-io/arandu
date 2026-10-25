@@ -23,10 +23,10 @@ hold the rules.
 | factory and seeder | `database/factories/NoteFactory.go`, `database/seeders/NoteSeeder.go` | `aru make:factory Note`, `aru make:seeder Note` | notes by two authors nobody can sign in as |
 | policy | `app/Policies/NotePolicy.go` | `aru make:module` | the rules below, and `NotePublish` |
 | request | `app/Http/Requests/NoteRequest.go` | `aru make:module` | nothing |
-| service | `app/Services/NoteService.go` | `aru make:module` | the author from the subject, `Publish` at the framework clock in UTC, `SendDigest`, `WithNewsletter` |
-| controller | `app/Http/Controllers/NoteController.go` | `aru make:module`; `Publish` by `aru make:controller Note --resource --action=publish` | the table fragment, the JSON branches, the publish button's address, the dates in `APP_TIMEZONE` |
+| service | `app/Services/NoteService.go` | `aru make:module` | the author from the subject, `Publish` at the framework clock in UTC, `SendDigest`, `WithNewsletter`; the listing declared in `noteListing` and run by `List` |
+| controller | `app/Http/Controllers/NoteController.go` | `aru make:module`; `Publish` by `aru make:controller Note --resource --action=publish` | the table fragment, the JSON branches, the edit entry of a row, the publish button's address, the dates in `APP_TIMEZONE` |
 | routes | the custom block of `routes/web.go` | printed by each generator | one sign-in group for all three lines |
-| views | `resources/views/notes/`, `resources/views/partials/notes_table.kyse.go` | `aru make:module` | the table moved to a partial, the publish form |
+| views | `resources/views/notes/`, `resources/views/partials/notes_table.kyse.go` | `aru make:module` | the table moved to a partial, the pinned facet, the publish form |
 | JSON Resource | `app/Http/Resources/NoteResource.go` | `aru make:resource Note` | the next page's link |
 | event | `app/Events/NotePublished.go` | `aru make:event NotePublished --aggregate=note --event-name=note.published --fields "title:string,author:string"` | nothing |
 | listener | `app/Listeners/NotifyNoteAuthor.go` | `aru make:listener NotifyNoteAuthor --event=note.published` | decoding the payload and sending the notification |
@@ -34,7 +34,7 @@ hold the rules.
 | job and schedule | `app/Jobs/SendNotesDigest.go`, `Schedule` in `routes/console.go`, `RegisterJobs` in `app/Providers/AppServiceProvider.go` | `aru make:job SendNotesDigest --event-name=notes.digest --fields "since:timestamp"` | the handler calls `NoteService.SendDigest`; the task by hand |
 | command | `app/Console/Commands/NotesDigest.go`, in `Commands` in `routes/console.go` | none: written by hand as a function answering a `console.Command` | `notes:digest` queues the same job now, for the tenant |
 | client | `app/Clients/NewsletterClient.go`, `app/Clients/NewsletterFake.go` | `aru make:client Newsletter` | `SendDigest` on the client, the interface and the fake |
-| nested resource | `app/Models/Comment.go` and the rest of the comment files | `aru make:module comment --fields "body:text!" --tenant --parent=notes` | the `user_id` author, the opened policy, the note key as text, the listing's index |
+| nested resource | `app/Models/Comment.go` and the rest of the comment files | `aru make:module comment --fields "body:text!" --tenant --parent=notes` | the `user_id` author, the opened policy, the note key as text, the listing's index, the listing's declaration and its table |
 | an API for a token client | the `/api` group in the custom block of `routes/web.go` | by hand: two `api.Action` lines pointing at `NoteController.Store` and `Publish` | the JSON branch of `Store`, answering 201 with `Location` |
 | a received webhook | `app/Http/Controllers/NewsletterWebhookController.go`, `app/Http/Requests/NewsletterEventRequest.go`, `app/Services/NewsletterEventService.go` | by hand, to the webhook card of `aru mcp`'s `where_does_it_go` | the signature and timestamp check before the bind, the 404 with no secret, the delivery id recorded once |
 | its record of deliveries | `app/Models/NewsletterDelivery.go`, `database/migrations/2026_10_22_000001_create_newsletter_deliveries_table.go` | `aru make:model NewsletterDelivery --fields "delivery_id:string!u" --tenant -m` | the listing index dropped: the unique index on the tenant and the delivery id is the only read |
@@ -64,11 +64,21 @@ refused (403); a note published twice is a conflict (409).
   write, read, change, delete and publish through the router, and prove the
   403, the 404 and the 409.
 - **A journey**: `tests/E2E/Notes_test.go` does the same in Chrome -- write,
-  edit and publish with the toast each write leaves, the pager swapping the
-  table through htmx, another member answered Forbidden, and the note and
-  the listing no wider than the screen at any width in either scheme.
+  edit and publish with the toast each write leaves, the table's pager, another
+  member answered Forbidden, and the note and the listing no wider than the
+  screen at any width in either scheme. `tests/E2E/NotesListing_test.go` walks
+  the table by its address: it searches, orders from the header menu, turns the
+  pinned facet on and off, resets, pages, changes the page size, ticks a row,
+  hides a column, reloads and goes back, with the address and the rows
+  asserted at each step.
+- **A listing**: `tests/Feature/NotesListing_test.go` and
+  `tests/Feature/CommentsListing_test.go` prove the search, both directions of
+  every sort, the facet and its counts, the page and its size, the hidden
+  columns, the one pager, the JSON answer, the guard, and that a hostile
+  `sort`, `dir`, `per_page`, `page` or facet value falls back to the default and
+  another tenant's rows never reach the rows or the counts.
 - **A fragment**: the listing's table answered alone only to the request that
-  names it, and the whole page to every navigation.
+  names its root element, and the whole page to every navigation.
 - **A JSON client**: the same routes through `NoteResource`, and problem
   documents for each refusal.
 - **The outbox**: publishing stores `note.published` in the write's

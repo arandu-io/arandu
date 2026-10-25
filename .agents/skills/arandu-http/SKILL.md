@@ -31,6 +31,7 @@ request struct. What the answer looks like is `arandu-view` for a page and
 | who is asking | `who, _ := ctx.User()`, put there by the route's guard |
 | input | `ctx.Bind(&in)`, which reads only the tagged fields; a conversion error comes back as `validation.Errors` |
 | path | `ctx.Param("id")` on a flat resource's member; `ctx.Param("note")` and `ctx.Param("comment")` under a nested one |
+| a list's state | `state := c.svc.Listing().ParseURL(ctx.Request.URL)` handed to the service, which declared the listing once with `pagination.NewListing`: the search, the sort, the facets, the page, its size and the hidden columns, and nothing else of the query string. The service returns the rows and the `*pagination.ListingResult` the page's table is drawn from |
 | an address | `ctx.URL("notes.show", id)` and `ctx.RedirectRoute("notes.show", id)`, by route name |
 | an error | returned; the router answers `validation.Errors` with a redirect back to the form (a 422 problem document to a JSON client), a missing row 404, a refusal 403, a duplicate key 409, and an error with `HTTPStatus() int` that status |
 
@@ -153,6 +154,9 @@ func Routes(r *hcontrollers.Router, sessions *hhttp.SessionStore, note *controll
 
 ## Do not
 
+- Read `q`, `sort`, `dir`, `page` or `per_page` from the query string by hand,
+  or hand a request value to `OrderBy` or `Where`: the listing keeps only what
+  its spec declared, and falls back to the default for the rest.
 - Read the form field by field, parse it, or decode a body by hand:
   `input-read-by-hand`. `ctx.Bind` into the request is the one conversion.
 - Call `Validate()` in the controller: `validate-called-by-controller`.
@@ -197,9 +201,14 @@ signed in with `tests.SignIn`, which is the kit's `test.As`:
 - a rejected form: 303 back with the messages, 204 with `HX-Redirect` to htmx,
   422 problem document to JSON;
 - a guest redirected to the sign-in page, and a GET on a state-changing route
-  answered 405.
+  answered 405;
+- for an index, the state of its listing: a search, a sort in both directions,
+  a facet, a page and its size, a hidden column, a hostile `sort`, `dir`,
+  `per_page`, `page` or facet value falling back to the default, and another
+  tenant's rows absent from the rows and from the counts.
 
-`tests/Feature/Notes_test.go` and `tests/Feature/Comments_test.go` hold each.
+`tests/Feature/Notes_test.go` and `tests/Feature/Comments_test.go` hold each,
+and `tests/Feature/NotesListing_test.go` the listing.
 
 ## Limits
 

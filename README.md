@@ -151,15 +151,19 @@ database/migrations/2026_10_22_000001_create_newsletter_deliveries_table.go
 database/seeders/NoteSeeder.go
 resources/views/comments/         (the directory, four views)
 resources/views/notes/            (the directory, four views)
+resources/views/partials/comments_table.kyse.go
 resources/views/partials/notes_table.kyse.go
 storage/framework/views/comments/ (the directory, compiled output)
 storage/framework/views/notes/    (the directory, compiled output)
+storage/framework/views/partials/comments_table.go   (compiled output)
 storage/framework/views/partials/notes_table.go   (compiled output)
 tests/Feature/CommentTenantScope_test.go
 tests/Feature/Comments_test.go
+tests/Feature/CommentsListing_test.go
 tests/Feature/NewsletterWebhook_test.go
 tests/Feature/Notes_test.go
 tests/Feature/NotesAPI_test.go
+tests/Feature/NotesListing_test.go
 tests/Unit/Comment_test.go
 tests/Unit/NewsletterClient_test.go
 tests/Unit/Note_test.go

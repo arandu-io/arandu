@@ -37,7 +37,7 @@ example column is the `notes` resource, which has every step;
 | 7 | service | `app/Services/<Entity>Service.go` | `aru make:module`, `aru make:service` | `app/Services/NoteService.go` |
 | 8 | controller | `app/Http/Controllers/<Entity>Controller.go` | `aru make:controller` with `--resource`, `--singleton`, `--invokable`, `--parent`, `--action` | `app/Http/Controllers/NoteController.go` (`Publish` is `--action=publish`), `app/Http/Controllers/CommentController.go` (`--parent=notes`) |
 | 9 | routes and their guard | `routes/web.go` | printed by the generators, pasted by you | the notes group in the custom block of `routes/web.go` |
-| 10 | page, fragment, component or JSON Resource | `resources/views/**/*.kyse.go`, `app/Http/Resources/` | `aru make:module` writes the pages; `aru make:resource` | `resources/views/notes/`, `resources/views/partials/notes_table.kyse.go`, `app/Http/Resources/NoteResource.go` |
+| 10 | page, fragment, component or JSON Resource | `resources/views/**/*.kyse.go`, `app/Http/Resources/` | `aru make:module` writes the pages; `aru make:resource` | `resources/views/notes/`, `resources/views/partials/notes_table.kyse.go`, `resources/views/partials/comments_table.kyse.go`, `app/Http/Resources/NoteResource.go` |
 | 11 | tests and wiring | `tests/Unit`, `tests/Feature`, `tests/Conformance`, `tests/E2E`, `app/Providers/AppServiceProvider.go` | `aru make:test`; `aru make:module --tenant` writes the tenant test | `tests/Feature/Notes_test.go`, `tests/Feature/CommentTenantScope_test.go`, `tests/Feature/TenantScope_test.go` |
 
 `aru make:module <name> --fields "..." --tenant` writes the migration, the
@@ -73,6 +73,7 @@ Beyond the eleven steps, each in the example:
 | authorization | `app/Policies`, asked through `auth.Authorize`; each policy lists its write actions in `Writes`, so the Grant of any other action cannot write | the service | be skipped on a read, or write with the Grant of an action that reads |
 | a role an account holds | `users.roles`, `RoleAdmin` and `RoleMember` in `app/Models/User.go`, for the fixed roles of the deployment's one tenant; `github.com/hyz-is/arandu-permission` once people grant roles to others, in groups or per organization, which fills the subject's roles through `User.Subject` | a policy, through `Subject.HasRole` | gain a second role column, an `is_admin` flag or an ACL table, or keep writing `users.roles` after arandu-permission owns the roles |
 | a use case | `app/Services`, one service per aggregate | a controller, a job, a listener, a command | take an HTTP type, live in a subpackage, run a worker of its own |
+| what a list may be searched, sorted, filtered, paged and hidden by | a `pagination.Listing` declared once beside the service (`pagination.NewListing`, through `mustListing`), read from the request with `Listing.ParseURL(ctx.Request.URL)` and run by the model builder's `Listing(ctx, g, state, path)` after `Authorize` | the controller reads it, the service runs it | read `q`, `sort`, `page` or `per_page` by hand, pass a request value to `OrderBy` or `Where`, or take the tenant from the request |
 | a complex query, a report, a read model | `app/Repositories` | the service | exist for plain CRUD |
 | a client of an external system | `app/Clients/<Vendor>Client.go`, with its interface and a fake | a service, a job, a listener | reach a model, a Grant or the session |
 | an engine that wraps another technology, a client another project would reuse | a `github.com/hyz-is/arandu-*` module | a service, a job | live in `app/Services` |
@@ -89,6 +90,7 @@ Beyond the eleven steps, each in the example:
 | an API error | a problem document, written by the router | the router | a format of its own |
 | a rejected form | the `validation.Errors` the service returns; the router answers it | the router | a 422 written by a controller |
 | a page | a view with `@extends('layouts.app')` and a struct that embeds `view.Page` | a controller, with `ctx.View` | take a map as its data |
+| a table of records | `components.DataTable`, drawn from the `*pagination.ListingResult` the service returned (`Result`, `Searchable`, `FullPager`, columns with `Sortable` and `Hideable`) | the page and its fragment | draw `components.Pagination` beside it, build an address from loose parameters, or sort and filter the rows in hand |
 | an htmx fragment | `resources/views/partials/`, included by its page with `@include` | a controller, with `ctx.Fragment`, for the request whose `HX-Target` names it | depend on `HX-Boosted` |
 | a tool, resource or prompt for an assistant | `app/Mcp/` | the MCP server mounted in `routes/web.go` | reach a model or a client |
 | a helper | the package functions of `github.com/arandu-io/hesape` | anything | be written again here |

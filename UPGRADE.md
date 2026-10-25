@@ -10,6 +10,100 @@ comment or a test that is the skeleton's own is not.
 
 ---
 
+## v0.43.0 — a list is a typed listing drawn by the data table
+
+This skeleton requires hesape v0.87.0 and kyse v0.45.0 and builds with aru
+v0.80.0. **kyse v0.45.0 requires hesape v0.87.0**, whose view script drives the
+table's menus, search, selection and swap: upgrade hesape first, and read both
+UPGRADE guides for the breaks of `DataTableProps`.
+
+```sh
+go get github.com/arandu-io/hesape@v0.87.0 github.com/arandu-io/kyse@v0.45.0
+go mod tidy
+aru view:build
+```
+
+The skeleton's own lists, the notes and the comments of a note, no longer read
+`q`, `sort` and `page` by hand. A project that copied them changes five places.
+
+### 1. Declare the listing once, beside the service
+
+What the list may be searched, sorted, filtered, paged and hidden by is a
+`pagination.ListingSpec`, checked once by `pagination.NewListing`. The sort
+keys are public names mapped to columns, the facet values are a whitelist, and
+nothing in a request can name a column the spec did not. `mustListing`, in
+`app/Services/Listing.go`, stops the program at start when a spec is wrong.
+
+```go
+var noteListing = mustListing(pagination.ListingSpec{
+	Search:          []string{"title", "body"},
+	Sorts:           map[string]string{"title": "title", "body": "body", "pinned": "pinned", "created_at": "created_at"},
+	DefaultSort:     "created_at",
+	DefaultDir:      pagination.SortDesc,
+	TieBreak:        "id",
+	Facets:          []pagination.FacetSpec{{Key: "pinned", Column: "pinned", Values: []string{"1", "0"}}},
+	PageSizes:       []int{10, 25, 50},
+	DefaultPageSize: 25,
+	Hideable:        []string{"body", "pinned", "created_at"},
+})
+```
+
+### 2. Let the service run it under the Grant
+
+| it was | it is |
+| --- | --- |
+| `List(ctx, actor, page int)` returning a `*pagination.Page` from `SimplePaginate` | `List(ctx, actor, state pagination.ListingState, path string)` returning the rows and a `*pagination.ListingResult` from `models.Notes(db).Base().Listing(ctx, g, state, path)` |
+| `Latest().OrderBy("id")` and `notePerPage` | the listing's default sort, its tie-break and its page sizes |
+| nothing exposing the declaration | `Listing() *pagination.Listing` on the service |
+
+`Authorize` still comes first and the tenant is still `data.Tenant(g)`: the
+page, its total and the count of every facet value are all filtered by it. A
+list under a parent keeps loading the parent through its own service and adds
+`Where("note_id", parent.ID)` before `Listing`.
+
+### 3. Let the controller read nothing but the listing
+
+`c.svc.Listing().ParseURL(ctx.Request.URL)` is the whole of the query string
+the action reads. A value outside the whitelist -- a sort key, a direction, a
+page size, a page, a facet value or a hidden column nobody declared -- falls
+back to the default and never fails the request. The action hands the view the
+listing's own address (`URL`) and the `Result`; a JSON client keeps the Resource
+with `result.Page.NextPageURL()`. A request that names the table's root in
+`HX-Target` is answered with the fragment, as before, and `Vary` still names
+`Accept`, `HX-Request` and `HX-Target`.
+
+### 4. Draw the table from the result, with one pager
+
+`NoteIndexTable` and `CommentIndexTable` build `components.DataTableProps` with
+`ID`, `URL`, `Result`, `PageData`, `Searchable`, `FullPager`, `HeaderMenu`,
+`Filters`, columns with `Sortable` and `Hideable`, and a menu per row in
+`TableRow.Actions`. The table draws its own pager: **delete the
+`components.Pagination` call** from `partials/notes_table.kyse.go` and from
+`comments/index.kyse.go`, and the wrapper element with `hx-push-url` around the
+table, which the table's own controls replace. The table's root is the element
+`HX-Target` names, so `NotesTableID` is now the `DataTable`'s `ID`
+(`"notes-index"`) and the comments page gains `partials/comments_table.kyse.go`
+for its fragment. Rows carry a checkbox (`SelectName`); no bulk bar is drawn
+because the skeleton has no bulk endpoint -- set `BulkAction` and `BulkActions`
+when one exists.
+
+Add the lines the table says to `lang/en.json` if you translate them: the
+skeleton adds `notes.pinned.yes`, `notes.pinned.no`, `notes.view` and
+`notes.select`.
+
+### 5. Delete the stylesheet the table no longer reads
+
+Remove `resources/css/basecoat/components/data-table.css` and its `@import` in
+`resources/css/basecoat/components.css`, then run `aru view:build`: the table is
+drawn with utilities that the build compiles from kyse. The `.table-sort`,
+`.table-count` and `.table-columns` rules of `table.css` stay, because the plain
+`components.Table` of kyse v0.45.0 still draws those classes; a project that
+never draws a `Table` can drop them.
+
+Tests that looked for `rel="next"`, `hx-target="#notes-table"` or the `Next` and
+`Previous` links now look for the table's pager (`data-step`, `Go to next page`,
+`Go to previous page`) and its root `id="notes-index"`.
+
 ## v0.42.0 — Go 1.26.10 is the floor, and the build image is pinned
 
 This skeleton declares `go 1.26.10` and requires framework v0.66.0, hesape
