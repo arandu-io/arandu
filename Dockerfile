@@ -62,7 +62,7 @@ ARG COMMIT=unknown
 # endpoint separately from the version list, so a fresh release is in the list
 # and not yet the answer to @latest, and a build picks up the version before the
 # fix for an hour.
-ARG ARU_VERSION=v0.78.0
+ARG ARU_VERSION=v0.80.0
 RUN go install github.com/arandu-io/aru@${ARU_VERSION} && \
     "$(go env GOPATH)/bin/aru" view:build
 

@@ -5,6 +5,7 @@ package e2e_test
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -21,28 +22,26 @@ import (
 	"github.com/arandu-io/arandu/tests"
 )
 
-// listedRows reads the page's table the way a person does: the titles of the
-// rows in view, top to bottom.
+// rowTitle is the title a row of the notes table says, as the text of the
+// table puts it on screen.
+var rowTitle = regexp.MustCompile(`Note \d\d`)
+
+// listedRows reads the table the way a person does: the text of the region,
+// from which the titles of the rows in view come out top to bottom. A column
+// that is hidden, or a menu that is closed, has no text to read.
 func listedRows(page *browser.Page) []string {
-	var titles []string
-	page.Evaluate(`Array.from(document.querySelectorAll('#notes-index [data-part=row] [data-column=title]'), (cell) => cell.textContent.trim())`, &titles)
-	return titles
+	var text string
+	page.Evaluate(`document.getElementById('notes-index').innerText`, &text)
+	return rowTitle.FindAllString(text, -1)
 }
 
-// expectRows waits until the table lists exactly these titles, in this order.
+// expectRows fails unless the table lists exactly these titles, in this order.
+// It reads once: the address changes only after the swap has settled, and every
+// call follows an expectation of the address.
 func expectRows(t *testing.T, page *browser.Page, want ...string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	var got []string
-	for {
-		got = listedRows(page)
-		if strings.Join(got, "|") == strings.Join(want, "|") {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("the table lists %v, want %v", got, want)
-		}
-		time.Sleep(50 * time.Millisecond)
+	if got := listedRows(page); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("the table lists %v, want %v", got, want)
 	}
 }
 
@@ -142,42 +141,31 @@ func TestTheNotesTableIsWorkedByItsAddress(t *testing.T) {
 	page.ClickRole("menuitem", "Hide")
 	page.ExpectURL("/notes?dir=desc&hide=body&page=2&per_page=10&sort=title")
 	expectRows(t, page, titlesFrom(20, 11)...)
-	if !bodyHidden(page) {
-		t.Fatal("the Body column is still shown after it was hidden")
-	}
+	page.ExpectHidden(browser.Role("button", "Body, not sorted"))
 	page.ExpectText("1 of 30 row(s) selected.")
 
 	// A reload asks for the address, and gets the table the person left.
 	page.Evaluate(`location.reload()`, nil)
 	page.ExpectURL("/notes?dir=desc&hide=body&page=2&per_page=10&sort=title")
+	// What was ticked lived in the page that is gone, so the count starting
+	// over says the table on screen is the new document's.
+	page.ExpectText("0 of 30 row(s) selected.")
+	page.ExpectText("Page 2 of 3")
 	expectRows(t, page, titlesFrom(20, 11)...)
-	if !bodyHidden(page) {
-		t.Fatal("the Body column came back with the reload")
-	}
+	page.ExpectHidden(browser.Role("button", "Body, not sorted"))
 
 	// Back walks the history one state at a time.
 	page.Evaluate(`history.back()`, nil)
 	page.ExpectURL("/notes?dir=desc&page=2&per_page=10&sort=title")
+	page.ExpectVisible(browser.Role("button", "Body, not sorted"))
+	page.ExpectText("Page 2 of 3")
 	expectRows(t, page, titlesFrom(20, 11)...)
-	if bodyHidden(page) {
-		t.Fatal("going back left the Body column hidden")
-	}
 	page.Evaluate(`history.back()`, nil)
 	page.ExpectURL("/notes?dir=desc&page=3&per_page=10&sort=title")
+	page.ExpectText("Page 3 of 3")
 	expectRows(t, page, titlesFrom(10, 1)...)
 
 	page.Responsive()
-}
-
-// bodyHidden is whether the Body column is out of view: its header and its
-// cells carry hidden.
-func bodyHidden(page *browser.Page) bool {
-	var hidden bool
-	page.Evaluate(`(() => {
-		const cells = document.querySelectorAll('#notes-index [data-column=body]');
-		return cells.length > 0 && Array.from(cells).every((cell) => cell.hidden);
-	})()`, &hidden)
-	return hidden
 }
 
 // titlesFrom is the titles "Note NN" from high down to low, the order the

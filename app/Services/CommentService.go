@@ -135,11 +135,7 @@ func (s *CommentService) List(ctx context.Context, actor auth.Subject, noteID st
 	if err != nil {
 		return nil, nil, err
 	}
-	rows, result, err := models.Comments(s.db).Where("note_id", parent.ID).Base().Listing(ctx, g, state, path)
-	if err != nil {
-		return nil, nil, err
-	}
-	return models.CommentCollectionOf(rows), result, nil
+	return models.Comments(s.db).Where("note_id", parent.ID).Listing(ctx, g, state, path)
 }
 
 // Update changes the mutable fields.

@@ -3,10 +3,13 @@
 package models
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
+	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database/model"
+	"github.com/arandu-io/hesape/pagination"
 )
 
 // Comment is one row of comments.
@@ -64,5 +67,18 @@ func (co Comment) LogValue() slog.Value {
 // OwnedBy reports whether the comment was written by the subject with this id.
 // A comment has an author the moment it is stored, so an empty id owns nothing.
 func (co Comment) OwnedBy(userID string) bool { return userID != "" && co.UserID == userID }
+
+// Listing runs the query as a listing state asks and returns the rows of the
+// page with the result a table is drawn from: the state, the page with its
+// total and the count of every facet value. Every statement it issues is
+// filtered by the tenant of the Grant. The state comes from a declared
+// pagination.Listing, so it names no column the application did not.
+func (q *CommentQuery) Listing(ctx context.Context, g auth.Grant, state pagination.ListingState, path string) (CommentCollection, *pagination.ListingResult, error) {
+	rows, result, err := q.b.Listing(ctx, g, state, path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return CommentCollectionOf(rows), result, nil
+}
 
 // arandu:end custom

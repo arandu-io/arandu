@@ -144,11 +144,7 @@ func (s *NoteService) List(ctx context.Context, actor auth.Subject, state pagina
 	if err != nil {
 		return nil, nil, err
 	}
-	rows, result, err := models.Notes(s.db).Base().Listing(ctx, g, state, path)
-	if err != nil {
-		return nil, nil, err
-	}
-	return models.NoteCollectionOf(rows), result, nil
+	return models.Notes(s.db).Listing(ctx, g, state, path)
 }
 
 // Update changes the mutable fields.

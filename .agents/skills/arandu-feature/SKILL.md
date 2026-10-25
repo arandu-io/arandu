@@ -67,7 +67,7 @@ order is the order of dependence: each step compiles against the one before.
 A list of records is a step of its own: declare what it may be searched,
 sorted, filtered, paged and hidden by once, with `pagination.NewListing`
 beside the service; let the controller read it with `ParseURL`; let the
-service run it through the model builder's `Listing` after `Authorize`; and
+service run it through the query's `Listing` scope after `Authorize`; and
 draw the result with `components.DataTable`, whose pager is the only one. A
 service that reads `q`, `sort` and `page` by hand is the shape this replaces.
 

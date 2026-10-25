@@ -23,6 +23,10 @@ go mod tidy
 aru view:build
 ```
 
+In the `Dockerfile`, change `ARG ARU_VERSION=v0.78.0` to `v0.80.0`: CI installs
+the `aru` the Dockerfile names, so the image and the checks compile the views
+with the release this skeleton was built with.
+
 The skeleton's own lists, the notes and the comments of a note, no longer read
 `q`, `sort` and `page` by hand. A project that copied them changes five places.
 
@@ -52,9 +56,14 @@ var noteListing = mustListing(pagination.ListingSpec{
 
 | it was | it is |
 | --- | --- |
-| `List(ctx, actor, page int)` returning a `*pagination.Page` from `SimplePaginate` | `List(ctx, actor, state pagination.ListingState, path string)` returning the rows and a `*pagination.ListingResult` from `models.Notes(db).Base().Listing(ctx, g, state, path)` |
+| `List(ctx, actor, page int)` returning a `*pagination.Page` from `SimplePaginate` | `List(ctx, actor, state pagination.ListingState, path string)` returning the rows and a `*pagination.ListingResult` from `models.Notes(db).Listing(ctx, g, state, path)` |
 | `Latest().OrderBy("id")` and `notePerPage` | the listing's default sort, its tie-break and its page sizes |
 | nothing exposing the declaration | `Listing() *pagination.Listing` on the service |
+
+`Listing` on `*NoteQuery` is a scope in the custom block of `app/Models/Note.go`
+that calls the core builder's `Listing` and returns the typed rows: the
+doctor's `model-core-outside-models` refuses the core builder outside the
+package of the entities, so the service never calls it through `Base()`.
 
 `Authorize` still comes first and the tenant is still `data.Tenant(g)`: the
 page, its total and the count of every facet value are all filtered by it. A
