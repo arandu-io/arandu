@@ -53,7 +53,10 @@ All from `github.com/arandu-io/hesape/auth`:
    write needs the Grant of the action that writes.
 4. **Read and write with the Grant that came back.** Reads are not exempt: a
    list, a report, an export and a projection all take a Grant and filter by
-   its tenant.
+   its tenant. A table's listing is one: `NoteService.List` authorizes
+   `NoteList` and only then runs the query's `Listing`, which filters the page,
+   its total and every facet count by the Grant's tenant, whatever the query
+   string names.
 5. **List the actions that write** in the policy's `Writes(a auth.Action)
    bool`, beside `Can`, and assert `var _ auth.Writes = NotePolicy{}`.
    `auth.Authorize` marks the Grant of every other action as one that reads,

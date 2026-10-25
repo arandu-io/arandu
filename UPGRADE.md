@@ -12,44 +12,57 @@ comment or a test that is the skeleton's own is not.
 
 ## v0.43.0 — a list is a typed listing drawn by the data table
 
-This skeleton requires hesape v0.87.0 and kyse v0.45.0 and builds with aru
-v0.80.0. **kyse v0.45.0 requires hesape v0.87.0**, whose view script drives the
-table's menus, search, selection and swap: upgrade hesape first, and read both
-UPGRADE guides for the breaks of `DataTableProps`.
+This skeleton requires framework v0.67.0, hesape v0.88.0 and kyse v0.45.0 and
+builds with aru v0.81.1. **kyse v0.45.0 requires hesape v0.87.0 or later**,
+whose view script drives the table's menus, search, selection and swap:
+upgrade hesape first, and read both UPGRADE guides for the breaks of
+`DataTableProps`. **hesape v0.88.0 runs the `Rules()` of a request when
+`ctx.Bind` fills it**, and framework v0.67.0 says the failures in the
+language of the request (Portuguese of Brazil out of the box) and checks the
+request types you list at boot.
 
 ```sh
-go get github.com/arandu-io/hesape@v0.87.0 github.com/arandu-io/kyse@v0.45.0
+go get github.com/arandu-io/framework@v0.67.0 github.com/arandu-io/hesape@v0.88.0 github.com/arandu-io/kyse@v0.45.0
 go mod tidy
+aru model:build
 aru view:build
 ```
 
-In the `Dockerfile`, change `ARG ARU_VERSION=v0.78.0` to `v0.80.0`: CI installs
+In the `Dockerfile`, change `ARG ARU_VERSION=v0.78.0` to `v0.81.1`: CI installs
 the `aru` the Dockerfile names, so the image and the checks compile the views
 with the release this skeleton was built with.
 
 The skeleton's own lists, the notes and the comments of a note, no longer read
-`q`, `sort` and `page` by hand. A project that copied them changes five places.
+`q`, `sort` and `page` by hand, and its requests no longer validate fields by
+hand. A project that copied them changes the places below, and the request in
+step 6.
 
 ### 1. Declare the listing once, beside the service
 
 What the list may be searched, sorted, filtered, paged and hidden by is a
 `pagination.ListingSpec`, checked once by `pagination.NewListing`. The sort
 keys are public names mapped to columns, the facet values are a whitelist, and
-nothing in a request can name a column the spec did not. `mustListing`, in
-`app/Services/Listing.go`, stops the program at start when a spec is wrong.
+nothing in a request can name a column the spec did not. The spec is built by a
+closure that panics at start when it is wrong, as `aru make:module` writes it.
 
 ```go
-var noteListing = mustListing(pagination.ListingSpec{
-	Search:          []string{"title", "body"},
-	Sorts:           map[string]string{"title": "title", "body": "body", "pinned": "pinned", "created_at": "created_at"},
-	DefaultSort:     "created_at",
-	DefaultDir:      pagination.SortDesc,
-	TieBreak:        "id",
-	Facets:          []pagination.FacetSpec{{Key: "pinned", Column: "pinned", Values: []string{"1", "0"}}},
-	PageSizes:       []int{10, 25, 50},
-	DefaultPageSize: 25,
-	Hideable:        []string{"body", "pinned", "created_at"},
-})
+var noteListing = func() *pagination.Listing {
+	listing, err := pagination.NewListing(pagination.ListingSpec{
+		Search:          []string{"title", "body"},
+		Sorts:           map[string]string{"title": "title", "body": "body", "pinned": "pinned", "created_at": "created_at"},
+		DefaultSort:     "created_at",
+		DefaultDir:      pagination.SortDesc,
+		TieBreak:        "id",
+		Facets:          []pagination.FacetSpec{{Key: "pinned", Column: "pinned", Values: []string{"1", "0"}}},
+		PageSizes:       []int{10, 25, 50},
+		DefaultPageSize: 25,
+		Hideable:        []string{"body", "pinned", "created_at"},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("services: the notes listing: %v", err))
+	}
+	return listing
+}()
 ```
 
 ### 2. Let the service run it under the Grant
@@ -60,10 +73,9 @@ var noteListing = mustListing(pagination.ListingSpec{
 | `Latest().OrderBy("id")` and `notePerPage` | the listing's default sort, its tie-break and its page sizes |
 | nothing exposing the declaration | `Listing() *pagination.Listing` on the service |
 
-`Listing` on `*NoteQuery` is a scope in the custom block of `app/Models/Note.go`
-that calls the core builder's `Listing` and returns the typed rows: the
-doctor's `model-core-outside-models` refuses the core builder outside the
-package of the entities, so the service never calls it through `Base()`.
+`Listing` on `*NoteQuery` is written by `aru model:build` (v0.81.0 and later),
+so the service never reaches the core builder through `Base()`: the doctor's
+`model-core-outside-models` refuses that outside the package of the entities.
 
 `Authorize` still comes first and the tenant is still `data.Tenant(g)`: the
 page, its total and the count of every facet value are all filtered by it. A
@@ -108,6 +120,39 @@ drawn with utilities that the build compiles from kyse. The `.table-sort`,
 `.table-count` and `.table-columns` rules of `table.css` stay, because the plain
 `components.Table` of kyse v0.45.0 still draws those classes; a project that
 never draws a `Table` can drop them.
+
+### 6. Declare each request's fields in `Rules()`
+
+`NoteRequest`, `CommentRequest` and `NewsletterEventRequest` declare what each
+field may be, by the name of its form input, and `ctx.Bind` runs the rules over
+the raw input before it converts anything:
+
+```go
+func (NoteRequest) Rules() validation.Rules {
+	return validation.Rules{
+		"title":  "required|string|max:255",
+		"body":   "string|max:5000",
+		"pinned": "boolean",
+	}
+}
+```
+
+Delete the `Validate` that restated them (`validation.Required`, `MaxLen`) and
+the `in.Validate()` call at the top of the service methods, along with
+`var _ validation.Validatable`; assert `var _ validation.RequestRules` instead.
+A rule between fields, or one that asks the data (unique, exists), stays in a
+`Validate` the service calls first. List the types where the application is
+wired, so a rule nothing declares fails the boot and not the first request:
+
+```go
+WithTranslator(app.Translator).
+WithValidationRequests(requests.NoteRequest{}, requests.CommentRequest{}, requests.NewsletterEventRequest{}).
+```
+
+`WithValidation(...)` is for the providers of modules whose rules a request
+names; the skeleton installs none. The doctor's `request-validates-by-hand`
+and `order-by-request-value` warn about the two shapes this release removes,
+and become errors after 2026-12-15.
 
 Tests that looked for `rel="next"`, `hx-target="#notes-table"` or the `Next` and
 `Previous` links now look for the table's pager (`data-step`, `Go to next page`,

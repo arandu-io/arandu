@@ -64,6 +64,10 @@ specification, migration, model and its rules, factory and seeder, policy,
 request, service, controller, routes, view or resource, tests and wiring. The
 order is the order of dependence: each step compiles against the one before.
 
+A request's fields are declared once, in the `Rules()` of its request (run by
+`ctx.Bind`, listed in `WithValidationRequests`); the service restates none of
+them, and keeps a `Validate` only for a rule between fields or against the data.
+
 A list of records is a step of its own: declare what it may be searched,
 sorted, filtered, paged and hidden by once, with `pagination.NewListing`
 beside the service; let the controller read it with `ParseURL`; let the
@@ -137,7 +141,7 @@ import (
 // The notes feature, step by step.
 var (
 	_ auth.Policy[models.Note] = policies.NotePolicy{}              // the policy
-	_ validation.Validatable   = requests.NoteRequest{}             // the request
+	_ validation.RequestRules  = requests.NoteRequest{}             // the request, validated by its Rules
 	_ hcontrollers.Indexer     = (*controllers.NoteController)(nil) // the controller
 	_ hcontrollers.Indexer     = (*controllers.CommentController)(nil)
 	_ hhttp.JsonResource       = resources.NoteResource{}               // the answer to a program

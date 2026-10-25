@@ -27,7 +27,7 @@ request struct. What the answer looks like is `arandu-view` for a page and
 | action | `func (c *X) Name(ctx *hhttp.Context) error`, with `hhttp "github.com/arandu-io/hesape/http"` |
 | resource controller | the seven actions, each asserted: `var _ hcontrollers.Indexer = (*X)(nil)` and `Creator`, `Storer`, `Shower`, `Editor`, `Updater`, `Destroyer`, with `hcontrollers "github.com/arandu-io/hesape/routing/controllers"`; `Resource` registers only what is implemented |
 | invokable controller | `Invoke(ctx *hhttp.Context) error`, asserted with `var _ hcontrollers.Invoker = (*X)(nil)` |
-| request | `app/Http/Requests/<Entity>Request.go`: fields with `form:"..."` tags, `func (r X) Validate() validation.Errors`, `var _ validation.Validatable = X{}` |
+| request | `app/Http/Requests/<Entity>Request.go`: fields with `form:"..."` tags, `func (X) Rules() validation.Rules` with a rule per field (`"title": "required|string|max:255"`), `var _ validation.RequestRules = X{}`, and listed in `WithValidationRequests` in `bootstrap/app.go`; a `Validate() validation.Errors` only for a rule between fields or against the data |
 | who is asking | `who, _ := ctx.User()`, put there by the route's guard |
 | input | `ctx.Bind(&in)`, which reads only the tagged fields; a conversion error comes back as `validation.Errors` |
 | path | `ctx.Param("id")` on a flat resource's member; `ctx.Param("note")` and `ctx.Param("comment")` under a nested one |
@@ -85,9 +85,11 @@ screen, and a read that fails answers 503. A session is started from
 	}
    ```
 
-4. **Write the request's rules** in `Validate`, and leave calling it to the
-   service, so a job and a command that call the same service pass the same
-   validation.
+4. **Write the request's rules** in `Rules()`, which `ctx.Bind` runs over the
+   raw input in the language of the request, and list the type in
+   `WithValidationRequests`. A rule between fields, or one that asks the data
+   (unique, exists), is a `Validate` the service calls first, so a job and a
+   command that call the same service pass the same validation.
 5. **Register the route** in the custom block, behind its guard, and give it a
    name if the generator did not.
 
@@ -160,6 +162,9 @@ func Routes(r *hcontrollers.Router, sessions *hhttp.SessionStore, note *controll
 - Read the form field by field, parse it, or decode a body by hand:
   `input-read-by-hand`. `ctx.Bind` into the request is the one conversion.
 - Call `Validate()` in the controller: `validate-called-by-controller`.
+- Restate in `Validate` a restriction `Rules()` declares -- required, a length,
+  a type: `request-validates-by-hand`. It comes out in English, late, and
+  drifts from the rule.
 - Answer a rejected form with a 422 of your own -- htmx discards its body and a
   reload posts again -- or redirect to a path written as a literal:
   `invalid-form-answered-by-hand`, `redirect-to-literal-path`.
@@ -176,8 +181,8 @@ func Routes(r *hcontrollers.Router, sessions *hhttp.SessionStore, note *controll
 
 Actions beyond the seven go in the controller's custom block, and their route
 lines in the custom block of `routes/web.go`. Rules a request needs beyond the
-generated ones -- a range, a format, a field that depends on another -- go in
-the custom block of `Validate`.
+generated ones go in `Rules()` -- a range, a format -- and a field that depends
+on another goes in the custom block of `Validate`.
 
 ## Wiring
 

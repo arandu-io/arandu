@@ -118,6 +118,8 @@ Dockerfile pins, when that list differs from what `aru doctor --list` prints.
 | `e2e-not-run-in-ci` | warning | journeys behind the `e2e` tag that no CI workflow runs |
 | `skip-without-reason` | warning | a `t.Skip` that does not say why |
 | `driver-specific-api-in-test` | warning | a test that imports one browser driver's package, or asserts the page's driver to its type, outside `tests/TestCase.go` |
+| `order-by-request-value` | warning | an `OrderBy`, `OrderByDesc`, `OrderByRaw`, `Latest` or `Oldest` whose column or clause is read from the request and that nothing looked up; the correction is a `pagination.NewListing` and the query's `Listing` |
+| `request-validates-by-hand` | warning | a request whose `Validate` checks a field with `validation.Required`, `MaxLen` and the like instead of declaring it in `Rules()` |
 
 ## Procedure
 

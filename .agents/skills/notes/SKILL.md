@@ -22,7 +22,7 @@ hold the rules.
 | model and its rules | `app/Models/Note.go`, `app/Models/NoteQuery.go` | `aru make:module`, `aru model:build` | `OwnedBy`, `Published`, `Publish` and `ErrNoteAlreadyPublished` in the custom block |
 | factory and seeder | `database/factories/NoteFactory.go`, `database/seeders/NoteSeeder.go` | `aru make:factory Note`, `aru make:seeder Note` | notes by two authors nobody can sign in as |
 | policy | `app/Policies/NotePolicy.go` | `aru make:module` | the rules below, and `NotePublish` |
-| request | `app/Http/Requests/NoteRequest.go` | `aru make:module` | nothing |
+| request | `app/Http/Requests/NoteRequest.go` | `aru make:module` | nothing: its `Rules()` is the whole validation, listed with the comment's and the webhook's in `WithValidationRequests` in `bootstrap/app.go` |
 | service | `app/Services/NoteService.go` | `aru make:module` | the author from the subject, `Publish` at the framework clock in UTC, `SendDigest`, `WithNewsletter`; the listing declared in `noteListing` and run by `List` |
 | controller | `app/Http/Controllers/NoteController.go` | `aru make:module`; `Publish` by `aru make:controller Note --resource --action=publish` | the table fragment, the JSON branches, the edit entry of a row, the publish button's address, the dates in `APP_TIMEZONE` |
 | routes | the custom block of `routes/web.go` | printed by each generator | one sign-in group for all three lines |
@@ -36,7 +36,7 @@ hold the rules.
 | client | `app/Clients/NewsletterClient.go`, `app/Clients/NewsletterFake.go` | `aru make:client Newsletter` | `SendDigest` on the client, the interface and the fake |
 | nested resource | `app/Models/Comment.go` and the rest of the comment files | `aru make:module comment --fields "body:text!" --tenant --parent=notes` | the `user_id` author, the opened policy, the note key as text, the listing's index, the listing's declaration and its table |
 | an API for a token client | the `/api` group in the custom block of `routes/web.go` | by hand: two `api.Action` lines pointing at `NoteController.Store` and `Publish` | the JSON branch of `Store`, answering 201 with `Location` |
-| a received webhook | `app/Http/Controllers/NewsletterWebhookController.go`, `app/Http/Requests/NewsletterEventRequest.go`, `app/Services/NewsletterEventService.go` | by hand, to the webhook card of `aru mcp`'s `where_does_it_go` | the signature and timestamp check before the bind, the 404 with no secret, the delivery id recorded once |
+| a received webhook | `app/Http/Controllers/NewsletterWebhookController.go`, `app/Http/Requests/NewsletterEventRequest.go`, `app/Services/NewsletterEventService.go` | by hand, to the webhook card of `aru mcp`'s `where_does_it_go` | the signature and timestamp check before the bind, its `Rules()`, the 404 with no secret, the delivery id recorded once |
 | its record of deliveries | `app/Models/NewsletterDelivery.go`, `database/migrations/2026_10_22_000001_create_newsletter_deliveries_table.go` | `aru make:model NewsletterDelivery --fields "delivery_id:string!u" --tenant -m` | the listing index dropped: the unique index on the tenant and the delivery id is the only read |
 | its event | `app/Events/NewsletterEventReceived.go` | `aru make:event NewsletterEventReceived --aggregate=newsletter_delivery --event-name=newsletter.event_received --fields "event:string,digest:string"` | the field `Event` renamed `Kind`: the generated one collides with the `Event` method |
 

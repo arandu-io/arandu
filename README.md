@@ -179,6 +179,7 @@ routes/web.go                        notes := r.Group("", middleware.RequireAuth
 routes/web.go                        api := r.Group("/api", middleware.RequireToken(d.Tokens)), and the two api.Action that use it
 routes/web.go                        r.Action("POST", "/webhooks/newsletter", ...)
 bootstrap/app.go                     _ ".../storage/framework/views/partials"   (once no other partial is left)
+bootstrap/app.go                     requests.NoteRequest{}, requests.CommentRequest{} and requests.NewsletterEventRequest{} in WithValidationRequests, and the requests import
 app/Providers/AppServiceProvider.go  Notes *services.NoteService, the field, and p.Notes = ... where it is built
 app/Providers/AppServiceProvider.go  listeners.NewNotifyNoteAuthor(p.Notifier),
 app/Providers/AppServiceProvider.go  Note, Comment and NewsletterWebhook in the routes.Deps literal

@@ -18,7 +18,7 @@ The order a feature is built and checked in. It is not the order a request runs
 through, and not every feature has every step: a task with no table gets no
 migration, an API with no screen gets no view.
 
-Every generator below exists in `aru` v0.78.0, the version the Dockerfile
+Every generator below exists in `aru` v0.81.1, the version the Dockerfile
 builds with, and prints its wiring instead of editing a provider,
 `routes/web.go` or `routes/console.go`: the `routes.Deps` literal and
 `RegisterJobs` of `app/Providers/AppServiceProvider.go`, the custom block of
@@ -67,13 +67,13 @@ Beyond the eleven steps, each in the example:
 | kind of code | where | called by | must not |
 | --- | --- | --- | --- |
 | turning the HTTP input into a value | the controller, with `ctx.Bind` into the request | the router | read the form field by field, decode a body by hand |
-| validating the request | `Validate()` on the request, in `app/Http/Requests` | the service | be called by the controller |
+| validating the request | `Rules()` on the request, in `app/Http/Requests`, run by `ctx.Bind` over the raw input and checked at boot by `WithValidationRequests`; `Validate()` only for a rule between fields or against the data, called by the service | the router, through `ctx.Bind`; the service | restate in `Validate` a field `Rules` declares (`request-validates-by-hand`), or be called by the controller |
 | an invariant or a transition of the entity | the custom block of `app/Models/<Entity>.go` | the service | reach the database, the network, an implicit clock or a Grant |
 | a query scope | a method on `*<Entity>Query`, in the custom block of `app/Models/<Entity>.go` | the service, a repository | skip the Grant; `<Entity>Query.go` is generated and never edited |
 | authorization | `app/Policies`, asked through `auth.Authorize`; each policy lists its write actions in `Writes`, so the Grant of any other action cannot write | the service | be skipped on a read, or write with the Grant of an action that reads |
 | a role an account holds | `users.roles`, `RoleAdmin` and `RoleMember` in `app/Models/User.go`, for the fixed roles of the deployment's one tenant; `github.com/hyz-is/arandu-permission` once people grant roles to others, in groups or per organization, which fills the subject's roles through `User.Subject` | a policy, through `Subject.HasRole` | gain a second role column, an `is_admin` flag or an ACL table, or keep writing `users.roles` after arandu-permission owns the roles |
 | a use case | `app/Services`, one service per aggregate | a controller, a job, a listener, a command | take an HTTP type, live in a subpackage, run a worker of its own |
-| what a list may be searched, sorted, filtered, paged and hidden by | a `pagination.Listing` declared once beside the service (`pagination.NewListing`, through `mustListing`), read from the request with `Listing.ParseURL(ctx.Request.URL)` and run by `<Entity>Query.Listing(ctx, g, state, path)`, a scope in the custom block of the entity's file, after `Authorize` | the controller reads it, the service runs it | read `q`, `sort`, `page` or `per_page` by hand, pass a request value to `OrderBy` or `Where`, or take the tenant from the request |
+| what a list may be searched, sorted, filtered, paged and hidden by | a `pagination.Listing` declared once beside the service (`pagination.NewListing`), read from the request with `Listing.ParseURL(ctx.Request.URL)` and run by `<Entity>Query.Listing(ctx, g, state, path)`, a scope in the custom block of the entity's file, after `Authorize` | the controller reads it, the service runs it | read `q`, `sort`, `page` or `per_page` by hand, pass a request value to `OrderBy` or `Where`, or take the tenant from the request |
 | a complex query, a report, a read model | `app/Repositories` | the service | exist for plain CRUD |
 | a client of an external system | `app/Clients/<Vendor>Client.go`, with its interface and a fake | a service, a job, a listener | reach a model, a Grant or the session |
 | an engine that wraps another technology, a client another project would reuse | a `github.com/hyz-is/arandu-*` module | a service, a job | live in `app/Services` |
@@ -128,10 +128,10 @@ entity; `aru model:build` without the flag rewrites them. `aru view:build`
 writes the compiled views the compiler then reads, so it runs before anything
 that compiles. `aru dev` and `aru build` run both for you.
 
-The `aru` in these commands is the release the Dockerfile pins, v0.78.0. An
+The `aru` in these commands is the release the Dockerfile pins, v0.81.1. An
 older one reports fewer rules than the ones this project is held to, so a clean
 `aru doctor` from it says less than it seems to.
-`go run github.com/arandu-io/aru@v0.78.0 <command>` runs that release without
+`go run github.com/arandu-io/aru@v0.81.1 <command>` runs that release without
 installing it.
 
 Both filters on `gofmt` are load-bearing. A `.kyse.go` is excluded from the
