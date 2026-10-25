@@ -176,6 +176,54 @@ func TestANoteWithoutATitleComesBackWithTheMessage(t *testing.T) {
 	}
 }
 
+// TestANoteIsRejectedByItsRulesBeforeTheServiceIsReached: the request declares
+// what each field may be in Rules, ctx.Bind runs them over the raw input, and
+// a field that breaks one is answered 422 by field with nothing stored -- a
+// title past its length, a body past its length and a missing title together.
+func TestANoteIsRejectedByItsRulesBeforeTheServiceIsReached(t *testing.T) {
+	f := newNotesFixture(t)
+	f.ana.Get("/notes/create").AssertOk()
+
+	for _, tc := range []struct {
+		name   string
+		form   map[string]string
+		fields []string
+		clean  []string
+	}{
+		{"a title past 255 characters", map[string]string{"title": strings.Repeat("a", 256)}, []string{"title"}, []string{"body"}},
+		{"a body past 5000 characters", map[string]string{"title": "ok", "body": strings.Repeat("b", 5001)}, []string{"body"}, []string{"title"}},
+		{"no title and a long body", map[string]string{"body": strings.Repeat("b", 5001)}, []string{"title", "body"}, nil},
+	} {
+		f.ana.Get("/notes/create").AssertOk()
+		rejected := f.ana.WithHeader("Accept", "application/json").Post("/notes", tc.form)
+		f.ana.WithHeader("Accept", "")
+		rejected.AssertStatus(http.StatusUnprocessableEntity)
+		var problem struct {
+			Errors map[string][]string `json:"errors"`
+		}
+		if err := json.Unmarshal([]byte(rejected.GetContent()), &problem); err != nil {
+			t.Fatalf("%s: the body is not a problem document: %v", tc.name, err)
+		}
+		for _, field := range tc.fields {
+			if len(problem.Errors[field]) == 0 {
+				t.Errorf("%s: no message for %s in %v", tc.name, field, problem.Errors)
+			}
+		}
+		for _, field := range tc.clean {
+			if len(problem.Errors[field]) != 0 {
+				t.Errorf("%s: %s passed its rules and has a message: %v", tc.name, field, problem.Errors[field])
+			}
+		}
+	}
+	if got := f.count(t); got != 0 {
+		t.Fatalf("rejected notes left %d stored, want none", got)
+	}
+
+	// The limit is inclusive: a title of exactly 255 characters is a note.
+	f.ana.Get("/notes/create").AssertOk()
+	f.ana.Post("/notes", map[string]string{"title": strings.Repeat("a", 255)}).AssertStatus(http.StatusSeeOther)
+}
+
 // TestARejectedNoteFromHTMXIsANavigationBack: the create form posts with
 // hx-post, and htmx discards a 4xx body by default. What it does follow is
 // HX-Redirect, as a full navigation -- so the answer is the same redirect back

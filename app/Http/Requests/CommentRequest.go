@@ -12,18 +12,21 @@ type CommentRequest struct {
 	Body string `form:"body"`
 }
 
-// Validate reports the errors per field.
-func (r CommentRequest) Validate() validation.Errors {
-	e := validation.Errors{}
-	validation.Required(e, "body", r.Body)
-	validation.MaxLen(e, "body", r.Body, 5000)
-
-	// arandu:begin custom
-	// Domain rules go here: ranges, formats, cross-field checks.
-	// arandu:end custom
-
-	return e
+// Rules declares what each field may be, by the name of its form input. ctx.Bind
+// runs them over the raw input before it converts anything, and a request that
+// fails never reaches the service.
+func (CommentRequest) Rules() validation.Rules {
+	return validation.Rules{
+		"body": "required|string|max:5000",
+	}
 }
 
-// Compile-time proof that the request honors the validation contract.
-var _ validation.Validatable = CommentRequest{}
+// Compile-time proof that the request declares its rules.
+var _ validation.RequestRules = CommentRequest{}
+
+// arandu:begin custom
+// What the fields may be together, or against the data, is a Validate method of
+// this request, and the service calls it before it authorizes:
+//
+//	func (r CommentRequest) Validate() validation.Errors { ... }
+// arandu:end custom

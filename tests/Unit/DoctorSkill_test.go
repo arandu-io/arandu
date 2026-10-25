@@ -108,6 +108,8 @@ var doctorRules = []doctorRule{
 	{"e2e-not-run-in-ci", "warning", ""},
 	{"skip-without-reason", "warning", ""},
 	{"driver-specific-api-in-test", "warning", ""},
+	{"order-by-request-value", "warning", ""},
+	{"request-validates-by-hand", "warning", ""},
 }
 
 // performanceOnly opens the description of a row the doctor checks only under

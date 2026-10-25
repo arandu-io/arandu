@@ -14,19 +14,23 @@ type NoteRequest struct {
 	Pinned bool   `form:"pinned"`
 }
 
-// Validate reports the errors per field.
-func (r NoteRequest) Validate() validation.Errors {
-	e := validation.Errors{}
-	validation.Required(e, "title", r.Title)
-	validation.MaxLen(e, "title", r.Title, 255)
-	validation.MaxLen(e, "body", r.Body, 5000)
-
-	// arandu:begin custom
-	// Domain rules go here: ranges, formats, cross-field checks.
-	// arandu:end custom
-
-	return e
+// Rules declares what each field may be, by the name of its form input. ctx.Bind
+// runs them over the raw input before it converts anything, and a request that
+// fails never reaches the service.
+func (NoteRequest) Rules() validation.Rules {
+	return validation.Rules{
+		"title":  "required|string|max:255",
+		"body":   "string|max:5000",
+		"pinned": "boolean",
+	}
 }
 
-// Compile-time proof that the request honors the validation contract.
-var _ validation.Validatable = NoteRequest{}
+// Compile-time proof that the request declares its rules.
+var _ validation.RequestRules = NoteRequest{}
+
+// arandu:begin custom
+// What the fields may be together, or against the data, is a Validate method of
+// this request, and the service calls it before it authorizes:
+//
+//	func (r NoteRequest) Validate() validation.Errors { ... }
+// arandu:end custom

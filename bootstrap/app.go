@@ -16,6 +16,7 @@ import (
 	hgeo "github.com/arandu-io/hesape/geo"
 	"github.com/arandu-io/hesape/routing/controllers"
 
+	requests "github.com/arandu-io/arandu/app/Http/Requests"
 	providers "github.com/arandu-io/arandu/app/Providers"
 	appconfig "github.com/arandu-io/arandu/config"
 	"github.com/arandu-io/arandu/routes"
@@ -152,6 +153,10 @@ func Configure(cfg appconfig.Config, drivers *foundation.Drivers, app *providers
 		// .Trans("notes.new") in the request's language. Without it a page
 		// shows the key instead of the sentence.
 		WithTranslator(app.Translator).
+		// The requests whose Rules the boot checks: a rule written in one that
+		// nothing declares fails the boot naming the rule and the type, and not
+		// the first request that binds it.
+		WithValidationRequests(requests.NoteRequest{}, requests.CommentRequest{}, requests.NewsletterEventRequest{}).
 		WithMiddleware(func(m *foundation.Middleware) {
 			// A provider posts with no session and no token, and every route
 			// under /webhooks/ verifies the provider's signature first.

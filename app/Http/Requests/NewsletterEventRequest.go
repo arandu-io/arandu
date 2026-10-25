@@ -14,12 +14,14 @@ type NewsletterEventRequest struct {
 	Digest string `form:"digest"`
 }
 
-// Validate reports the field errors. NewsletterEventService calls it.
-func (r NewsletterEventRequest) Validate() validation.Errors {
-	err := validation.Errors{}
-	validation.Required(err, "event", r.Event)
-	validation.MaxLen(err, "event", r.Event, 64)
-	validation.Required(err, "digest", r.Digest)
-	validation.MaxLen(err, "digest", r.Digest, 255)
-	return err
+// Rules declares what each field may be, by the name of its form input.
+// ctx.Bind runs them over the raw input before it converts anything.
+func (NewsletterEventRequest) Rules() validation.Rules {
+	return validation.Rules{
+		"event":  "required|string|max:64",
+		"digest": "required|string|max:255",
+	}
 }
+
+// Compile-time proof that the request declares its rules.
+var _ validation.RequestRules = NewsletterEventRequest{}
