@@ -29,7 +29,7 @@ import (
 // TestANoteIsWrittenChangedAndPublishedByItsAuthorOnly is the example
 // resource end to end: Ana writes a note, edits it and publishes it, each
 // write landing on a page that says so in a toast; the listing pages through
-// htmx without leaving the page; and Bea, a member of the same tenant, sees
+// the table's own pager without leaving the page; and Bea, a member of the same tenant, sees
 // the note without the controls to change it and is refused its edit screen.
 // The note and the listing are walked through every width and scheme, and
 // neither may be wider than the screen it is drawn on.
@@ -74,10 +74,10 @@ func TestANoteIsWrittenChangedAndPublishedByItsAuthorOnly(t *testing.T) {
 
 	page.Visit("notes.index")
 	page.Responsive()
-	page.ClickRole("link", "Next")
+	page.ClickRole("link", "Go to next page")
 	page.ExpectURL("/notes?page=2")
-	page.ExpectVisible(browser.Role("link", "Previous"))
-	page.ExpectHidden(browser.Role("link", "Next"))
+	page.ExpectVisible(browser.Role("link", "Go to previous page"))
+	page.ExpectHidden(browser.Role("link", "Go to next page"))
 
 	page.SetCookies(tests.SignIn(t, server, bea).Cookies()...)
 	page.Visit(address)
