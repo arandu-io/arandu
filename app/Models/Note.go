@@ -3,13 +3,10 @@
 package models
 
 import (
-	"context"
 	"log/slog"
 	"time"
 
-	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database/model"
-	"github.com/arandu-io/hesape/pagination"
 )
 
 // Note is one row of notes.
@@ -97,18 +94,5 @@ func (e noteConflict) Error() string { return string(e) }
 
 // HTTPStatus is 409 Conflict.
 func (noteConflict) HTTPStatus() int { return 409 }
-
-// Listing runs the query as a listing state asks and returns the rows of the
-// page with the result a table is drawn from: the state, the page with its
-// total and the count of every facet value. Every statement it issues is
-// filtered by the tenant of the Grant. The state comes from a declared
-// pagination.Listing, so it names no column the application did not.
-func (q *NoteQuery) Listing(ctx context.Context, g auth.Grant, state pagination.ListingState, path string) (NoteCollection, *pagination.ListingResult, error) {
-	rows, result, err := q.b.Listing(ctx, g, state, path)
-	if err != nil {
-		return nil, nil, err
-	}
-	return NoteCollectionOf(rows), result, nil
-}
 
 // arandu:end custom

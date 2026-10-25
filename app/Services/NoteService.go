@@ -4,6 +4,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/arandu-io/hesape/auth"
@@ -26,19 +27,27 @@ import (
 // size of a request reaches the query unchecked. A listing is always a page,
 // never everything: an unbounded query is how one page load takes a database
 // down.
-var noteListing = mustListing(pagination.ListingSpec{
-	Search:      []string{"title", "body"},
-	Sorts:       map[string]string{"title": "title", "body": "body", "pinned": "pinned", "created_at": "created_at"},
-	DefaultSort: "created_at",
-	DefaultDir:  pagination.SortDesc,
-	TieBreak:    "id",
-	// pinned is a boolean column, compared as the text a boolean is written as
-	// on every engine.
-	Facets:          []pagination.FacetSpec{{Key: "pinned", Column: "pinned", Values: []string{"1", "0"}}},
-	PageSizes:       []int{10, 25, 50},
-	DefaultPageSize: 25,
-	Hideable:        []string{"body", "pinned", "created_at"},
-})
+var noteListing = func() *pagination.Listing {
+	listing, err := pagination.NewListing(pagination.ListingSpec{
+		Search:      []string{"title", "body"},
+		Sorts:       map[string]string{"title": "title", "body": "body", "pinned": "pinned", "created_at": "created_at"},
+		DefaultSort: "created_at",
+		DefaultDir:  pagination.SortDesc,
+		TieBreak:    "id",
+		// pinned is a boolean column, compared as the text a boolean is written as
+		// on every engine.
+		Facets:          []pagination.FacetSpec{{Key: "pinned", Column: "pinned", Values: []string{"1", "0"}}},
+		PageSizes:       []int{10, 25, 50},
+		DefaultPageSize: 25,
+		Hideable:        []string{"body", "pinned", "created_at"},
+	})
+	if err != nil {
+		// A spec the package refuses is a mistake in this file, and it is found
+		// when the program starts and not on the first request.
+		panic(fmt.Sprintf("services: the notes listing: %v", err))
+	}
+	return listing
+}()
 
 // NoteService holds the business rules. It receives its dependencies through
 // the constructor -- explicit wiring, no container.
@@ -73,11 +82,11 @@ func utcNow() time.Time { return support.Now().UTC() }
 
 // Create walks the mandatory path: validate, Authorize, Grant, Model.
 // There is no other order that compiles.
+//
+// The request was validated by its Rules when ctx.Bind filled it. A rule that
+// spans fields, or asks the data, is a Validate method of the request, called
+// first thing here: if errs := in.Validate(); errs.Any() { return nil, errs }.
 func (s *NoteService) Create(ctx context.Context, actor auth.Subject, in requests.NoteRequest) (*models.Note, error) {
-	if errs := in.Validate(); errs.Any() {
-		return nil, errs
-	}
-
 	var proposed models.Note
 	s.fill(&proposed, in)
 	proposed.UserID = actor.ID
@@ -152,11 +161,11 @@ func (s *NoteService) List(ctx context.Context, actor auth.Subject, state pagina
 // It reads before writing, so the policy decides against the stored row rather
 // than against what the client claims the row is. Skipping this is how a check
 // passes on attacker-supplied data.
+//
+// The request was validated by its Rules when ctx.Bind filled it; a Validate
+// method of the request, for a rule that spans fields or asks the data, is
+// called first thing here, as Create does.
 func (s *NoteService) Update(ctx context.Context, actor auth.Subject, id string, in requests.NoteRequest) (*models.Note, error) {
-	if errs := in.Validate(); errs.Any() {
-		return nil, errs
-	}
-
 	stored, err := s.Get(ctx, actor, id)
 	if err != nil {
 		return nil, err

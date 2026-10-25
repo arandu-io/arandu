@@ -4,6 +4,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/arandu-io/hesape/auth"
 	"github.com/arandu-io/hesape/database"
@@ -21,16 +22,24 @@ import (
 // size of a request reaches the query unchecked. A listing is always a page,
 // never everything: an unbounded query is how one page load takes a database
 // down.
-var commentListing = mustListing(pagination.ListingSpec{
-	Search:          []string{"body"},
-	Sorts:           map[string]string{"body": "body", "created_at": "created_at"},
-	DefaultSort:     "created_at",
-	DefaultDir:      pagination.SortDesc,
-	TieBreak:        "id",
-	PageSizes:       []int{10, 25, 50},
-	DefaultPageSize: 25,
-	Hideable:        []string{"created_at"},
-})
+var commentListing = func() *pagination.Listing {
+	listing, err := pagination.NewListing(pagination.ListingSpec{
+		Search:          []string{"body"},
+		Sorts:           map[string]string{"body": "body", "created_at": "created_at"},
+		DefaultSort:     "created_at",
+		DefaultDir:      pagination.SortDesc,
+		TieBreak:        "id",
+		PageSizes:       []int{10, 25, 50},
+		DefaultPageSize: 25,
+		Hideable:        []string{"created_at"},
+	})
+	if err != nil {
+		// A spec the package refuses is a mistake in this file, and it is found
+		// when the program starts and not on the first request.
+		panic(fmt.Sprintf("services: the comments listing: %v", err))
+	}
+	return listing
+}()
 
 // CommentService holds the business rules. It receives its dependencies through
 // the constructor -- explicit wiring, no container.
@@ -54,11 +63,11 @@ func NewCommentService(db *database.DB, parents *NoteService) *CommentService {
 
 // Create walks the mandatory path: validate, Authorize, Grant, Model.
 // There is no other order that compiles.
+//
+// The request was validated by its Rules when ctx.Bind filled it. A rule that
+// spans fields, or asks the data, is a Validate method of the request, called
+// first thing here: if errs := in.Validate(); errs.Any() { return nil, errs }.
 func (s *CommentService) Create(ctx context.Context, actor auth.Subject, noteID string, in requests.CommentRequest) (*models.Comment, error) {
-	if errs := in.Validate(); errs.Any() {
-		return nil, errs
-	}
-
 	// The note is loaded through its own service, so one this
 	// subject may not see is a refusal here and never a row under it.
 	parent, err := s.parents.Get(ctx, actor, noteID)
@@ -143,11 +152,11 @@ func (s *CommentService) List(ctx context.Context, actor auth.Subject, noteID st
 // It reads before writing, so the policy decides against the stored row rather
 // than against what the client claims the row is. Skipping this is how a check
 // passes on attacker-supplied data.
+//
+// The request was validated by its Rules when ctx.Bind filled it; a Validate
+// method of the request, for a rule that spans fields or asks the data, is
+// called first thing here, as Create does.
 func (s *CommentService) Update(ctx context.Context, actor auth.Subject, id string, in requests.CommentRequest) (*models.Comment, error) {
-	if errs := in.Validate(); errs.Any() {
-		return nil, errs
-	}
-
 	stored, err := s.Get(ctx, actor, id)
 	if err != nil {
 		return nil, err

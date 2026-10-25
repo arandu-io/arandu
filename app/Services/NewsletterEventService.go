@@ -46,7 +46,7 @@ func NewNewsletterEventService(db *database.DB, tenant string) *NewsletterEventS
 	return &NewsletterEventService{db: db, outbox: events.NewOutbox(db), tenant: tenant}
 }
 
-// Receive validates the event and stores it, under the delivery id the
+// Receive stores the event, validated by its Rules when ctx.Bind filled it, under the delivery id the
 // provider gave it, once: a delivery id the tenant has already received
 // returns ErrNewsletterDeliveryReplayed and stores nothing.
 //
@@ -54,9 +54,6 @@ func NewNewsletterEventService(db *database.DB, tenant string) *NewsletterEventS
 // both are stored or neither is, and the unique index on the tenant and the
 // delivery id decides between two copies that arrive together.
 func (s *NewsletterEventService) Receive(ctx context.Context, deliveryID string, in requests.NewsletterEventRequest) error {
-	if errs := in.Validate(); errs.Any() {
-		return errs
-	}
 	//arandu:system-grant a webhook delivery has no subject; its signature was verified with this deployment's secret, and the tenant is the one the digests are sent for
 	g := auth.SystemGrant(NewsletterEventReceive, s.tenant)
 	return database.Transaction(ctx, s.db, func(ctx context.Context) error {
