@@ -4,7 +4,12 @@
 # and what every platform consumes -- Dokploy, Coolify, Kamal, Fly, Railway, ECS
 # and Kubernetes all take an OCI image and need nothing else from us.
 
-FROM golang:1.26-alpine AS build
+# The patch is pinned, not the minor: the official image sets GOTOOLCHAIN=local,
+# so a cached golang:1.26-alpine keeps building with whatever 1.26 it held, and
+# go.mod's go 1.26.10 -- the release that fixes the standard library
+# vulnerabilities this application reaches -- would stop the build instead of
+# fetching it. Raise this line with the go directive (ADR-0189).
+FROM golang:1.26.10-alpine AS build
 
 # git for the version stamp, and libstdc++ for the Tailwind binary. There is no
 # node, no python and no build toolchain here, which is the point of RULE 13.
