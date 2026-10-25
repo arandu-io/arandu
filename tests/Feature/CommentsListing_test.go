@@ -180,11 +180,17 @@ func TestACommentOfAnotherNoteOrTenantIsNeverListed(t *testing.T) {
 	// A note of this tenant lists only its own, whatever the query asks.
 	note := f.write(t, f.ana, "Groceries")
 	f.comment(t, f.bea, note, "Add coffee.")
-	for _, query := range []string{"", "?q=secret", "?note_id=" + foreign.ID, "?tenant_id=" + foreignTenant} {
+	// A row of another tenant that names this note is still not this tenant's:
+	// the note in the path does not make it visible, the Grant's tenant decides.
+	f.seedComments(t, strings.TrimPrefix(note, "/notes/"), f.anaID, foreignTenant, "A foreign comment under this note")
+	for _, query := range []string{"", "?q=foreign", "?q=secret", "?note_id=" + foreign.ID, "?tenant_id=" + foreignTenant} {
 		page := f.ana.Get(note + "/comments" + query).AssertOk().GetContent()
-		if strings.Contains(page, "secret of the other tenant") {
+		if strings.Contains(page, "secret of the other tenant") || strings.Contains(page, "A foreign comment under this note") {
 			t.Errorf("%s shows a comment of another tenant", query)
 		}
+	}
+	if got := bodiesOn(f.ana.Get(note + "/comments").AssertOk().GetContent()); !slices.Equal(got, []string{"Add coffee."}) {
+		t.Errorf("bodies = %v, want only the comment of this tenant", got)
 	}
 }
 

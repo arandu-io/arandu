@@ -307,6 +307,9 @@ func TestTheListingPagesAndSizesThePage(t *testing.T) {
 		{"sort=title&per_page=10&page=99999999999999999999", "Note 01", "Note 10", 10, "Page 1 of 3", "a page that is no int is the first"},
 		{"sort=title&per_page=50", "Note 01", "Note 30", 30, "", "the largest size, with no second page to say anything about"},
 		{"sort=title&per_page=25&page=2", "Note 26", "Note 30", 5, "Page 2 of 2", "the second page"},
+		{"sort=title&per_page=100", "Note 01", "Note 25", 25, "Page 1 of 2", "a size nobody declared is the default"},
+		{"sort=title&per_page=1000000&page=2", "Note 26", "Note 30", 5, "Page 2 of 2", "a size past every declared one is the default"},
+		{"sort=title&per_page=-5", "Note 01", "Note 25", 25, "Page 1 of 2", "a size below one is the default"},
 	} {
 		page := f.ana.Get("/notes?" + tc.query).AssertOk().GetContent()
 		got := titlesOn(page)
