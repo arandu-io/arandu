@@ -10,6 +10,25 @@ comment or a test that is the skeleton's own is not.
 
 ---
 
+## v0.42.0 — Go 1.26.10 is the floor, and the build image is pinned
+
+This skeleton declares `go 1.26.10` and requires framework v0.66.0, hesape
+v0.85.0 and kyse v0.44.0. Go 1.26.10 fixes the standard library
+vulnerabilities this application reaches, CVE-2026-111943 in crypto/x509 and
+the net/http HTTP/2 and CONNECT fixes among them.
+
+```sh
+go mod edit -go=1.26.10
+go get github.com/arandu-io/framework@v0.66.0 github.com/arandu-io/hesape@v0.85.0 github.com/arandu-io/kyse@v0.44.0
+go mod tidy
+aru view:build
+```
+
+In the `Dockerfile`, change `FROM golang:1.26-alpine AS build` to
+`FROM golang:1.26.10-alpine AS build`: the official image sets
+`GOTOOLCHAIN=local`, so a cached floating tag keeps an older 1.26 and the build
+stops on the go directive instead of fetching it.
+
 ## v0.41.0 — an unset APP_ENV is production, and aru v0.78.0
 
 This skeleton requires framework v0.64.0, hesape v0.84.1 and kyse v0.43.1, and
