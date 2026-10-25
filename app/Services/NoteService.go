@@ -20,10 +20,25 @@ import (
 	policies "github.com/arandu-io/arandu/app/Policies"
 )
 
-// notePerPage is how many notes one page of the listing holds. A
-// listing is always a page, never everything: an unbounded query is how one
-// page load takes a database down.
-const notePerPage = 25
+// noteListing declares what the notes list may be searched, ordered, filtered,
+// paged and hidden by, once. A request names columns by their public key and
+// the listing keeps only the keys declared here, so no column, direction or
+// size of a request reaches the query unchecked. A listing is always a page,
+// never everything: an unbounded query is how one page load takes a database
+// down.
+var noteListing = mustListing(pagination.ListingSpec{
+	Search:      []string{"title", "body"},
+	Sorts:       map[string]string{"title": "title", "body": "body", "pinned": "pinned", "created_at": "created_at"},
+	DefaultSort: "created_at",
+	DefaultDir:  pagination.SortDesc,
+	TieBreak:    "id",
+	// pinned is a boolean column, compared as the text a boolean is written as
+	// on every engine.
+	Facets:          []pagination.FacetSpec{{Key: "pinned", Column: "pinned", Values: []string{"1", "0"}}},
+	PageSizes:       []int{10, 25, 50},
+	DefaultPageSize: 25,
+	Hideable:        []string{"body", "pinned", "created_at"},
+})
 
 // NoteService holds the business rules. It receives its dependencies through
 // the constructor -- explicit wiring, no container.
@@ -112,15 +127,28 @@ func (s *NoteService) Get(ctx context.Context, actor auth.Subject, id string) (*
 	return found, nil
 }
 
-// List returns one page of notes, newest first, and where the
-// previous and the next page are.
-func (s *NoteService) List(ctx context.Context, actor auth.Subject, page int) (models.NoteCollection, *pagination.Page, error) {
+// Listing is the declaration of the notes list: the controller reads the
+// request's state through it, and nothing else of the query string.
+func (s *NoteService) Listing() *pagination.Listing { return noteListing }
+
+// List returns the page of notes the listing state asks for -- searched,
+// filtered, ordered and paged -- with the result a table is drawn from: the
+// state that was read, the page with its total and the count of every facet
+// value. path is the address the listing is served at.
+//
+// The state is read from the request by Listing, which drops every key, value
+// and size it did not declare. The Grant is the only source of the tenant, and
+// the page, its total and every count are filtered by it.
+func (s *NoteService) List(ctx context.Context, actor auth.Subject, state pagination.ListingState, path string) (models.NoteCollection, *pagination.ListingResult, error) {
 	g, err := auth.Authorize(ctx, s.policy, actor, policies.NoteList, models.Note{})
 	if err != nil {
 		return nil, nil, err
 	}
-	return models.Notes(s.db).Latest().OrderBy("id").
-		SimplePaginate(ctx, g, notePerPage, page, pagination.Options{})
+	rows, result, err := models.Notes(s.db).Base().Listing(ctx, g, state, path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return models.NoteCollectionOf(rows), result, nil
 }
 
 // Update changes the mutable fields.

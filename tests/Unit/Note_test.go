@@ -45,7 +45,7 @@ func TestEveryNoteReadRequiresAuthorization(t *testing.T) {
 			return err
 		},
 		"List": func() error {
-			_, _, err := svc.List(ctx, anonymous, 1)
+			_, _, err := svc.List(ctx, anonymous, svc.Listing().Parse(nil), "/notes")
 			return err
 		},
 		"Delete": func() error {

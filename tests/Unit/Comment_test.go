@@ -43,7 +43,7 @@ func TestEveryCommentReadRequiresAuthorization(t *testing.T) {
 			return err
 		},
 		"List": func() error {
-			_, _, err := svc.List(ctx, anonymous, "note", 1)
+			_, _, err := svc.List(ctx, anonymous, "note", svc.Listing().Parse(nil), "/notes/note/comments")
 			return err
 		},
 		"Delete": func() error {

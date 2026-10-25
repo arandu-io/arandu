@@ -15,10 +15,22 @@ import (
 	policies "github.com/arandu-io/arandu/app/Policies"
 )
 
-// commentPerPage is how many comments one page of the listing holds. A
-// listing is always a page, never everything: an unbounded query is how one
-// page load takes a database down.
-const commentPerPage = 25
+// commentListing declares what the comments list may be searched, ordered,
+// paged and hidden by, once. A request names columns by their public key and
+// the listing keeps only the keys declared here, so no column, direction or
+// size of a request reaches the query unchecked. A listing is always a page,
+// never everything: an unbounded query is how one page load takes a database
+// down.
+var commentListing = mustListing(pagination.ListingSpec{
+	Search:          []string{"body"},
+	Sorts:           map[string]string{"body": "body", "created_at": "created_at"},
+	DefaultSort:     "created_at",
+	DefaultDir:      pagination.SortDesc,
+	TieBreak:        "id",
+	PageSizes:       []int{10, 25, 50},
+	DefaultPageSize: 25,
+	Hideable:        []string{"created_at"},
+})
 
 // CommentService holds the business rules. It receives its dependencies through
 // the constructor -- explicit wiring, no container.
@@ -104,11 +116,17 @@ func (s *CommentService) Get(ctx context.Context, actor auth.Subject, id string)
 	return found, nil
 }
 
-// List returns one page of the comments of one note, newest
-// first, and where the previous and the next page are. The note is
-// loaded under its own policy first, and the page is filtered by the one that
-// was loaded -- not by the id the path carried.
-func (s *CommentService) List(ctx context.Context, actor auth.Subject, noteID string, page int) (models.CommentCollection, *pagination.Page, error) {
+// Listing is the declaration of the comments list: the controller reads the
+// request's state through it, and nothing else of the query string.
+func (s *CommentService) Listing() *pagination.Listing { return commentListing }
+
+// List returns the page of the comments of one note the listing state asks
+// for -- searched, ordered and paged -- with the result a table is drawn from:
+// the state that was read, the page with its total and the page sizes. path is
+// the address the listing is served at. The note is loaded under its own policy
+// first, and the page is filtered by the one that was loaded -- not by the id
+// the path carried.
+func (s *CommentService) List(ctx context.Context, actor auth.Subject, noteID string, state pagination.ListingState, path string) (models.CommentCollection, *pagination.ListingResult, error) {
 	parent, err := s.parents.Get(ctx, actor, noteID)
 	if err != nil {
 		return nil, nil, err
@@ -117,8 +135,11 @@ func (s *CommentService) List(ctx context.Context, actor auth.Subject, noteID st
 	if err != nil {
 		return nil, nil, err
 	}
-	return models.Comments(s.db).Where("note_id", parent.ID).Latest().OrderBy("id").
-		SimplePaginate(ctx, g, commentPerPage, page, pagination.Options{})
+	rows, result, err := models.Comments(s.db).Where("note_id", parent.ID).Base().Listing(ctx, g, state, path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return models.CommentCollectionOf(rows), result, nil
 }
 
 // Update changes the mutable fields.
@@ -175,4 +196,13 @@ func (s *CommentService) fill(co *models.Comment, in requests.CommentRequest) {
 
 // arandu:begin custom
 // Business rules beyond CRUD go here, and survive regeneration.
+
+// CanUpdate asks the policy, through auth.Allows, whether actor may change co,
+// a comment it read through Get or List. It authorizes nothing: the edit screen
+// asks for its own Grant, and that is the decision. A listing uses it to offer
+// the edit entry only to whoever would not be refused.
+func (s *CommentService) CanUpdate(ctx context.Context, actor auth.Subject, co *models.Comment) bool {
+	return auth.Allows(ctx, s.policy, actor, policies.CommentUpdate, *co)
+}
+
 // arandu:end custom

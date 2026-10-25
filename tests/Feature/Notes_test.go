@@ -248,7 +248,7 @@ func TestTheNotesTableIsAnsweredAloneOnlyToTheElementThatAsksForIt(t *testing.T)
 	f := newNotesFixture(t)
 	f.write(t, f.ana, "Groceries")
 
-	const table = `id="notes-table"`
+	const table = `id="notes-index"`
 	// asks loads the listing with the headers a request of that kind carries.
 	// The client's assertions stop the test, so this runs on the test's own
 	// goroutine rather than in a subtest.
@@ -280,7 +280,7 @@ func TestTheNotesTableIsAnsweredAloneOnlyToTheElementThatAsksForIt(t *testing.T)
 		{"a boosted link", map[string]string{"HX-Request": "true", "HX-Boosted": "true"}},
 		{"a history restore", map[string]string{"HX-Request": "true", "HX-History-Restore-Request": "true"}},
 		{"an htmx request for another element", map[string]string{"HX-Request": "true", "HX-Target": "main"}},
-		{"the table's target named without htmx", map[string]string{"HX-Target": "notes-table"}},
+		{"the table's target named without htmx", map[string]string{"HX-Target": "notes-index"}},
 	} {
 		page := asks(request.kind, request.headers)
 		if !strings.Contains(page, "<html") || !strings.Contains(page, table) {
@@ -288,8 +288,8 @@ func TestTheNotesTableIsAnsweredAloneOnlyToTheElementThatAsksForIt(t *testing.T)
 		}
 	}
 
-	fragment := strings.TrimSpace(asks("the table's own request", map[string]string{"HX-Request": "true", "HX-Target": "notes-table"}))
-	if strings.Contains(fragment, "<html") || !strings.HasPrefix(fragment, "<div "+table) {
+	fragment := strings.TrimSpace(asks("the table's own request", map[string]string{"HX-Request": "true", "HX-Target": "notes-index"}))
+	if strings.Contains(fragment, "<html") || !strings.HasPrefix(fragment, "<div") || !strings.Contains(fragment, table) {
 		t.Errorf("the table's own request was not answered with the table alone:\n%s", fragment)
 	}
 }
@@ -847,14 +847,15 @@ func TestTheNotePagesSayTheirLinesThroughTheCatalogue(t *testing.T) {
 	}
 }
 
-// TestTheListingIsPagedByThePager: a listing longer than one page draws the
-// pager from the page the query returned -- a real address for the next page,
-// which htmx fetches into the table's element -- and the second page steps
-// back to the first. A listing of one page draws no pager.
-func TestTheListingIsPagedByThePager(t *testing.T) {
+// TestTheListingIsPagedByTheTablesPager: a listing longer than one page draws
+// the table's own pager -- a real address for the next page, which htmx fetches
+// into the table's element -- and the second page steps back to the first. The
+// steps with nowhere to go are disabled and carry no address.
+func TestTheListingIsPagedByTheTablesPager(t *testing.T) {
 	f := newNotesFixture(t)
-	if body := f.ana.Get("/notes").AssertOk().GetContent(); strings.Contains(body, `rel="next"`) {
-		t.Fatalf("an empty listing draws a pager:\n%s", body)
+	empty := f.ana.Get("/notes").AssertOk().GetContent()
+	if next := tagWith(empty, `data-step="next"`); next != "" {
+		t.Fatalf("an empty listing draws a pager: %s", next)
 	}
 
 	if _, err := factories.Notes(f.app.DB).Count(26).State(func(n *models.Note) { n.UserID = f.anaID }).
@@ -863,19 +864,22 @@ func TestTheListingIsPagedByThePager(t *testing.T) {
 	}
 
 	first := f.ana.Get("/notes").AssertOk().GetContent()
-	for _, want := range []string{`rel="next"`, `href="/notes?page=2"`, `hx-get="/notes?page=2"`, `hx-target="#notes-table"`} {
+	for _, want := range []string{`href="/notes?page=2"`, `hx-get="/notes?page=2"`, `hx-target="#notes-index"`, `hx-push-url="true"`, "Page 1 of 2"} {
 		if !strings.Contains(first, want) {
 			t.Errorf("the first page of 26 notes has no %s in its pager", want)
 		}
 	}
-	if strings.Contains(first, `rel="prev"`) {
-		t.Error("the first page steps back to a page before it")
+	if previous := tagWith(first, `data-step="previous"`); !strings.Contains(previous, `aria-disabled="true"`) || strings.Contains(previous, "href=") {
+		t.Errorf("the first page steps back to a page before it: %s", previous)
 	}
 
-	second := f.ana.WithHeader("HX-Request", "true").WithHeader("HX-Target", "notes-table").Get("/notes?page=2")
+	second := f.ana.WithHeader("HX-Request", "true").WithHeader("HX-Target", "notes-index").Get("/notes?page=2")
 	f.ana.WithHeader("HX-Request", "").WithHeader("HX-Target", "")
 	table := second.AssertOk().GetContent()
-	if strings.Contains(table, "<html") || !strings.Contains(table, `rel="prev"`) || strings.Contains(table, `rel="next"`) {
+	next, previous := tagWith(table, `data-step="next"`), tagWith(table, `data-step="previous"`)
+	if strings.Contains(table, "<html") || !strings.Contains(table, "Page 2 of 2") ||
+		!strings.Contains(next, `aria-disabled="true"`) || strings.Contains(next, "href=") ||
+		!strings.Contains(previous, `hx-get="/notes"`) {
 		t.Errorf("the second page, asked for by the pager, is not the table alone stepping back only:\n%s", table)
 	}
 }

@@ -3,10 +3,10 @@
 package controllers
 
 import (
+	"net/http"
 	"time"
 
 	hhttp "github.com/arandu-io/hesape/http"
-	"github.com/arandu-io/hesape/pagination"
 	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
 	"github.com/arandu-io/hesape/view"
 
@@ -66,27 +66,44 @@ var (
 	_ hcontrollers.Destroyer = (*CommentController)(nil)
 )
 
-// Index renders the listing, one page at a time.
+// Index renders the listing the request describes: the query string is the
+// state of the list, read through the service's declared listing and nothing
+// else. It answers the whole page, except to the request the table makes --
+// htmx naming the table's element in HX-Target -- which gets the table alone.
 func (c *CommentController) Index(ctx *hhttp.Context) error {
 	// The note the person navigated to. The service loads it under
 	// its own policy and lists by the one it loaded.
 	parent := ctx.Param("note")
 	who, _ := ctx.User()
-	found, page, err := c.svc.List(ctx.Ctx(), who, parent, pagination.ResolveCurrentPage(ctx.Request.URL, ""))
+	address := ctx.URL("notes.comments.index", parent)
+	found, result, err := c.svc.List(ctx.Ctx(), who, parent, c.svc.Listing().ParseURL(ctx.Request.URL), address)
 	if err != nil {
 		return err
 	}
 
+	// The answer depends on the headers that choose the table or the page.
+	ctx.Response.Header().Add("Vary", "HX-Request, HX-Target")
 	rows := make([]views.CommentRow, 0, len(found))
 	for _, co := range found {
-		rows = append(rows, c.row(ctx, co))
+		row := c.row(ctx, co)
+		// The entry that edits is offered to whoever would not be refused.
+		if c.svc.CanUpdate(ctx.Ctx(), who, co) {
+			row.EditURL = ctx.URL("notes.comments.edit", co.ID)
+		}
+		rows = append(rows, row)
 	}
-	return ctx.View("comments.index", views.CommentsIndexData{
-		Page:      view.New(ctx, "Comments"),
-		Comments:  rows,
-		NewURL:    ctx.URL("notes.comments.create", parent),
-		Paginator: page.SetPath(ctx.URL("notes.comments.index", parent)),
-	})
+	data := views.CommentsIndexData{
+		Page:     view.New(ctx, "Comments"),
+		Comments: rows,
+		NewURL:   ctx.URL("notes.comments.create", parent),
+		URL:      address,
+		Result:   result,
+	}
+
+	if ctx.IsHTMX() && ctx.Header("HX-Target") == views.CommentsTableID {
+		return ctx.Fragment(http.StatusOK, "partials.comments_table", data)
+	}
+	return ctx.View("comments.index", data)
 }
 
 // Show renders one record.

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	hhttp "github.com/arandu-io/hesape/http"
-	"github.com/arandu-io/hesape/pagination"
 	hcontrollers "github.com/arandu-io/hesape/routing/controllers"
 	"github.com/arandu-io/hesape/view"
 
@@ -64,14 +63,19 @@ var (
 	_ hcontrollers.Destroyer = (*NoteController)(nil)
 )
 
-// Index renders the listing, one page at a time.
+// Index renders the listing the request describes.
 //
-// It answers the whole page, except to the request the table's pager
-// makes: htmx names the element it will replace in HX-Target, and that request
-// gets the table alone, drawn from the same partial the page includes. A direct
-// visit, a boosted link and a history restore name no such target, so each of
-// them gets the page, layout and title included, and a reload shows what was
-// on screen.
+// The state of the list -- the search, the order, the facets, the page, its
+// size and the hidden columns -- is the query string, read through the
+// service's declared listing and nothing else: whatever the listing did not
+// declare falls back to its default, so no request fails or reaches the query
+// for what it carries.
+//
+// It answers the whole page, except to the request the table makes: htmx names
+// the element it will replace in HX-Target, and that request gets the table
+// alone, drawn from the same partial the page includes. A direct visit, a
+// boosted link and a history restore name no such target, so each of them gets
+// the page, layout and title included, and a reload shows what was on screen.
 //
 // A client that asked for JSON gets the page of notes through the JSON
 // Resource instead, with the next page's address beside it.
@@ -82,29 +86,32 @@ var (
 // asked for JSON.
 func (c *NoteController) Index(ctx *hhttp.Context) error {
 	who, _ := ctx.User()
-	found, page, err := c.svc.List(ctx.Ctx(), who, pagination.ResolveCurrentPage(ctx.Request.URL, ""))
+	address := ctx.URL("notes.index")
+	found, result, err := c.svc.List(ctx.Ctx(), who, c.svc.Listing().ParseURL(ctx.Request.URL), address)
 	if err != nil {
 		return err
 	}
 
-	// The page's addresses are the listing's route, for the pager the table
-	// draws and for the next page the JSON answer names.
-	page = page.SetPath(ctx.URL("notes.index"))
-
 	ctx.Response.Header().Add("Vary", "Accept, HX-Request, HX-Target")
 	if ctx.WantsJSON() {
-		return ctx.JSON(http.StatusOK, resources.NewNoteCollection(found).Next(page.NextPageURL()))
+		return ctx.JSON(http.StatusOK, resources.NewNoteCollection(found).Next(result.Page.NextPageURL()))
 	}
 
 	rows := make([]views.NoteRow, 0, len(found))
 	for _, n := range found {
-		rows = append(rows, c.row(ctx, n))
+		row := c.row(ctx, n)
+		// The entry that edits is offered to whoever would not be refused.
+		if c.svc.Abilities(ctx.Ctx(), who, n).Update {
+			row.EditURL = ctx.URL("notes.edit", n.ID)
+		}
+		rows = append(rows, row)
 	}
 	data := views.NotesIndexData{
-		Page:      view.New(ctx, "Notes"),
-		Notes:     rows,
-		NewURL:    ctx.URL("notes.create"),
-		Paginator: page,
+		Page:   view.New(ctx, "Notes"),
+		Notes:  rows,
+		NewURL: ctx.URL("notes.create"),
+		URL:    address,
+		Result: result,
 	}
 
 	if ctx.IsHTMX() && ctx.Header("HX-Target") == views.NotesTableID {

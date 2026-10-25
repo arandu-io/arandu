@@ -7,6 +7,7 @@ package notes
 import (
 	"fmt"
 
+	"github.com/arandu-io/hesape/pagination"
 	"github.com/arandu-io/hesape/view"
 	"github.com/arandu-io/kyse/components"
 )
@@ -25,21 +26,22 @@ type NotesIndexData struct {
 	// has no route table, so a link written here could only be a literal -- and
 	// a literal keeps rendering after the route moves.
 	NewURL string
-	// Paginator is the page of the listing the query returned, its addresses
-	// already set to the listing's route by the controller.
-	// components.Pagination draws the trail from it -- the two steps, each only
-	// when there is somewhere to step to -- and nothing on a listing of one
-	// page.
-	Paginator components.Paginator
+	// URL is the listing's own address, without a query string: where every
+	// control of the table goes, addressed by route name in the controller.
+	URL string
+	// Result is what the listing returned: the state that was read, the page
+	// with its total and the count of every facet value. The table is drawn
+	// from it as it came back.
+	Result *pagination.ListingResult
 }
 
 // Compile-time proof that this page fits the layout it extends.
 var _ view.Layout = NotesIndexData{}
 
-// NotesTableID is the id of the element partials/notes_table draws: the target
-// its pager names, and what NoteController.Index reads from HX-Target
-// to tell a request for the table from a request for the page.
-const NotesTableID = "notes-table"
+// NotesTableID is the id of the table's root element: the region every control
+// of the table swaps, and what NoteController.Index reads from HX-Target to tell
+// a request for the table from a request for the page.
+const NotesTableID = "notes-index"
 
 // NoteRow is one record, formatted by the controller: what the listing
 // and the record show, and what the edit form starts at.
@@ -57,19 +59,29 @@ type NoteRow struct {
 	Pinned bool
 	// Created is the creation timestamp, already formatted.
 	Created string
+	// EditURL is where the row's edit entry goes, and empty when the person may
+	// not change the note, so the menu offers only what would be answered.
+	EditURL string
 	// Published is when the note was published, already formatted, and empty
 	// while it is a draft.
 	Published string
 }
 
 // NoteIndexTable adapts the server page to the native Kyse DataTable.
-// The Service pages the listing; the component owns only the rows and column
+// The Service searches, filters, orders and pages the list and returns the
+// listing Result; the table is drawn from it, so every control is an address
+// the state builds and the component owns only the rows and column
 // presentation of the page it was handed.
 func NoteIndexTable(data NotesIndexData) components.DataTableProps {
 	rows := make([]components.TableRow, 0, len(data.Notes))
 	for _, note := range data.Notes {
+		actions := []components.MenuItem{{Label: data.Trans("notes.view"), URL: note.URL}}
+		if note.EditURL != "" {
+			actions = append(actions, components.MenuItem{Label: data.Trans("notes.edit"), URL: note.EditURL})
+		}
 		rows = append(rows, components.TableRow{
-			Key: note.ID,
+			Key:   note.ID,
+			Label: data.Trans("notes.select") + " " + note.Title,
 			Cells: []components.TableCell{
 				{HTML: components.Link(components.LinkProps{
 					Label: fmt.Sprint(note.Title),
@@ -80,17 +92,33 @@ func NoteIndexTable(data NotesIndexData) components.DataTableProps {
 				{Text: fmt.Sprint(note.Pinned)},
 				{Text: note.Created},
 			},
+			Actions: actions,
 		})
 	}
 	return components.DataTableProps{
-		ID: "notes-index",
+		ID: NotesTableID,
 		Label: data.Title,
+		URL: data.URL,
+		Result: data.Result,
+		PageData: data.Page,
+		Searchable: true,
+		FullPager: true,
+		HeaderMenu: true,
+		SelectName: "ids",
 		ColumnsLabel: data.Trans("notes.columns"),
+		Filters: []components.DataTableFilter{{
+			Key: "pinned",
+			Label: data.Trans("notes.pinned"),
+			Options: []components.SelectOption{
+				{Value: "1", Label: data.Trans("notes.pinned.yes")},
+				{Value: "0", Label: data.Trans("notes.pinned.no")},
+			},
+		}},
 		Columns: []components.TableColumn{
-			{Label: data.Trans("notes.title"), Key: "title"},
-			{Label: data.Trans("notes.body"), Key: "body", Hideable: true},
-			{Label: data.Trans("notes.pinned"), Key: "pinned", Hideable: true},
-			{Label: data.Trans("notes.created"), Key: "created_at", Hideable: true},
+			{Label: data.Trans("notes.title"), Key: "title", Sortable: true},
+			{Label: data.Trans("notes.body"), Key: "body", Sortable: true, Hideable: true},
+			{Label: data.Trans("notes.pinned"), Key: "pinned", Sortable: true, Hideable: true},
+			{Label: data.Trans("notes.created"), Key: "created_at", Sortable: true, Hideable: true},
 		},
 		Rows: rows,
 		Empty: components.EmptyProps{
