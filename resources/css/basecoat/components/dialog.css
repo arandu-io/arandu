@@ -1,3 +1,11 @@
+/* A modal dialog holds the page still: the wheel and touch scroll over its
+ * backdrop must not move the page behind it. The gutter keeps the page from
+ * shifting sideways when its scrollbar goes. */
+html:has(dialog[open]:modal) {
+  overflow: hidden;
+  scrollbar-gutter: stable;
+}
+
 /* Dialog */
 @layer components {
   .dialog,

@@ -1,7 +1,7 @@
 /* Tabs */
 @layer components {
   .tabs {
-    @apply flex;
+    @apply flex max-w-full min-w-0;
 
     &:has(> [role='tablist'][aria-orientation='horizontal']),
     &:not(:has(> [role='tablist'][aria-orientation='vertical'])) {
@@ -13,7 +13,18 @@
     }
 
     > [role='tablist'] {
-      @apply text-muted-foreground inline-flex w-fit items-center justify-center;
+      @apply text-muted-foreground inline-flex w-fit max-w-full items-center justify-center;
+
+      /* A row of tabs wider than its container scrolls inside itself, and the
+       * tabs keep their width, rather than widening the page. */
+      &:not([aria-orientation='vertical']) {
+        @apply justify-start overflow-x-auto;
+        scrollbar-width: thin;
+
+        > [role='tab'] {
+          @apply shrink-0;
+        }
+      }
 
       &[aria-orientation='vertical'] {
         @apply h-fit flex-col;

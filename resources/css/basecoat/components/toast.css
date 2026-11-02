@@ -27,7 +27,8 @@
             @apply font-medium tracking-tight;
           }
           p {
-            @apply text-muted-foreground break-all;
+            @apply text-muted-foreground;
+            overflow-wrap: anywhere;
           }
         }
         footer {

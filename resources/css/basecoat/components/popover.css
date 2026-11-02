@@ -2,6 +2,9 @@
 @layer components {
   [data-popover] {
     @apply absolute z-50 min-w-full w-max overflow-x-hidden overflow-y-auto visible opacity-100 scale-100 transition-all outline-hidden;
+    /* As wide as its text, up to a ceiling: a long label made a menu a thousand
+     * pixels wide, off the screen, and widened the page even while closed. */
+    max-width: min(28rem, calc(100vw - 2rem));
 
     &[aria-hidden='true'] {
       @apply invisible opacity-0 scale-95;
