@@ -147,8 +147,13 @@ html.dark [data-theme-glyph="dark"] {
 /* The two rules the framework's own pages assume. Keep them: the error page and
  * the sign-in screen render before any application stylesheet is involved. */
 @layer base {
+  /* The theme owns the colour scheme, not the system. theme.js puts the class
+   * dark on <html> when the person's choice, or the device under "auto", is
+   * dark, and html.dark below says dark. Left at "light dark" this followed the
+   * system alone: with the system dark and the app light, an open select list,
+   * the date popup and the scrollbars were drawn dark on a light page. */
   :root {
-    color-scheme: light dark;
+    color-scheme: light;
   }
 
   html {

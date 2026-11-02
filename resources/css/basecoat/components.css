@@ -25,6 +25,8 @@
 @import "./components/table.css";
 @import "./components/media.css";
 @import "./components/empty.css";
+@import "./components/item.css";
+@import "./components/accordion.css";
 @import "./components/sidebar.css";
 @import "./components/layout.css";
 
@@ -45,6 +47,8 @@
 @import "./components/one-time-code.css";
 @import "./components/masked.css";
 @import "./components/checkbox.css";
+@import "./components/radio.css";
+@import "./components/switch.css";
 @import "./components/native-select.css";
 
 /* Telling somebody something */
@@ -65,6 +69,8 @@
 @import "./components/popover.css";
 @import "./components/dialog.css";
 @import "./components/tooltip-hover-card.css";
+@import "./components/tooltip.css";
+@import "./components/drawer.css";
 
 /* Navigation */
 @import "./components/breadcrumb.css";
@@ -82,6 +88,5 @@
 /* The keyframes the components above and below animate with. */
 @import "./animations.css";
 
-/* Not imported, and on disk if you want them: accordion, button-group, chart,
- * collapsible, combobox, command, drawer, item, kbd, radio, range, select,
- * switch, tooltip. */
+/* Not imported, and on disk if you want them: button-group, chart, collapsible,
+ * combobox, command, kbd, range, select. */

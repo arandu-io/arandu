@@ -9,6 +9,12 @@
     @apply @container/field-group flex w-full flex-col;
   }
 
+  /* A date field in a row that wraps is a field of its own width. The base
+   * .field is 100% wide, which stacked "From" and "To" at the width of the card. */
+  .flex-wrap > .field:has(> :is(input[type='date'], input[type='datetime-local'], input[type='time'])) {
+    @apply w-auto flex-[0_1_14rem];
+  }
+
   .field {
     @apply flex w-full flex-col data-invalid:text-destructive data-[invalid=true]:text-destructive [&>*]:w-full [&>.sr-only]:w-auto;
 

@@ -209,6 +209,12 @@
     @apply bg-[image:var(--chevron-down-icon-50)] bg-no-repeat bg-position-[center_right_0.625rem] bg-size-[1rem];
   }
 
+  /* A multiple select is a list box. It takes the height its size asks for, not
+   * the one line of a closed select, and it has no chevron to draw. */
+  :is(.field > select, select.select)[multiple] {
+    @apply h-auto min-h-18 py-1.5 bg-none;
+  }
+
   :is(.field > select, select.select):dir(rtl) {
     @apply bg-position-[center_left_0.625rem];
   }
