@@ -1,66 +1,108 @@
-/* Animations.
+/* Motion for the panels that arrive.
  *
- * Vendored from shadcn-htmx, MIT, copyright 2026 productdevbook. The notice is
- * in LICENSE.md beside this file, and it covers these twelve blocks as it
- * covers the rest of this directory.
+ * Written for this project. Each keyframe set says what the element has to do
+ * between "not there" and "there", and each name is the one a component file
+ * in components/ already asks for, so nothing else changes when one of them is
+ * tuned here: the progress sliver in progress.css, the popover in popover.css,
+ * the toast in toast.css, the drawer in drawer.css and the reading bar in
+ * layout.css.
  *
- * Only the CSS travelled. The markup that uses these names is written in this
- * project, and so is everything else: a stylesheet under a permissive licence
- * can be carried with its notice, and a component cannot -- the line is the
- * kind of file rather than the project it came from, because "is this CSS or is
- * this code" has an answer and "is this structure or implementation" never did.
+ * Two rules hold for all of them. Only opacity and transform move, because
+ * those two stay on the compositor and never ask the page to lay itself out
+ * again; and every set ends at the element's resting state, so removing the
+ * animation leaves the element exactly where it was going to be.
  *
- * They are here because Basecoat has one keyframe and a panel that appears is
- * not a panel that arrives. Each one is named by the component it belongs to:
- * the toast four by toast.css, the sheet five by drawer.css -- a drawer is what
- * this project calls that panel -- the popover one by popover.css, the progress
- * one by progress.css and the scroll one by layout.css.
- *
- * They sat here unreferenced from the day they were copied until 08/09/2026. A
- * keyframe nothing names is a keyframe that does nothing, and twelve of them
- * read as twelve animations the project had.
+ * The reduced-motion branches live beside each component, not here. A keyframe
+ * set cannot know whether the person asked for less movement, and the
+ * component that names it can.
  */
 
+/* Progress with no known end ------------------------------------------------
+ *
+ * The fill is a third of the track wide and travels across it. It starts
+ * further out than its own width so it enters from behind the edge, and it is
+ * quicker in the middle than at either end so the loop does not read as a
+ * mechanical sweep. Only `left` moves: the component positions the fill
+ * absolutely and clips it with overflow. */
 @keyframes scn-progress-indeterminate {
-  0%   { left: -33%; }
+  0%   { left: -40%; }
+  60%  { left: 62%; }
   100% { left: 100%; }
 }
 
+/* Popover -------------------------------------------------------------------
+ *
+ * Opens a few pixels below its final place and settles up into it, which says
+ * "this came out of the trigger" without drawing attention to the trip. */
 @keyframes scn-popover-in {
-  from { opacity: 0; transform: translateY(4px) scale(0.98); }
-  to   { opacity: 1; transform: translateY(0)  scale(1); }
+  from { opacity: 0; transform: translateY(6px) scale(0.95); }
+  to   { opacity: 1; transform: none; }
 }
 
+/* Toast ---------------------------------------------------------------------
+ *
+ * Three ways in, one way out. The plain entrance rises into place; the two
+ * side entrances follow the edge of the tray the toast is stacked against, so
+ * a toast in a corner arrives from that corner. The exit lifts away and
+ * shrinks a little, which reads as dismissed rather than as having fallen
+ * through the page; the component keeps its last frame, so the element stays
+ * invisible until it is removed. */
 @keyframes scn-toast-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.98); }
-  to   { opacity: 1; transform: translateY(0)   scale(1); }
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
 }
 
 @keyframes scn-toast-out {
-  from { opacity: 1; transform: translateY(0)   scale(1); }
-  to   { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(-10px) scale(0.94); }
 }
 
 @keyframes scn-toast-in-right {
-  from { opacity: 0; transform: translateX(24px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateX(32px); }
+  to   { opacity: 1; transform: none; }
 }
 
 @keyframes scn-toast-in-left {
-  from { opacity: 0; transform: translateX(-24px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateX(-32px); }
+  to   { opacity: 1; transform: none; }
 }
 
-@keyframes scn-sheet-in-right  { from { transform: translateX(100%); }  to { transform: translateX(0); } }
+/* Drawer --------------------------------------------------------------------
+ *
+ * A drawer is a panel that is parked just outside the viewport and slides in
+ * from the edge it belongs to, so the distance is its own size on that axis
+ * and not a number of pixels. One set per edge, plus the veil behind it, which
+ * only has to appear. */
+@keyframes scn-sheet-in-right {
+  from { transform: translate3d(100%, 0, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
 
-@keyframes scn-sheet-in-left   { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes scn-sheet-in-left {
+  from { transform: translate3d(-100%, 0, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
 
-@keyframes scn-sheet-in-top    { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+@keyframes scn-sheet-in-top {
+  from { transform: translate3d(0, -100%, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
 
-@keyframes scn-sheet-in-bottom { from { transform: translateY(100%); }  to { transform: translateY(0); } }
+@keyframes scn-sheet-in-bottom {
+  from { transform: translate3d(0, 100%, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
 
-@keyframes scn-sheet-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scn-sheet-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 
+/* Reading bar ---------------------------------------------------------------
+ *
+ * Driven by the scroll position of the page, not by time: the bar is empty at
+ * the top and full at the bottom. It grows from its left edge, which the
+ * component sets as the transform origin. */
 @keyframes scn-scroll-progress {
   from { transform: scaleX(0); }
   to   { transform: scaleX(1); }

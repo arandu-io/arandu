@@ -28,9 +28,9 @@
 # with all of them.
 #
 # This directory also holds CSS of this project: components upstream does not
-# ship, rules appended to upstream files, a patched line, a second notice in
-# LICENSE.md, the animations. So the script deletes nothing, and it writes a
-# file only when the file is absent or is still exactly what it last wrote.
+# ship, rules appended to upstream files, a patched line, the animations. So
+# the script deletes nothing, and it writes a file only when the file is absent
+# or is still exactly what it last wrote.
 # vendor.sum beside it records the SHA-256 of every file it wrote. A file whose
 # content no longer matches its line there, or a file of this project that
 # upstream now ships under the same name, is kept as it is and named at the
