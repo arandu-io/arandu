@@ -65,7 +65,7 @@ is `arandu-module`; the job or listener that makes it later is `arandu-async`.
 5. **Expose a capability to an assistant** with `aru make:mcp-tool ShowNote
    --service=Note` (`make:mcp-resource`, `make:mcp-prompt` for the other two
    kinds). It writes the type in `app/Mcp`, its test and the wiring; the module
-   is taken first with `go get github.com/arandu-io/mcp@v0.4.0`.
+   is taken first with `go get github.com/arandu-io/mcp@v0.5.0`.
 
 ## Commands
 
@@ -181,8 +181,8 @@ func (t ShowNote) Handle(ctx context.Context, r mcp.Request) (mcp.Response, erro
 
 - Make an HTTP call outside `app/Clients`, or with an `http.Client` of your
   own: `client-outside-clients`. The factory is what bounds it.
-- Hand a client a model, a Grant or the session (`client-reaches-the-model`):
-  it answers about the other system, and the service decides about ours.
+- Hand a client a model, a Grant or the session: it answers about the other
+  system, and the service decides about ours.
 - Put a vendor's SDK behind `app/Services` with a `*Port` or `*Adapter` name:
   the client is the one shape for an external system.
 - Let an MCP tool reach a model, a repository or a client: it calls a service

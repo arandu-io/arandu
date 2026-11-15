@@ -101,7 +101,7 @@ The directives are a closed set: `@extends` `@section`/`@endsection` `@yield`
 A rejected form is not a fragment. The action returns the `validation.Errors`,
 the router sends the browser back to the form -- YPY follows that as a
 navigation -- and the page after it shows the messages through `view.New`. The
-sign-in screens of `go run github.com/arandu-io/ui@v0.20.0 auth` follow the same
+sign-in screens of `go run github.com/arandu-io/ui@latest auth` follow the same
 rule: a rejected sign-in is a redirect back to its screen, and a password never
 comes back.
 

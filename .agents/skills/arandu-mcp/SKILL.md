@@ -54,7 +54,7 @@ error. The tools, and when to call each:
 ## Procedure
 
 1. **Connect.** Add the server to the client's configuration with the line
-   above, at the project root, and check it lists the seven tools.
+   above, at the project root, and check it lists the fifteen tools: the seven below and the eight browser tools.
 2. **Ask the recipe.** Classify the feature as `arandu-feature` says, then call
    `feature_recipe` with the matching recipe and follow its steps in order.
 3. **Ask where each piece goes.** Before writing a file, call
@@ -143,7 +143,9 @@ project's `bootstrap/app.go`, `routes/web.go` and `go.mod` do not change.
 ## Acceptance test
 
 - The client lists `doctor`, `project_map`, `where_does_it_go`,
-  `feature_recipe`, `commands`, `imports_catalog` and `generate`.
+  `feature_recipe`, `commands`, `imports_catalog` and `generate`, and the eight
+  browser tools `e2e_open`, `e2e_accessibility_tree`, `e2e_click`, `e2e_fill`,
+  `e2e_expect`, `e2e_capture`, `e2e_read_trace` and `e2e_close`.
 - `where_does_it_go` with `kind=service` answers `app/Services/<Entity>Service.go`.
 - `generate` without `apply` writes nothing: `git status` is clean afterwards.
 - The `doctor` tool and `aru doctor` in a terminal report the same findings.

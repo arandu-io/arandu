@@ -241,8 +241,8 @@ run on every profile.
 
 ### The structural warnings
 
-Nineteen rules, from `input-read-by-hand` to `subject-built-by-hand` at the end
-of the table above, report code that works and lives in the wrong place: a
+Nineteen rules, from `input-read-by-hand` to `subject-built-by-hand` in the
+table above, report code that works and lives in the wrong place: a
 controller that reads the form field by field, validates, writes JSON or a 422
 by hand, loads the session or redirects to a literal path; a service that takes
 an HTTP type, sits in a subpackage, or grows past 600 lines; a controller past
@@ -259,7 +259,7 @@ there, do not reshape it until the rule stops matching. A count rule
 not that the file is wrong. Each rule reads one function, file or call by name,
 so a clean report means none of these shapes was found, not that none exists.
 
-The sign-in screens `go run github.com/arandu-io/ui@v0.22.0 auth` publishes, once
+The sign-in screens `go run github.com/arandu-io/ui@latest auth` publishes, once
 wired, report nothing. A finding in `app/Http/Controllers/Auth` after an older
 kit is the kit's to fix, and republishing a kit release brings the fix.
 `session-loaded-in-controller` does not read that directory at all, because

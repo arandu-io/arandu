@@ -19,8 +19,7 @@ implementations drift. A capability this application really owns goes on to
 2. `bootstrap/app.go`: what `WithProviders` lists is every module the
    application was given, built in `app/Providers` over the drivers. A module
    not listed there is a module the application does not have.
-3. `github.com/arandu-io/examples`, the public reference application, before
-   inventing a shape.
+3. The code and tests of this project, before inventing a shape.
 
 ## Contracts and imports
 
@@ -150,8 +149,9 @@ application already answers stops the boot. Migrations run through `aru migrate`
 ## Limits
 
 This skeleton requires none of the `hyz-is` modules: a project takes the ones
-it needs. The list above is the set that exists today; a capability not in it
-is a report, not a license to build it here.
+it needs. The list above is the set this skeleton names; the team publishes more
+under `github.com/hyz-is/arandu-*`. A capability that neither this list nor
+those have is a report, not a license to build it here.
 
 ## Gates
 
