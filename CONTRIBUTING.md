@@ -20,19 +20,25 @@ before their first patch.
 ## Before you open a pull request
 
 ```
+aru model:build --check
 aru view:build
 gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
 go vet ./...
+bash tests/test-layout-guard.sh
 go test -race ./...
+go build ./...
+aru doctor
 ```
 
-The first line is not optional in a clone. The controllers import
+`task check` runs the same eight, in this order.
+
+`aru view:build` is not optional in a clone. The controllers import
 `storage/framework/views`, which is compiled from `resources/views` and is
 gitignored, so `go vet` and `go test` both fail before it has run. Go suggests
 `go get` for the missing package; that is the wrong remedy and there is no such
 module.
 
-The first line prints nothing when the tree is formatted. The filter is not
+The `gofmt` line prints nothing when the tree is formatted. The filter is not
 optional and it is what CI runs: `gofmt -l .` skips nothing, and the views in
 `resources/views/` are not valid Go on purpose -- a `*.kyse.go` file opens with
 a build tag that keeps the compiler out, and holds template syntax below it.
@@ -43,14 +49,13 @@ The filter also excludes `testdata/`, and this repository has none. It is
 carried anyway because the command is the same in every repository of the
 project, and one that differs per repository is one nobody can paste.
 
-CI runs these three and a good deal besides; `.github/workflows/ci.yml` is the
+CI runs these and a good deal besides; `.github/workflows/ci.yml` is the
 list, and it is the one that decides. It will grow, and this file will not
 follow it -- what is written here are the checks worth running by hand, because
 they are the ones that catch a mistake before it costs a CI run.
 
-The core depends on the standard library and `golang.org/x/crypto`, and nothing
-else. A pull request that adds a dependency there needs to argue for it first,
-in an issue.
+This application uses the modules and drivers declared in `go.mod`. A pull
+request that adds a direct dependency needs to argue for it first, in an issue.
 
 ## Where a test goes
 
@@ -61,6 +66,13 @@ that is gets decided by what the test reaches for, not by what it is called:
 |---|---|
 | `tests/Feature/` | boots the application, or drives more than one piece of it at once |
 | `tests/Unit/` | one thing, with nothing running |
+| `tests/Contract/` | the answers against the exported OpenAPI document |
+| `tests/E2E/` | a journey in a real browser, behind the `e2e` build tag; run with `aru test --e2e` |
+| `tests/Conformance/` | the framework's own kits, one line each |
+
+`tests/Connectors/` is the one directory beside them: it links no connector, to
+ask what a binary without one answers. `tests/test-layout-guard.sh` refuses any
+other directory.
 
 The split earns its keep the day the suite gets slow: `go test ./tests/Unit/` is
 the one somebody runs on every save, and it stops being that the first time a
