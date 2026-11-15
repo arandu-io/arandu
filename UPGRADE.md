@@ -90,8 +90,8 @@ page size, a page, a facet value or a hidden column nobody declared -- falls
 back to the default and never fails the request. The action hands the view the
 listing's own address (`URL`) and the `Result`; a JSON client keeps the Resource
 with `result.Page.NextPageURL()`. A request that names the table's root in
-`HX-Target` is answered with the fragment, as before, and `Vary` still names
-`Accept`, `HX-Request` and `HX-Target`.
+the target header of the old library is answered with the fragment, as before,
+and `Vary` still names `Accept` and both of its request headers.
 
 ### 4. Draw the table from the result, with one pager
 
@@ -100,9 +100,9 @@ with `result.Page.NextPageURL()`. A request that names the table's root in
 `Filters`, columns with `Sortable` and `Hideable`, and a menu per row in
 `TableRow.Actions`. The table draws its own pager: **delete the
 `components.Pagination` call** from `partials/notes_table.kyse.go` and from
-`comments/index.kyse.go`, and the wrapper element with `hx-push-url` around the
+`comments/index.kyse.go`, and the wrapper element with the old library's push-url attribute around the
 table, which the table's own controls replace. The table's root is the element
-`HX-Target` names, so `NotesTableID` is now the `DataTable`'s `ID`
+target header names, so `NotesTableID` is now the `DataTable`'s `ID`
 (`"notes-index"`) and the comments page gains `partials/comments_table.kyse.go`
 for its fragment. Rows carry a checkbox (`SelectName`); no bulk bar is drawn
 because the skeleton has no bulk endpoint -- set `BulkAction` and `BulkActions`
@@ -154,7 +154,7 @@ names; the skeleton installs none. The doctor's `request-validates-by-hand`
 and `order-by-request-value` warn about the two shapes this release removes,
 and become errors after 2026-12-15.
 
-Tests that looked for `rel="next"`, `hx-target="#notes-table"` or the `Next` and
+Tests that looked for `rel="next"`, the old library's target attribute with `#notes-table` or the `Next` and
 `Previous` links now look for the table's pager (`data-step`, `Go to next page`,
 `Go to previous page`) and its root `id="notes-index"`.
 
@@ -440,7 +440,7 @@ of failing, as it did before.
 
 - `tests/TestCase.go` gains `tests.FromPage` and `tests.CSRFTokenFromPage`,
   which lived in the example's tests. A project that deleted the example and
-  writes through htmx in a test copies the two functions from this release's
+  writes through the old library in a test copies the two functions from this release's
   `tests/TestCase.go`.
 - The example resource now pages its listings with `components.Pagination`,
   offers Edit, Delete and Publish only to whoever the policy allows
