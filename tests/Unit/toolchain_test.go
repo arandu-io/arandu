@@ -51,9 +51,9 @@ func manifestSection(t *testing.T, wanted string) map[string]string {
 	return out
 }
 
-func TestTheManifestRequiresTheOldestAruThatBuildsNativeAuthenticationViews(t *testing.T) {
-	if got := manifestSection(t, "arandu")["aru"]; got != "v0.35.0" {
-		t.Errorf("arandu.toml requires aru %q, want v0.35.0 for native authentication views", got)
+func TestTheManifestRequiresTheOldestAruThatBuildsTheYPYViews(t *testing.T) {
+	if got := manifestSection(t, "arandu")["aru"]; got != "v0.86.0" {
+		t.Errorf("arandu.toml requires aru %q, want v0.86.0, the first compiler that knows the ypy-* attributes the views write", got)
 	}
 }
 
