@@ -39,7 +39,7 @@ type NotesIndexData struct {
 var _ view.Layout = NotesIndexData{}
 
 // NotesTableID is the id of the table's root element: the region every control
-// of the table swaps, and what NoteController.Index reads from HX-Target to tell
+// of the table swaps, and what NoteController.Index reads from YPY-Target to tell
 // a request for the table from a request for the page.
 const NotesTableID = "notes-index"
 

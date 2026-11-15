@@ -262,10 +262,10 @@ func TestLoginFormIsServedWithACSRFToken(t *testing.T) {
 	if !strings.Contains(body, `name="_token"`) {
 		t.Error("the form carries no CSRF field")
 	}
-	// The attribute below is the single most common mistake in this stack: without
-	// it every HTMX request that changes state fails the CSRF check.
-	if !strings.Contains(body, "hx-headers") || !strings.Contains(body, "X-CSRF-Token") {
-		t.Error("the page is missing hx-headers with X-CSRF-Token")
+	// The tag below is the single most common mistake in this stack: without it
+	// every YPY request that changes state fails the CSRF check.
+	if !strings.Contains(body, `name="ypy-csrf"`) || !strings.Contains(body, "ypy-csrf.min.js") {
+		t.Error("the page is missing the ypy-csrf meta tag or the extension that sends it")
 	}
 }
 

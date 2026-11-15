@@ -224,24 +224,25 @@ func TestANoteIsRejectedByItsRulesBeforeTheServiceIsReached(t *testing.T) {
 	f.ana.Post("/notes", map[string]string{"title": strings.Repeat("a", 255)}).AssertStatus(http.StatusSeeOther)
 }
 
-// TestARejectedNoteFromHTMXIsANavigationBack: the create form posts with
-// hx-post, and htmx discards a 4xx body by default. What it does follow is
-// HX-Redirect, as a full navigation -- so the answer is the same redirect back
-// to the form, spelled the way htmx reads it, with no body to swap.
-func TestARejectedNoteFromHTMXIsANavigationBack(t *testing.T) {
+// TestARejectedNoteFromYPYIsANavigationBack: the create form posts with
+// ypy-post, and YPY would swap a 4xx body into its target. What it follows
+// without swapping anything is YPY-Redirect on a 204, as a full navigation --
+// so the answer is the same redirect back to the form, spelled the way YPY
+// reads it, with no body to swap.
+func TestARejectedNoteFromYPYIsANavigationBack(t *testing.T) {
 	f := newNotesFixture(t)
 
 	f.ana.Get("/notes/create").AssertOk()
-	rejected := f.ana.WithHeader("HX-Request", "true").WithHeader("Referer", "/notes/create").
+	rejected := f.ana.WithHeader("YPY-Request", "true").WithHeader("Referer", "/notes/create").
 		Post("/notes", untitled)
-	f.ana.WithHeader("HX-Request", "").WithHeader("Referer", "")
+	f.ana.WithHeader("YPY-Request", "").WithHeader("Referer", "")
 
 	rejected.AssertStatus(http.StatusNoContent).AssertRedirect("/notes/create")
 	if body := rejected.GetContent(); body != "" {
-		t.Errorf("the HTMX answer to a rejected form has a body htmx would swap in before navigating: %q", body)
+		t.Errorf("the YPY answer to a rejected form has a body YPY would swap in before navigating: %q", body)
 	}
 
-	// The navigation htmx makes is an ordinary GET, and it finds the messages.
+	// The navigation YPY makes is an ordinary GET, and it finds the messages.
 	f.ana.WithHeader("Accept", "text/html").Get("/notes/create").AssertOk().
 		AssertSee("Kept as typed.").AssertSee("is required")
 	if got := f.count(t); got != 0 {
@@ -287,9 +288,9 @@ func TestARejectedNoteFromAJSONClientIsAProblemDocument(t *testing.T) {
 // TestTheNotesTableIsAnsweredAloneOnlyToTheElementThatAsksForIt.
 //
 // The listing's address has two representations. The table alone goes to the
-// one request that asks for it: htmx naming the table's element as the target
+// one request that asks for it: YPY naming the table's element as the target
 // it will replace. Every other request -- a direct visit, a boosted link, a
-// history restore, an htmx request aimed at another element -- gets the whole
+// history restore, a YPY request aimed at another element -- gets the whole
 // document, because each of them replaces the page, and a reload of any of
 // them has to show the same thing.
 func TestTheNotesTableIsAnsweredAloneOnlyToTheElementThatAsksForIt(t *testing.T) {
@@ -311,7 +312,7 @@ func TestTheNotesTableIsAnsweredAloneOnlyToTheElementThatAsksForIt(t *testing.T)
 		}
 		answer.AssertOk().AssertSee("Groceries")
 		vary := answer.Header("Vary")
-		for _, header := range []string{"HX-Request", "HX-Target"} {
+		for _, header := range []string{"YPY-Request", "YPY-Target"} {
 			if !strings.Contains(vary, header) {
 				t.Errorf("%s: Vary = %q, and the answer depends on %s: "+
 					"a cache that is not told can hand one representation to a request for the other", kind, vary, header)
@@ -325,10 +326,10 @@ func TestTheNotesTableIsAnsweredAloneOnlyToTheElementThatAsksForIt(t *testing.T)
 		headers map[string]string
 	}{
 		{"a direct visit", nil},
-		{"a boosted link", map[string]string{"HX-Request": "true", "HX-Boosted": "true"}},
-		{"a history restore", map[string]string{"HX-Request": "true", "HX-History-Restore-Request": "true"}},
-		{"an htmx request for another element", map[string]string{"HX-Request": "true", "HX-Target": "main"}},
-		{"the table's target named without htmx", map[string]string{"HX-Target": "notes-index"}},
+		{"a boosted link", map[string]string{"YPY-Request": "true", "YPY-Boosted": "true"}},
+		{"a history restore", map[string]string{"YPY-Request": "true", "YPY-History-Restore-Request": "true"}},
+		{"a YPY request for another element", map[string]string{"YPY-Request": "true", "YPY-Target": "div#main"}},
+		{"the table's target named without YPY", map[string]string{"YPY-Target": "div#notes-index"}},
 	} {
 		page := asks(request.kind, request.headers)
 		if !strings.Contains(page, "<html") || !strings.Contains(page, table) {
@@ -336,7 +337,7 @@ func TestTheNotesTableIsAnsweredAloneOnlyToTheElementThatAsksForIt(t *testing.T)
 		}
 	}
 
-	fragment := strings.TrimSpace(asks("the table's own request", map[string]string{"HX-Request": "true", "HX-Target": "notes-index"}))
+	fragment := strings.TrimSpace(asks("the table's own request", map[string]string{"YPY-Request": "true", "YPY-Target": "div#notes-index"}))
 	if strings.Contains(fragment, "<html") || !strings.HasPrefix(fragment, "<div") || !strings.Contains(fragment, table) {
 		t.Errorf("the table's own request was not answered with the table alone:\n%s", fragment)
 	}
@@ -351,10 +352,10 @@ func TestAnotherMembersNoteIsReadButNotChanged(t *testing.T) {
 	// the edit form is refused rather than drawn for a submission that would
 	// be.
 	f.ana.Get(address).AssertOk().AssertSee("Bea&#39;s plan").
-		AssertDontSee(address + "/edit").AssertDontSee(`hx-delete="` + address).AssertDontSee(address + "/publish")
+		AssertDontSee(address + "/edit").AssertDontSee(`ypy-delete="` + address).AssertDontSee(address + "/publish")
 	f.ana.Get(address + "/edit").AssertStatus(http.StatusForbidden)
 	f.bea.Get(address).AssertOk().
-		AssertSee(address + "/edit").AssertSee(`hx-delete="` + address).AssertSee(address + "/publish")
+		AssertSee(address + "/edit").AssertSee(`ypy-delete="` + address).AssertSee(address + "/publish")
 	f.bea.Get(address + "/edit").AssertOk()
 	ana := tests.FromPage(t, f.ana, address)
 	ana.Put(address, map[string]string{"title": "Ana's now"}).AssertStatus(http.StatusForbidden)
@@ -896,7 +897,7 @@ func TestTheNotePagesSayTheirLinesThroughTheCatalogue(t *testing.T) {
 }
 
 // TestTheListingIsPagedByTheTablesPager: a listing longer than one page draws
-// the table's own pager -- a real address for the next page, which htmx fetches
+// the table's own pager -- a real address for the next page, which YPY fetches
 // into the table's element -- and the second page steps back to the first. The
 // steps with nowhere to go are disabled and carry no address.
 func TestTheListingIsPagedByTheTablesPager(t *testing.T) {
@@ -912,7 +913,7 @@ func TestTheListingIsPagedByTheTablesPager(t *testing.T) {
 	}
 
 	first := f.ana.Get("/notes").AssertOk().GetContent()
-	for _, want := range []string{`href="/notes?page=2"`, `hx-get="/notes?page=2"`, `hx-target="#notes-index"`, `hx-push-url="true"`, "Page 1 of 2"} {
+	for _, want := range []string{`href="/notes?page=2"`, `ypy-get="/notes?page=2"`, `ypy-target="#notes-index"`, `ypy-push-url="true"`, "Page 1 of 2"} {
 		if !strings.Contains(first, want) {
 			t.Errorf("the first page of 26 notes has no %s in its pager", want)
 		}
@@ -921,13 +922,13 @@ func TestTheListingIsPagedByTheTablesPager(t *testing.T) {
 		t.Errorf("the first page steps back to a page before it: %s", previous)
 	}
 
-	second := f.ana.WithHeader("HX-Request", "true").WithHeader("HX-Target", "notes-index").Get("/notes?page=2")
-	f.ana.WithHeader("HX-Request", "").WithHeader("HX-Target", "")
+	second := f.ana.WithHeader("YPY-Request", "true").WithHeader("YPY-Target", "div#notes-index").Get("/notes?page=2")
+	f.ana.WithHeader("YPY-Request", "").WithHeader("YPY-Target", "")
 	table := second.AssertOk().GetContent()
 	next, previous := tagWith(table, `data-step="next"`), tagWith(table, `data-step="previous"`)
 	if strings.Contains(table, "<html") || !strings.Contains(table, "Page 2 of 2") ||
 		!strings.Contains(next, `aria-disabled="true"`) || strings.Contains(next, "href=") ||
-		!strings.Contains(previous, `hx-get="/notes"`) {
+		!strings.Contains(previous, `ypy-get="/notes"`) {
 		t.Errorf("the second page, asked for by the pager, is not the table alone stepping back only:\n%s", table)
 	}
 }

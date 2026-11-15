@@ -69,7 +69,8 @@ var (
 // Index renders the listing the request describes: the query string is the
 // state of the list, read through the service's declared listing and nothing
 // else. It answers the whole page, except to the request the table makes --
-// htmx naming the table's element in HX-Target -- which gets the table alone.
+// YPY naming the table's element in YPY-Target (tag#id) -- which gets the table
+// alone.
 func (c *CommentController) Index(ctx *hhttp.Context) error {
 	// The note the person navigated to. The service loads it under
 	// its own policy and lists by the one it loaded.
@@ -82,7 +83,7 @@ func (c *CommentController) Index(ctx *hhttp.Context) error {
 	}
 
 	// The answer depends on the headers that choose the table or the page.
-	ctx.Response.Header().Add("Vary", "HX-Request, HX-Target")
+	ctx.Response.Header().Add("Vary", "YPY-Request, YPY-Target")
 	rows := make([]views.CommentRow, 0, len(found))
 	for _, co := range found {
 		row := c.row(ctx, co)
@@ -100,7 +101,7 @@ func (c *CommentController) Index(ctx *hhttp.Context) error {
 		Result:   result,
 	}
 
-	if ctx.IsHTMX() && ctx.Header("HX-Target") == views.CommentsTableID {
+	if ctx.IsYPY() && ctx.Targets(views.CommentsTableID) {
 		return ctx.Fragment(http.StatusOK, "partials.comments_table", data)
 	}
 	return ctx.View("comments.index", data)

@@ -10,9 +10,9 @@ import "github.com/arandu-io/hesape/view"
 // NotesShowData is what NoteController.Show hands this page.
 type NotesShowData struct {
 	// Page is the state the layout draws, the CSRF token included. The delete
-	// button sends no token of its own: an hx-delete carries no form body, so
-	// the header is what reaches the server, and the hx-headers the layout puts
-	// on <body> is inherited by every htmx request on the page.
+	// button sends no token of its own: a ypy-delete carries no form body, so
+	// the header is what reaches the server, and the ypy-csrf extension sends it
+	// from the meta tag the layout writes on every request that is not a GET.
 	view.Page
 	// Note is the record.
 	Note NoteRow
@@ -61,7 +61,7 @@ var _ view.Layout = NotesShowData{}
 				<a class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900" href="{{ .EditURL }}">{{ .Trans("notes.edit") }}</a>
 			@endif
 			@if(d.DeleteURL != "")
-				<button class="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950" type="button" hx-delete="{{ .DeleteURL }}" hx-confirm="{{ .Trans("notes.delete.confirm") }}">{{ .Trans("notes.delete") }}</button>
+				<button class="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950" type="button" ypy-delete="{{ .DeleteURL }}" ypy-confirm="{{ .Trans("notes.delete.confirm") }}">{{ .Trans("notes.delete") }}</button>
 			@endif
 		</div>
 	</div>

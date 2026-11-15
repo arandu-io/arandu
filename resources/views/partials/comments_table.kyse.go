@@ -20,7 +20,7 @@ type CommentsTableData = comments.CommentsIndexData
 @endgo
 
 {{-- The table alone: its root element is the region every control swaps. The
-     controller answers a request that names it in HX-Target with this file and
+     controller answers a request that names it in YPY-Target with this file and
      nothing around it, and every other request to the same address with the
      whole page. The table draws its own pager, and there is no other. --}}
 {!! components.DataTable(comments.CommentIndexTable(.)) !!}

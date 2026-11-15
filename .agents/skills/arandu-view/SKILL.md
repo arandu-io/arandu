@@ -1,6 +1,6 @@
 ---
 name: arandu-view
-description: Write or change a page, layout, template, HTML fragment or component usage in an Arandu (Go) application -- anything under resources/views. Use when the request is to "add a page", "change the layout", "make a form", "render a list", "style this", "load this part with htmx", or when a fragment, hx-get, hx-target, @include or a partial is involved. The templates are .kyse.go files compiled to Go, and the syntax, the escaping rules and the Content-Security-Policy constraints are not the ones any other template engine uses. Covers @extends, @section, @foreach, the typed data struct, page against fragment, escaped versus raw interpolation, and why an inline style or an Alpine attribute will not work.
+description: Write or change a page, layout, template, HTML fragment or component usage in an Arandu (Go) application -- anything under resources/views. Use when the request is to "add a page", "change the layout", "make a form", "render a list", "style this", "load this part with YPY", or when a fragment, ypy-get, ypy-target, @include or a partial is involved. The templates are .kyse.go files compiled to Go, and the syntax, the escaping rules and the Content-Security-Policy constraints are not the ones any other template engine uses. Covers @extends, @section, @foreach, the typed data struct, page against fragment, escaped versus raw interpolation, and why an inline style or an Alpine attribute will not work.
 license: MIT
 ---
 
@@ -8,7 +8,7 @@ license: MIT
 
 ## When to use
 
-A page a person navigates to, a part of one that htmx replaces, a form, a
+A page a person navigates to, a part of one that YPY replaces, a form, a
 component call, the layout. The action that renders it is `arandu-http`; a JSON
 answer is `arandu-api`.
 
@@ -87,19 +87,19 @@ The directives are a closed set: `@extends` `@section`/`@endsection` `@yield`
    The build tag keeps the compiler out of the file: Go reads the constraint
    and never parses the markup below the package clause.
 2. **Decide page or fragment.** Every navigation -- a direct visit, a link the
-   layout's `hx-boost` turned into an htmx request, a history restore -- gets
-   the whole document, and the answer never changes on `HX-Boosted`, so a
+   layout's `ypy-boost:inherited` turned into a YPY request, a history restore -- gets
+   the whole document, and the answer never changes on `YPY-Boosted`, so a
    reload shows the same page. A fragment is what one element asks for on
-   purpose, with `hx-get` or `hx-post` and an `hx-target` naming the element it
+   purpose, with `ypy-get` or `ypy-post` and an `ypy-target` naming the element it
    replaces; it lives in `partials/` and the page includes it.
-3. **Answer it from the controller** with the fragment only when `ctx.IsHTMX()`
-   and `ctx.Header("HX-Target")` names that element, the page otherwise, and
-   `Vary: HX-Request, HX-Target` on both.
+3. **Answer it from the controller** with the fragment only when `ctx.IsYPY()`
+   and `ctx.Targets(id)` names that element (the header carries `tag#id`), the page otherwise, and
+   `Vary: YPY-Request, YPY-Target` on both.
 4. **Build, compile, check:** `aru view:build` names the template's line,
    `go build ./...` the Go's, `aru doctor` the escaping's.
 
 A rejected form is not a fragment. The action returns the `validation.Errors`,
-the router sends the browser back to the form -- htmx follows that as a
+the router sends the browser back to the form -- YPY follows that as a
 navigation -- and the page after it shows the messages through `view.New`. The
 sign-in screens of `go run github.com/arandu-io/ui@v0.20.0 auth` follow the same
 rule: a rejected sign-in is a redirect back to its screen, and a password never
@@ -141,8 +141,8 @@ func Listing(ctx *hhttp.Context, rows []views.NoteRow, result *pagination.Listin
 		URL:    ctx.URL("notes.index"),
 		Result: result,
 	}
-	ctx.Response.Header().Add("Vary", "HX-Request, HX-Target")
-	if ctx.IsHTMX() && ctx.Header("HX-Target") == views.NotesTableID {
+	ctx.Response.Header().Add("Vary", "YPY-Request, YPY-Target")
+	if ctx.IsYPY() && ctx.Targets(views.NotesTableID) {
 		return ctx.Fragment(http.StatusOK, "partials.notes_table", data)
 	}
 	return ctx.View("notes.index", data)
@@ -163,11 +163,11 @@ func Listing(ctx *hhttp.Context, rows []views.NoteRow, result *pagination.Listin
 - Write an `x-` attribute, an `@click` or Alpine: it is not served, the pages
   run under `script-src 'self'` with no `unsafe-eval`, and `aru doctor` fails
   it as `view-keeps-state-in-the-browser`.
-- Interpolate into an attribute the browser runs (`on*`, `hx-on*`): the
+- Interpolate into an attribute the browser runs (`on*`, `ypy-on*`): the
   compiler refuses it. Data travels in a `data-*` attribute.
 - Write `style="..."`: `style-src 'self'` drops it. Use a class.
 - Answer a fragment from a view outside `partials/` (`fragment-without-partial`),
-  or decide by `HX-Boosted`.
+  or decide by `YPY-Boosted`.
 - Add a JavaScript dependency, a `package.json` or a CDN. `resources/js/custom.js`
   is the one script, served as written; `tests/Unit/resources_test.go` fails on
   any other.
@@ -191,8 +191,8 @@ are never registered and the first request says so.
 - A feature test that loads each page and sees what it draws.
 - For an address with a fragment, the matrix of
   `TestTheNotesTableIsAnsweredAloneOnlyToTheElementThatAsksForIt`: a direct
-  visit, a boosted link, a history restore, an htmx request for another
-  element and the target named without htmx all get the whole document; the
+  visit, a boosted link, a history restore, a YPY request for another
+  element and the target named without YPY all get the whole document; the
   element's own request gets the fragment alone; every answer carries the
   `Vary`.
 - For a page with no fragment, the shape of `TestTheCommentPagesAreWholeDocuments`.

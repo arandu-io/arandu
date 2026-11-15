@@ -11,12 +11,13 @@ import (
 	"github.com/arandu-io/arandu/tests"
 )
 
-// There is one way the CSRF token reaches an HTMX request, and it is the
-// hx-headers attribute on <body>. The layout the starter kit publishes carries it,
-// the framework's own sign-in page carries it, and the error page names it by
-// that string when a write is rejected.
+// There is one way the CSRF token reaches a YPY request, and it is the
+// ypy-csrf meta tag in the head, which the ypy-csrf extension the runtime embeds
+// reads and sends as the X-CSRF-Token header. The layout the starter kit
+// publishes carries it, the framework's own sign-in page carries it, and the
+// error page names the header when a write is rejected.
 //
-// A resources/js/app.js attaching the same header from a htmx:configRequest
+// A resources/js/app.js attaching the same header from a ypy:config:request
 // listener would be a second answer to a question that already has one. This
 // test is what keeps it out.
 
@@ -51,7 +52,7 @@ func TestResourcesHoldOneJavaScriptFile(t *testing.T) {
 		found[rel] = true
 		if rel != only {
 			t.Errorf("%s is never built, embedded or served: `aru view:build` compiles .kyse.go and .css, "+
-				"the CSRF token travels in hx-headers on <body>, and %s is the one script this project serves", rel, only)
+				"the CSRF token travels in the ypy-csrf meta tag, and %s is the one script this project serves", rel, only)
 		}
 		return nil
 	})
@@ -287,7 +288,7 @@ func tagBodies(source string) []string {
 }
 
 // closingBracket answers where a tag ends, ignoring a bracket inside a quoted
-// value -- the htmx-config meta carries several.
+// value -- the ypy-config meta carries several.
 func closingBracket(source string, from int) (int, bool) {
 	var quote byte
 

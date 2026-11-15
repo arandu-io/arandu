@@ -40,7 +40,7 @@ var _ view.Layout = CommentsIndexData{}
 
 // CommentsTableID is the id of the table's root element: the region every
 // control of the table swaps, and what CommentController.Index reads from
-// HX-Target to tell a request for the table from a request for the page.
+// YPY-Target to tell a request for the table from a request for the page.
 const CommentsTableID = "comments-index"
 
 // CommentRow is one record, formatted by the controller: what the listing

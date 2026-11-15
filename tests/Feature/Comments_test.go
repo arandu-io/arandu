@@ -143,8 +143,8 @@ func TestTheCommentPagesAreWholeDocuments(t *testing.T) {
 			headers map[string]string
 		}{
 			{"a direct visit", nil},
-			{"a boosted link", map[string]string{"HX-Request": "true", "HX-Boosted": "true"}},
-			{"a history restore", map[string]string{"HX-Request": "true", "HX-History-Restore-Request": "true"}},
+			{"a boosted link", map[string]string{"YPY-Request": "true", "YPY-Boosted": "true"}},
+			{"a history restore", map[string]string{"YPY-Request": "true", "YPY-History-Restore-Request": "true"}},
 		} {
 			for name, value := range request.headers {
 				f.ana.WithHeader(name, value)

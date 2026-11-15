@@ -71,8 +71,8 @@ var (
 // declare falls back to its default, so no request fails or reaches the query
 // for what it carries.
 //
-// It answers the whole page, except to the request the table makes: htmx names
-// the element it will replace in HX-Target, and that request gets the table
+// It answers the whole page, except to the request the table makes: YPY names
+// the element it will replace in YPY-Target (tag#id), and that request gets the table
 // alone, drawn from the same partial the page includes. A direct visit, a
 // boosted link and a history restore name no such target, so each of them gets
 // the page, layout and title included, and a reload shows what was on screen.
@@ -92,7 +92,7 @@ func (c *NoteController) Index(ctx *hhttp.Context) error {
 		return err
 	}
 
-	ctx.Response.Header().Add("Vary", "Accept, HX-Request, HX-Target")
+	ctx.Response.Header().Add("Vary", "Accept, YPY-Request, YPY-Target")
 	if ctx.WantsJSON() {
 		return ctx.JSON(http.StatusOK, resources.NewNoteCollection(found).Next(result.Page.NextPageURL()))
 	}
@@ -114,7 +114,7 @@ func (c *NoteController) Index(ctx *hhttp.Context) error {
 		Result: result,
 	}
 
-	if ctx.IsHTMX() && ctx.Header("HX-Target") == views.NotesTableID {
+	if ctx.IsYPY() && ctx.Targets(views.NotesTableID) {
 		return ctx.Fragment(http.StatusOK, "partials.notes_table", data)
 	}
 	return ctx.View("notes.index", data)

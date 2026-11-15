@@ -49,7 +49,7 @@ var _ view.Layout = CommentsCreateData{}
 
 	<h1 class="mt-2 text-3xl font-semibold tracking-tight">{{ .Title }}</h1>
 
-	<form class="mt-8 space-y-6" method="post" action="{{ .StoreURL }}" hx-post="{{ .StoreURL }}">
+	<form class="mt-8 space-y-6" method="post" action="{{ .StoreURL }}" ypy-post="{{ .StoreURL }}">
 		@csrf
 		
 		{!! components.Textarea(components.TextareaProps{

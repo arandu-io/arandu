@@ -68,7 +68,7 @@ var _ hcontrollers.Indexer = (*HomeController)(nil)
 // view.Page is the chrome the layout draws, embedded rather than repeated.
 // view.New fills the title, the flash and the CSRF token the middleware issued
 // for this request -- the token every write from this page carries, in the
-// sign-out form and in hx-headers. It fills the brand with the application
+// sign-out form and in the ypy-csrf meta tag. It fills the brand with the application
 // name the framework puts on every request, and this controller reads the same
 // name off the request for the page's title. It also fills the navigation's
 // addresses from the route table, by name, and none of them is written here:
@@ -109,7 +109,7 @@ func (c *HomeController) Index(ctx *hhttp.Context) error {
 			},
 			{
 				Title: "One view, one runtime, one build",
-				Body:  "kyse for markup, HTMX for interaction, Go for everything else. No Node, no bundler, no lockfile.",
+				Body:  "kyse for markup, YPY for interaction, Go for everything else. No Node, no bundler, no lockfile.",
 			},
 			{
 				Title: "The tenant comes from the Grant",

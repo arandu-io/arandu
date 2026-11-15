@@ -3,7 +3,7 @@
  * Both appear beside a control on hover and on focus, and both are drawn from
  * the trigger's own hover state rather than from a script -- so there is no
  * timer to leak, no listener to remove and nothing to clean up when the
- * trigger is swapped away by HTMX.
+ * trigger is swapped away by YPY.
  *
  * On focus as well as hover, always. A tip that appears only under a pointer
  * is a tip nobody using a keyboard ever sees, and it is usually where the only

@@ -46,10 +46,10 @@ var _ view.Layout = CommentsEditData{}
 
 	<h1 class="mt-2 text-3xl font-semibold tracking-tight">{{ .Title }}</h1>
 
-	<!-- hx-put, and no action: a browser form can only send GET and POST, and
-	the update route is PUT. HTMX sends the real method, which is why this
+	<!-- ypy-put, and no action: a browser form can only send GET and POST, and
+	the update route is PUT. YPY sends the real method, which is why this
 	stack does not need a hidden _method field. -->
-	<form class="mt-8 space-y-6" hx-put="{{ .UpdateURL }}">
+	<form class="mt-8 space-y-6" ypy-put="{{ .UpdateURL }}">
 		@csrf
 		
 		{!! components.Textarea(components.TextareaProps{

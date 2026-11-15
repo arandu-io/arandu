@@ -16,17 +16,22 @@ import "github.com/arandu-io/kyse/components"
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 
-	{{-- htmx writes a <style> element for its request indicators unless told
-	     not to, and style-src 'self' refuses an inline one. The rules are in
-	     app.css instead.
+	{{-- YPY writes a stylesheet for its request indicators unless told not to,
+	     and style-src 'self' refuses an inline one. The rules are in app.css
+	     instead.
 
-	     Its table of response handling is left at the default on purpose. A
+	     The rest of its configuration is left at the default on purpose. A
 	     rejected form is not answered with a 422 to swap: the router sends it
-	     back with a redirect, which htmx follows as a navigation, so the page
+	     back with a redirect, which YPY follows as a navigation, so the page
 	     after it is a page and a reload asks for that page rather than posting
-	     the form again. A layout that taught htmx to swap a 422 would be a
-	     second way to answer the same rejection. --}}
-	<meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
+	     the form again. A layout that configured YPY to swap a refusal in place
+	     would be a second way to answer the same rejection. --}}
+	<meta name="ypy-config" content='{"includeIndicatorCSS":false}'>
+	{{-- The token the ypy-csrf extension sends as X-CSRF-Token on every
+	     same-origin request that is not a GET, whatever element started it. It
+	     renews the token from the YPY-CSRF header of a response, and a form
+	     posted without scripts carries the hidden _token field instead. --}}
+	<meta name="ypy-csrf" content="{{ .CSRFToken() }}">
 	<title>{{ .PageTitle() }}</title>
 	<link rel="icon" href="/favicon.ico" sizes="any">
 	<link rel="icon" href="/favicon.png" type="image/png">
@@ -51,7 +56,8 @@ import "github.com/arandu-io/kyse/components"
 	     CDN, because the CSP is script-src 'self'; no build directory, because
 	     there is no bundler to write one (RULE 13). -->
 	<link rel="stylesheet" href="{{ view.Asset("app.css") }}">
-	<script src="{{ view.Asset("htmx.min.js") }}" defer></script>
+	<script src="{{ view.Asset("ypy.min.js") }}" defer></script>
+	<script src="{{ view.Asset("ypy-csrf.min.js") }}" defer></script>
 	<script src="{{ view.Asset("ui.js") }}" defer></script>
 	<script src="{{ view.Asset("basecoat.bundle.js") }}" defer></script>
 
@@ -67,9 +73,11 @@ import "github.com/arandu-io/kyse/components"
 	     once, before there is a page to react on. -->
 	<script src="{{ view.Asset("theme.js") }}"></script>
 </head>
-<!-- hx-headers is load-bearing: without it every hx-post fails the CSRF check,
-     and the failure reads like a broken session rather than a missing attribute. -->
-<body hx-boost="true" hx-headers='{"X-CSRF-Token": "{{ .CSRFToken() }}"}' class="bg-background text-foreground min-h-full antialiased">
+<!-- ypy-boost:inherited is load-bearing: YPY passes an attribute to its
+     descendants only when it is told to, so without it every link is a full
+     page load. The token is not here: the ypy-csrf meta tag in the head carries
+     it, and the extension sends it on every request that changes state. -->
+<body ypy-boost:inherited="true" class="bg-background text-foreground min-h-full antialiased">
 	<div class="mx-auto flex min-h-full w-full max-w-3xl flex-col px-6">
 		{{-- Every link below is drawn only when its address is not empty. The
 		     addresses come from the route table, filled by view.New under the
@@ -120,7 +128,7 @@ import "github.com/arandu-io/kyse/components"
 		     lands on -- a direct visit and a boosted navigation alike, since both
 		     get this whole document. With nothing flashed it draws nothing. An
 		     endpoint that answers in place returns a toast fragment with
-		     hx-swap="beforeend" on this element; the vendored script arms whatever
+		     ypy-swap="beforeend" on this element; the vendored script arms whatever
 		     appears inside it. -->
 		<div id="toaster" class="toaster" aria-live="polite">
 			{!! components.Toast(components.ToastProps{Page: ., Dismissible: true}) !!}

@@ -91,7 +91,7 @@ Beyond the eleven steps, each in the example:
 | a rejected form | the `validation.Errors` the service returns; the router answers it | the router | a 422 written by a controller |
 | a page | a view with `@extends('layouts.app')` and a struct that embeds `view.Page` | a controller, with `ctx.View` | take a map as its data |
 | a table of records | `components.DataTable`, drawn from the `*pagination.ListingResult` the service returned (`Result`, `Searchable`, `FullPager`, columns with `Sortable` and `Hideable`) | the page and its fragment | draw `components.Pagination` beside it, build an address from loose parameters, or sort and filter the rows in hand |
-| an htmx fragment | `resources/views/partials/`, included by its page with `@include` | a controller, with `ctx.Fragment`, for the request whose `HX-Target` names it | depend on `HX-Boosted` |
+| a YPY fragment | `resources/views/partials/`, included by its page with `@include` | a controller, with `ctx.Fragment`, for the request whose `YPY-Target` (`tag#id`) names it | depend on `YPY-Boosted` |
 | a tool, resource or prompt for an assistant | `app/Mcp/` | the MCP server mounted in `routes/web.go` | reach a model or a client |
 | a helper | the package functions of `github.com/arandu-io/hesape` | anything | be written again here |
 | CPF, CNPJ, BRL | the `github.com/hyz-is/arandu-br` module | a request, a view | be written again here |
@@ -161,7 +161,7 @@ The kit is `github.com/arandu-io/framework/test`. `framework/arandutest` and
 | `tests/Unit` | one rule, with nothing running | `go test ./tests/Unit/` |
 | `tests/Feature` | the HTTP answer in process, the policy, the JSON, the outbox, the commands | `go test ./tests/Feature/`, over `tests.Serve` |
 | `tests/Contract` | the answers against the exported OpenAPI document, with `framework/test/openapi` | none yet: this project exports no document |
-| `tests/E2E` | the journey: server, database, Chrome, JavaScript and htmx | `aru test --e2e` |
+| `tests/E2E` | the journey: server, database, Chrome, JavaScript and YPY | `aru test --e2e` |
 | `tests/Conformance` | the framework's kits, one line each | `go test ./tests/Conformance/`; the session matrix with `-tags authui` once `ui auth` published the screens |
 
 `tests/Connectors` is the one directory beside them: it links no connector, to
@@ -196,7 +196,7 @@ refuses any other directory, `tests/Browser` by name, and a file in
   `browser.CSS` only with the reason no other locator can say it. Visit by route
   name: `page.Visit("notes.create")`.
 - **Waits.** There are none to write. Each action waits for its element to be
-  visible, enabled and still, then for htmx to settle and the network to go
+  visible, enabled and still, then for YPY to settle and the network to go
   idle; each expectation retries until it holds. The page fails by itself on
   an uncaught exception, a `console.error`, a 5xx and a CSP violation, and
   `page.Responsive()` on overflow at 1440, 768, 390 and 320 in both schemes.

@@ -4,7 +4,7 @@
 // boots on a port of its own, over a database on the engine the test
 // environment names, driven in a real browser by a driver of tests.Drivers.
 // Each one is written in the user's words -- roles, labels, visible text --
-// and the page waits by itself for htmx to settle and the network to go idle,
+// and the page waits by itself for YPY to settle and the network to go idle,
 // and fails by itself on an uncaught exception, a console error, a 5xx and a
 // CSP violation.
 //

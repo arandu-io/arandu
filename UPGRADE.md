@@ -10,6 +10,65 @@ comment or a test that is the skeleton's own is not.
 
 ---
 
+## Unreleased -- the skeleton speaks YPY
+
+The layout, the pages and the tests use YPY as their request library, with its
+native behaviour and no compatibility layer. A project cloned from an earlier
+skeleton moves the same way: it needs the framework, hesape and kyse releases
+that embed YPY, the `aru` of the same move, and then the steps below. `ypy check .`
+lists what breaks and what only behaves differently, and `ypy migrate --write .`
+converts the names; the list after it is worked through by hand.
+
+**The layout** (`resources/views/layouts/app.kyse.go`)
+
+- The head carries `<meta name="ypy-csrf" content="{{ .CSRFToken() }}">`, and
+  the scripts load in this order: `ypy.min.js`, `ypy-csrf.min.js`, `ui.js`. The
+  extension sends the token as `X-CSRF-Token` on every same-origin request that
+  is not a GET. The token attribute on `<body>` is gone, and so is any copy of it
+  in a page of the project.
+- `<body ypy-boost:inherited="true">` replaces the bare boost attribute: YPY
+  passes an attribute to its descendants only when it is told to.
+- `<meta name="ypy-config" content='{"includeIndicatorCSS":false}'>` replaces the
+  old indicator setting. The indicator rules stay in `resources/css/app.css`
+  under the `ypy-indicator` and `ypy-request` classes, which are the ones YPY
+  writes; the spinner and output components use `ypy-request` too.
+
+**Controllers and tests**
+
+- `ctx.IsYPY()` replaces the method that carried the old library's name, and the
+  request headers are `YPY-Request`, `YPY-Target`, `YPY-Boosted` and
+  `YPY-History-Restore-Request`; the answers are `YPY-Redirect` and
+  `YPY-Refresh`, and `Vary` names `YPY-Request` and `YPY-Target`.
+- `YPY-Target` carries `tag#id`, not the id. A controller asks
+  `ctx.Targets(views.NotesTableID)` instead of comparing the header with an id,
+  and a test that sends the header writes `div#notes-index`.
+- `tests.CSRFTokenFromPage` reads the `ypy-csrf` meta tag when the page has no
+  `_token` field; a test that copied the old function copies the new one.
+- A test that read a rejected form as an empty `204` with `YPY-Redirect` keeps
+  doing so: a refused form is still a redirect back, and nothing is swapped.
+
+**What YPY does by itself**
+
+- The default swap is a morph, an attribute reaches its descendants only with
+  `:inherited`, a `422` is swapped into its form, and other `4xx` and `5xx`
+  answers follow YPY's error rules (the kyse components write
+  `ypy-error-swap="none"` where an error must not replace what is on screen). A
+  `204` swaps nothing.
+- The events are `ypy:<noun>:<verb>`; a script of the project that listened to
+  the old ones follows the YPY guide and reads the element from `event.target`.
+  `ypy migrate` only changes the prefix of an event, so search for
+  `ypy:[a-z]+[A-Z]` and for `ypy:load` afterwards.
+
+**The stylesheet**
+
+`resources/css/basecoat/animations.css` is written in this project now and no
+longer carries a second notice: the keyframe names are the ones the component
+files already used, so nothing that referenced them changes. A project that kept
+the notice for the old file in `resources/css/basecoat/LICENSE.md` may delete it
+once it replaces that file with this one.
+
+---
+
 ## v0.43.0 — a list is a typed listing drawn by the data table
 
 This skeleton requires framework v0.67.0, hesape v0.88.0 and kyse v0.45.0 and

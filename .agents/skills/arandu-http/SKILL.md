@@ -165,7 +165,7 @@ func Routes(r *hcontrollers.Router, sessions *hhttp.SessionStore, note *controll
 - Restate in `Validate` a restriction `Rules()` declares -- required, a length,
   a type: `request-validates-by-hand`. It comes out in English, late, and
   drifts from the rule.
-- Answer a rejected form with a 422 of your own -- htmx discards its body and a
+- Answer a rejected form with a 422 of your own -- YPY swaps it into the form and a
   reload posts again -- or redirect to a path written as a literal:
   `invalid-form-answered-by-hand`, `redirect-to-literal-path`.
 - Load the session in a controller outside `app/Http/Controllers/Auth`:
@@ -203,7 +203,7 @@ signed in with `tests.SignIn`, which is the kit's `test.As`:
 - the success, with the status and the `Location` it redirects to;
 - another member's record (403) and another tenant's (404), for every action
   that takes an id, under the nested resource and the named action too;
-- a rejected form: 303 back with the messages, 204 with `HX-Redirect` to htmx,
+- a rejected form: 303 back with the messages, 204 with `YPY-Redirect` to YPY,
   422 problem document to JSON;
 - a guest redirected to the sign-in page, and a GET on a state-changing route
   answered 405;

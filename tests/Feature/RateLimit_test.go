@@ -74,20 +74,20 @@ func TestTheBudgetIsCountedInTheStoreTheConnectorOpened(t *testing.T) {
 			"the two replicas are counting apart, and the limit is worth %d times what it says", rec.Code, 2)
 	}
 
-	// The refusal is one a person can act on. htmx swaps no 4xx, so without
-	// HX-Refresh somebody presses the button, the screen does not change, and
-	// the limit reads as a broken page. The header is added to the answer that
+	// The refusal is one a person can act on. YPY swaps an error answer
+	// into the target of the request, so without YPY-Refresh somebody presses
+	// the button and the sentence lands in the middle of the page they were on. The header is added to the answer that
 	// needs it and to no other, so it is asked for the way a browser would ask.
 	boosted := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/robots.txt", nil)
-	request.Header.Set("HX-Request", "true")
+	request.Header.Set("YPY-Request", "true")
 	second.Kernel.Handler().ServeHTTP(boosted, request)
 
 	if boosted.Code != http.StatusTooManyRequests {
 		t.Fatalf("the boosted request answered %d, want 429", boosted.Code)
 	}
-	if boosted.Header().Get("HX-Refresh") == "" {
-		t.Error("the refusal carries no HX-Refresh, so over the limit is a button that does nothing")
+	if boosted.Header().Get("YPY-Refresh") == "" {
+		t.Error("the refusal carries no YPY-Refresh, so over the limit is a button that does nothing")
 	}
 
 	if got := rec.Header().Get("Retry-After"); got == "" {

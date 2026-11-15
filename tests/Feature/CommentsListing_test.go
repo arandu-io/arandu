@@ -122,7 +122,7 @@ func TestTheCommentsListingHasOnePagerAndPagesIt(t *testing.T) {
 		t.Error("the page draws a second pager next to the table's")
 	}
 	next := tagWith(first, `data-step="next"`)
-	for _, want := range []string{`href="` + address + `?page=2&amp;sort=body"`, `hx-target="#comments-index"`} {
+	for _, want := range []string{`href="` + address + `?page=2&amp;sort=body"`, `ypy-target="#comments-index"`} {
 		if !strings.Contains(next, want) {
 			t.Errorf("the next step has no %s: %s", want, next)
 		}
@@ -147,14 +147,14 @@ func TestTheCommentsTableIsAnsweredAloneToItsOwnRequest(t *testing.T) {
 	if body := whole.GetContent(); !strings.Contains(body, "<html") || !strings.Contains(body, `id="comments-index"`) {
 		t.Error("a direct visit was not answered with the whole page around the table")
 	}
-	for _, header := range []string{"HX-Request", "HX-Target"} {
+	for _, header := range []string{"YPY-Request", "YPY-Target"} {
 		if !strings.Contains(whole.Header("Vary"), header) {
 			t.Errorf("Vary = %q, and the answer depends on %s", whole.Header("Vary"), header)
 		}
 	}
 
-	alone := f.ana.WithHeader("HX-Request", "true").WithHeader("HX-Target", "comments-index").Get(address)
-	f.ana.WithHeader("HX-Request", "").WithHeader("HX-Target", "")
+	alone := f.ana.WithHeader("YPY-Request", "true").WithHeader("YPY-Target", "div#comments-index").Get(address)
+	f.ana.WithHeader("YPY-Request", "").WithHeader("YPY-Target", "")
 	fragment := strings.TrimSpace(alone.AssertOk().GetContent())
 	if strings.Contains(fragment, "<html") || !strings.HasPrefix(fragment, "<div") ||
 		!strings.Contains(fragment, `id="comments-index"`) || !strings.Contains(fragment, "Add coffee.") {
